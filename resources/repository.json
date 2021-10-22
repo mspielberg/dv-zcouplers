@@ -1,0 +1,6 @@
+{
+  "Releases":
+  [
+      {"Id": "ZCouplers", "Version": "0.1.0", "DownloadUrl": "https://github.com/mspielberg/dv-zcouplers/releases/download/v0.1.0/ZCouplers_0.1.0.zip"}
+  ]
+}

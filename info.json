@@ -1,0 +1,10 @@
+{
+  "Id": "ZCouplers",
+  "DisplayName": "Zeibach's Couplers",
+  "Author": "Zeibach",
+  "Version": "0.1.0",
+  "AssemblyName": "ZCouplers.dll",
+  "EntryMethod": "DvMod.ZCouplers.Main.Load",
+  "HomePage": "https://www.nexusmods.com/derailvalley/mods/???",
+  "Repository": "https://raw.githubusercontent.com/mspielberg/dv-zcouplers/master/resources/repository.json"
+}
