@@ -4,6 +4,8 @@ namespace DvMod.ZCouplers
 {
     public class Settings : UnityModManager.ModSettings, IDrawable
     {
+        [Draw("Use automatic coupling")] public bool enableAutoCouple = true;
+        [Draw("Automatic coupling distance")] public float autoCoupleRange = 0.5f;
         [Draw("Use custom couplers (changes require restart)")] public bool enableCustomCouplers = true;
         [Draw("Couple on chain hooked", VisibleOn = "enableCustomCouplers|true")] public bool coupleOnChainHooked = true;
         [Draw("Coupler strength", Min = 0.1f, VisibleOn = "enableCustomCouplers|true")] public float couplerStrength = 0.85f;

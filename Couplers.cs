@@ -263,6 +263,23 @@ namespace DvMod.ZCouplers
                 return scanner.transform.localPosition.z > 0 ? car.frontCoupler : car.rearCoupler;
             }
 
+            private static void TryCouple(Coupler coupler)
+            {
+                if (coupler.IsCoupled())
+                    return;
+                var otherCoupler = coupler.GetFirstCouplerInRange();
+                if (otherCoupler == null)
+                    return;
+                bool hoseWasConnected = coupler.hoseAndCock.IsHoseConnected;
+                bool thisCockOpen = coupler.IsCockOpen;
+                bool otherCockOpen = otherCoupler.IsCockOpen;
+                coupler.CoupleTo(otherCoupler);
+                if (!hoseWasConnected)
+                    coupler.DisconnectAirHose(true);
+                coupler.IsCockOpen = thisCockOpen;
+                otherCoupler.IsCockOpen = otherCockOpen;
+            }
+
             private static IEnumerator ReplacementCoro(CouplingScanner __instance)
             {
                 yield return null;
@@ -278,13 +295,19 @@ namespace DvMod.ZCouplers
                     Main.DebugLog(() => $"{coupler.train.ID}: MasterCoro started");
                 }
 
-                var wait = WaitFor.Seconds(1f);
+                var wait = WaitFor.Seconds(0.1f);
                 while (true)
                 {
                     yield return wait;
                     var offset = __instance.transform.InverseTransformPoint(__instance.nearbyScanner.transform.position);
                     if (Mathf.Abs(offset.x) > 1.6f || Mathf.Abs(offset.z) > 2f)
                         break;
+                    else
+                    {
+                        Main.DebugLog(() => $"{coupler.train.ID}: offset.z = {offset.z}");
+                        if (Main.settings.enableAutoCouple && Mathf.Abs(offset.z) < Main.settings.autoCoupleRange)
+                            TryCouple(coupler);
+                    }
                 }
                 __instance.Unpair(true);
             }
