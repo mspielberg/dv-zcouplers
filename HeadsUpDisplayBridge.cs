@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using UnityEngine;
 using UnityModManagerNet;
 using Formatter = System.Func<float, string>;
 using Provider = System.Func<TrainCar, float?>;
@@ -51,16 +52,47 @@ namespace DvMod.ZCouplers
             }
 
             RegisterPull(
-                "Front coupler",
+                "Front coupler stress",
                 car => car.frontCoupler.GetComponent<CouplerBreaker>()?.jointStress,
-                v => $"{v / Main.settings.couplerStrength / 1e6f:P0}",
-                hidden: true);
+                v => $"{v / Main.settings.couplerStrength / 1e6f:P0}");
 
             RegisterPull(
-                "Rear coupler",
+                "Front coupler Z",
+                car => JointDelta(car.frontCoupler)?.z,
+                v => $"{v * 1e3f:F3} mm");
+
+            RegisterPull(
+                "Front coupler length",
+                car => JointDelta(car.frontCoupler)?.magnitude,
+                v => $"{v * 1e3f:F3} mm");
+
+            RegisterPull(
+                "Rear coupler stress",
                 car => car.rearCoupler.GetComponent<CouplerBreaker>()?.jointStress,
-                v => $"{v / Main.settings.couplerStrength / 1e6f:P0}",
-                hidden: true);
+                v => $"{v / Main.settings.couplerStrength / 1e6f:P0}");
+
+            RegisterPull(
+                "Rear coupler Z",
+                car => JointDelta(car.rearCoupler)?.z,
+                v => $"{v * 1e3f:F3} mm");
+
+            RegisterPull(
+                "Rear coupler length",
+                car => JointDelta(car.rearCoupler)?.magnitude,
+                v => $"{v * 1e3f:F3} mm");
+        }
+
+        private static Vector3? JointDelta(Coupler coupler)
+        {
+            if (coupler.springyCJ == null)
+                return null;
+            return JointDelta(coupler.springyCJ, coupler.isFrontCoupler);
+        }
+
+        private static Vector3 JointDelta(Joint joint, bool isFrontCoupler)
+        {
+            var delta = joint.transform.InverseTransformPoint(joint.connectedBody.transform.TransformPoint(joint.connectedAnchor)) - joint.anchor;
+            return isFrontCoupler ? delta : -delta;
         }
     }
 }
