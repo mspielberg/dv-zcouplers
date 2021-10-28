@@ -1,10 +1,14 @@
+using System.IO;
 using HarmonyLib;
 using UnityEngine;
 
 namespace DvMod.ZCouplers
 {
-    public static class Mock
+    public static class KnuckleCouplers
     {
+        private static readonly AssetBundle bundle = AssetBundle.LoadFromFile(Path.Combine(Main.mod.Path, "knucklecoupler"));
+        private static readonly GameObject hookPrefab = bundle.LoadAsset<GameObject>("hook");
+
         [HarmonyPatch(typeof(ChainCouplerInteraction), nameof(ChainCouplerInteraction.Entry_Enabled))]
         public static class Entry_EnabledPatch
         {
@@ -47,7 +51,7 @@ namespace DvMod.ZCouplers
         }
 
         [HarmonyPatch(typeof(ChainCouplerInteraction), nameof(ChainCouplerInteraction.Exit_Attached))]
-        public static class Exit_EnabledPatch
+        public static class Exit_AttachedPatch
         {
             public static void Postfix(ChainCouplerInteraction __instance)
             {
@@ -61,19 +65,16 @@ namespace DvMod.ZCouplers
         }
 
         private const float PivotLength = 1.0f;
-        private const float ShankSize = 0.1f;
+        private const float HeightOffset = -0.067f;
         private static void CreateMocks(Coupler coupler)
         {
             var frontPivot = new GameObject("ZCouplers pivot");
             frontPivot.transform.SetParent(coupler.transform, false);
-            frontPivot.transform.localPosition = PivotLength * Vector3.back;
+            frontPivot.transform.localPosition = new Vector3(0, HeightOffset, -PivotLength);
 
-            var frontCube = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            Component.DestroyImmediate(frontCube.GetComponent<Collider>());
-            frontCube.name = "shank";
-            frontCube.transform.SetParent(frontPivot.transform, false);
-            frontCube.transform.localPosition = PivotLength * 0.5f * Vector3.forward;
-            frontCube.transform.localScale = new Vector3(ShankSize, ShankSize, PivotLength);
+            var hook = GameObject.Instantiate(hookPrefab);
+            hook.transform.SetParent(frontPivot.transform, false);
+            hook.transform.localPosition = PivotLength * Vector3.forward;
         }
     }
 }

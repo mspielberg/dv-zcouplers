@@ -19,6 +19,7 @@
     <Reference Include="DV.BrakeSystem"/>
     <Reference Include="DV.Utils"/>
     <Reference Include="Stateless"/>
+    <Reference Include="UnityEngine.AssetBundleModule"/>
     <Reference Include="UnityEngine.CoreModule"/>
     <Reference Include="UnityEngine.PhysicsModule"/>
     <Reference Include="UnityModManager"/>
