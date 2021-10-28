@@ -66,6 +66,12 @@ namespace DvMod.ZCouplers
             return chainScript.couplerAdapter.coupler.transform.Find("ZCouplers pivot");
         }
 
+        private static void SetMaterial(GameObject hook)
+        {
+            var material = TrainCar.Resolve(hook).transform.Find("[buffers]/HookPlate_F").GetComponent<MeshRenderer>().material;
+            hook.GetComponent<MeshRenderer>().material = material;
+        }
+
         private const float PivotLength = 1.0f;
         private const float HeightOffset = -0.067f;
         private static void CreateMocks(Coupler coupler)
@@ -77,6 +83,7 @@ namespace DvMod.ZCouplers
             var hook = GameObject.Instantiate(hookPrefab);
             hook.transform.SetParent(frontPivot.transform, false);
             hook.transform.localPosition = PivotLength * Vector3.forward;
+            SetMaterial(hook);
         }
     }
 }
