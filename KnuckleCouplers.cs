@@ -23,7 +23,7 @@ namespace DvMod.ZCouplers
         {
             public static void Postfix(ChainCouplerInteraction __instance)
             {
-                GameObject.Destroy(GetPivot(__instance).gameObject);
+                GameObject.Destroy(GetPivot(__instance)?.gameObject);
             }
         }
 
@@ -31,7 +31,9 @@ namespace DvMod.ZCouplers
         {
             t1.localEulerAngles = Vector3.zero;
             var offset = t1.InverseTransformPoint(t2.position);
-            var angle = Vector3.SignedAngle(Vector3.forward, offset, Vector3.up);
+            var angle = Mathf.Atan2(offset.x, offset.z) * Mathf.Rad2Deg;
+            // offset.y = 0f;
+            // var angle = Vector3.SignedAngle(Vector3.forward, offset, Vector3.up);
             t1.localEulerAngles = new Vector3(0, angle, 0);
         }
 
