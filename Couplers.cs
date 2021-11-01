@@ -8,7 +8,7 @@ namespace DvMod.ZCouplers
 {
     public static class Couplers
     {
-        private static readonly bool enabled = Main.settings.enableCustomCouplers;
+        private static readonly bool enabled = true;
 
         private const float ChainSpring = 2e7f; // ~1,200,000 lb/in
         private const float LooseChainLength = 1.1f;
@@ -280,6 +280,7 @@ namespace DvMod.ZCouplers
                 otherCoupler.IsCockOpen = otherCockOpen;
             }
 
+            private const float AutoCoupleRange = 0.495f;
             private static IEnumerator ReplacementCoro(CouplingScanner __instance)
             {
                 yield return null;
@@ -301,11 +302,13 @@ namespace DvMod.ZCouplers
                     yield return wait;
                     var offset = __instance.transform.InverseTransformPoint(__instance.nearbyScanner.transform.position);
                     if (Mathf.Abs(offset.x) > 1.6f || Mathf.Abs(offset.z) > 2f)
+                    {
                         break;
+                    }
                     else
                     {
-                        Main.DebugLog(() => $"{coupler.train.ID}: offset.z = {offset.z}");
-                        if (Main.settings.enableAutoCouple && Mathf.Abs(offset.z) < Main.settings.autoCoupleRange)
+                        Main.DebugLog(coupler.train, () => $"{coupler.train.ID}: offset.z = {offset.z}");
+                        if (Main.settings.couplerType == CouplerType.JanneyKnuckle && Mathf.Abs(offset.z) < AutoCoupleRange)
                             TryCouple(coupler);
                     }
                 }

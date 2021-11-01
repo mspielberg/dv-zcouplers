@@ -2,16 +2,20 @@ using UnityModManagerNet;
 
 namespace DvMod.ZCouplers
 {
+    public enum CouplerType
+    {
+        BufferAndChain = 1,
+        JanneyKnuckle = 2,
+    }
     public class Settings : UnityModManager.ModSettings, IDrawable
     {
-        [Draw("Use automatic coupling")] public bool enableAutoCouple = true;
-        [Draw("Automatic coupling distance")] public float autoCoupleRange = 0.5f;
-        [Draw("Use custom couplers (changes require restart)")] public bool enableCustomCouplers = true;
-        [Draw("Couple on chain hooked", VisibleOn = "enableCustomCouplers|true")] public bool coupleOnChainHooked = true;
-        [Draw("Coupler strength", Min = 0.1f, VisibleOn = "enableCustomCouplers|true")] public float couplerStrength = 0.85f;
-        [Draw("Coupler stress smoothing", Min = 0, Max = 1, VisibleOn = "enableCustomCouplers|true")] public float couplerStressSmoothing = 0.9f;
-        [Draw("Buffer spring rate", VisibleOn = "enableCustomCouplers|true")] public float bufferSpringRate = 2f;
-        [Draw("Buffer damper rate", VisibleOn = "enableCustomCouplers|true")] public float bufferDamperRate = 8f;
+        [Draw("Coupler type (requires restart)")] public CouplerType couplerType = CouplerType.JanneyKnuckle;
+        [Draw("Chain strength", Min = 0.1f, VisibleOn = "couplerType|BufferAndChain")] public float chainStrength = 0.85f;
+        [Draw("Knuckle strength", Min = 0.1f, VisibleOn = "couplerType|JanneyKnuckle")] public float knuckleStrength = 1.45f;
+        [Draw("Coupler stress smoothing", Min = 0, Max = 1)] public float couplerStressSmoothing = 0.9f;
+
+        [Draw("Compression spring rate")] public float bufferSpringRate = 2f;
+        [Draw("Compression damper rate")] public float bufferDamperRate = 8f;
 
         [Draw("Enable logging")] public bool enableLogging = false;
         public readonly string? version = Main.mod?.Info.Version;
@@ -23,6 +27,16 @@ namespace DvMod.ZCouplers
 
         public void OnChange()
         {
+        }
+
+        public float GetCouplerStrength()
+        {
+            return Main.settings.couplerType switch
+            {
+                CouplerType.BufferAndChain => chainStrength,
+                CouplerType.JanneyKnuckle => knuckleStrength,
+                _ => 0f,
+            };
         }
     }
 }

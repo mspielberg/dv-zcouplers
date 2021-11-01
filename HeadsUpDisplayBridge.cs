@@ -54,7 +54,7 @@ namespace DvMod.ZCouplers
             RegisterPull(
                 "Front coupler stress",
                 car => car.frontCoupler.GetComponent<CouplerBreaker>()?.jointStress,
-                v => $"{v / Main.settings.couplerStrength / 1e6f:P0}");
+                v => $"{v / Main.settings.GetCouplerStrength() / 1e6f:P0}");
 
             RegisterPull(
                 "Front coupler Z",
@@ -69,7 +69,7 @@ namespace DvMod.ZCouplers
             RegisterPull(
                 "Rear coupler stress",
                 car => car.rearCoupler.GetComponent<CouplerBreaker>()?.jointStress,
-                v => $"{v / Main.settings.couplerStrength / 1e6f:P0}");
+                v => $"{v / Main.settings.GetCouplerStrength() / 1e6f:P0}");
 
             RegisterPull(
                 "Rear coupler Z",

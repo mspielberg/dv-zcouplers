@@ -7,7 +7,7 @@ namespace DvMod.ZCouplers
 {
     public static class LooseChain
     {
-        public static readonly bool enabled = Main.settings.coupleOnChainHooked;
+        public static readonly bool enabled = Main.settings.couplerType == CouplerType.BufferAndChain;
         private static readonly HashSet<Coupler> looseCouplers = new HashSet<Coupler>();
 
         [HarmonyPatch(typeof(ChainCouplerInteraction), nameof(ChainCouplerInteraction.Entry_Attached_Loose))]
