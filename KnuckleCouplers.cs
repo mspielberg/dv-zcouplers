@@ -1,4 +1,5 @@
 using System.IO;
+using DV.CabControls;
 using DV.CabControls.Spec;
 using HarmonyLib;
 using UnityEngine;
@@ -36,6 +37,17 @@ namespace DvMod.ZCouplers
             t1.localEulerAngles = new Vector3(0, angle, 0);
         }
 
+        [HarmonyPatch(typeof(ChainCouplerInteraction), nameof(ChainCouplerInteraction.Entry_Attached))]
+        public static class Entry_AttachedPatch
+        {
+            public static void Postfix(ChainCouplerInteraction __instance)
+            {
+                var pivot = GetPivot(__instance);
+                pivot!.GetComponentInChildren<ButtonBase>().Used = () => OnButtonPressed(__instance);
+                pivot!.GetComponentInChildren<MeshCollider>().enabled = true;
+            }
+        }
+
         [HarmonyPatch(typeof(ChainCouplerInteraction), nameof(ChainCouplerInteraction.LateUpdate_Attached))]
         public static class LateUpdate_AttachedPatch
         {
@@ -58,7 +70,10 @@ namespace DvMod.ZCouplers
             {
                 var pivot = GetPivot(__instance);
                 if (pivot != null)
+                {
                     pivot.localEulerAngles = Vector3.zero;
+                    pivot.GetComponentInChildren<MeshCollider>().enabled = false;
+                }
             }
         }
 
@@ -66,7 +81,10 @@ namespace DvMod.ZCouplers
         {
             if (chainScript == null)
                 return null;
-            return chainScript.couplerAdapter.coupler.transform.Find("ZCouplers pivot");
+            var coupler = chainScript.couplerAdapter.coupler;
+            if (coupler == null)
+                return null;
+            return coupler.transform.Find("ZCouplers pivot");
         }
 
         private static void SetMaterial(GameObject hook)
@@ -91,11 +109,21 @@ namespace DvMod.ZCouplers
 
             var collider = hook.GetComponent<MeshCollider>();
             collider.convex = true;
+            collider.enabled = false;
             collider.isTrigger = true;
 
             var buttonSpec = hook.AddComponent<Button>();
             buttonSpec.createRigidbody = false;
             buttonSpec.useJoints = false;
+        }
+
+        private static void OnButtonPressed(ChainCouplerInteraction chainScript)
+        {
+            chainScript.couplerAdapter.coupler.Uncouple(
+                playAudio: true,
+                calledOnOtherCoupler: false,
+                dueToBrokenCouple: false,
+                viaChainInteraction: true);
         }
     }
 }
