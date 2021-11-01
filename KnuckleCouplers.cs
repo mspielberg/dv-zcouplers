@@ -54,6 +54,9 @@ namespace DvMod.ZCouplers
                 var pivot = GetPivot(__instance);
                 pivot!.GetComponentInChildren<ButtonBase>().Used = () => OnButtonPressed(__instance);
                 pivot!.GetComponentInChildren<MeshCollider>().enabled = true;
+
+                __instance.attachedTo = __instance.couplerAdapter.coupler.coupledTo.visualCoupler.chain.GetComponent<ChainCouplerInteraction>();
+                __instance.attachedTo.attachedTo = __instance;
             }
         }
 
@@ -86,6 +89,11 @@ namespace DvMod.ZCouplers
                 {
                     pivot.localEulerAngles = Vector3.zero;
                     pivot.GetComponentInChildren<MeshCollider>().enabled = false;
+                }
+                if (__instance.attachedTo != null)
+                {
+                    __instance.attachedTo.attachedTo = null;
+                    __instance.attachedTo = null;
                 }
             }
         }
@@ -193,10 +201,13 @@ namespace DvMod.ZCouplers
 
                 if (__instance.couplerAdapter.IsCoupled())
                 {
-                    if (__instance.couplerAdapter.coupler?.coupledTo?.visualCoupler?.chain?.GetComponent<ChainCouplerInteraction>() == null)
+                    var partner = __instance.couplerAdapter.coupler?.coupledTo?.visualCoupler?.chain?.GetComponent<ChainCouplerInteraction>();
+                    if (partner == null)
+                    {
                         __result = ChainCouplerInteraction.State.Disabled;
-                    else
-                        __result = ChainCouplerInteraction.State.Attached_Tight;
+                        return false;
+                    }
+                    __result = ChainCouplerInteraction.State.Attached_Tight;
                 }
                 else
                 {
