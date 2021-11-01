@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using DV.CabControls;
 using DV.CabControls.Spec;
 using HarmonyLib;
@@ -8,6 +10,7 @@ namespace DvMod.ZCouplers
 {
     public static class KnuckleCouplers
     {
+        public static readonly bool enabled = Main.settings.couplerType == CouplerType.JanneyKnuckle;
         private static readonly AssetBundle bundle = AssetBundle.LoadFromFile(Path.Combine(Main.mod!.Path, "knucklecoupler"));
         private static readonly GameObject hookPrefab = bundle.LoadAsset<GameObject>("hook");
 
@@ -16,6 +19,8 @@ namespace DvMod.ZCouplers
         {
             public static void Postfix(ChainCouplerInteraction __instance)
             {
+                if (!enabled)
+                    return;
                 CreateHook(__instance.couplerAdapter.coupler);
             }
         }
@@ -25,6 +30,8 @@ namespace DvMod.ZCouplers
         {
             public static void Postfix(ChainCouplerInteraction __instance)
             {
+                if (!enabled)
+                    return;
                 GameObject.Destroy(GetPivot(__instance)?.gameObject);
             }
         }
@@ -42,6 +49,8 @@ namespace DvMod.ZCouplers
         {
             public static void Postfix(ChainCouplerInteraction __instance)
             {
+                if (!enabled)
+                    return;
                 var pivot = GetPivot(__instance);
                 pivot!.GetComponentInChildren<ButtonBase>().Used = () => OnButtonPressed(__instance);
                 pivot!.GetComponentInChildren<MeshCollider>().enabled = true;
@@ -53,6 +62,8 @@ namespace DvMod.ZCouplers
         {
             public static void Postfix(ChainCouplerInteraction __instance)
             {
+                if (!enabled)
+                    return;
                 var pivot = GetPivot(__instance);
                 var otherPivot = GetPivot(__instance.attachedTo);
                 if (pivot != null && otherPivot != null)
@@ -68,6 +79,8 @@ namespace DvMod.ZCouplers
         {
             public static void Postfix(ChainCouplerInteraction __instance)
             {
+                if (!enabled)
+                    return;
                 var pivot = GetPivot(__instance);
                 if (pivot != null)
                 {
@@ -124,6 +137,74 @@ namespace DvMod.ZCouplers
                 calledOnOtherCoupler: false,
                 dueToBrokenCouple: false,
                 viaChainInteraction: true);
+        }
+
+        [HarmonyPatch(typeof(ChainCouplerVisibilityOptimizer), nameof(ChainCouplerVisibilityOptimizer.Enable))]
+        public static class ChainCouplerVisibilityOptimizerEnablePatch
+        {
+            public static void Postfix(ChainCouplerVisibilityOptimizer __instance)
+            {
+                if (!enabled)
+                    return;
+                var chainTransform = __instance.chain.transform;
+                for (int i = 0; i < chainTransform.childCount; i++)
+                    chainTransform.GetChild(i).gameObject.SetActive(false);
+            }
+        }
+
+        [HarmonyPatch]
+        public static class ChainCouplerInteractionSkipPatches
+        {
+            private static readonly string[] MethodNames = new string[]
+            {
+                nameof(ChainCouplerInteraction.Entry_Enabled),
+                nameof(ChainCouplerInteraction.Exit_Enabled),
+
+                nameof(ChainCouplerInteraction.Entry_Attached),
+                nameof(ChainCouplerInteraction.Exit_Attached),
+                nameof(ChainCouplerInteraction.LateUpdate_Attached),
+
+                nameof(ChainCouplerInteraction.Entry_Attached_Tight),
+                nameof(ChainCouplerInteraction.Exit_Attached_Tight),
+
+                nameof(ChainCouplerInteraction.Entry_Parked),
+                nameof(ChainCouplerInteraction.Exit_Parked),
+                nameof(ChainCouplerInteraction.Update_Parked),
+            };
+            public static IEnumerable<MethodBase> TargetMethods()
+            {
+                foreach (var name in MethodNames)
+                    yield return AccessTools.Method(typeof(ChainCouplerInteraction), name);
+            }
+
+            public static bool Prefix()
+            {
+                return !enabled;
+            }
+        }
+
+        [HarmonyPatch(typeof(ChainCouplerInteraction), nameof(ChainCouplerInteraction.DetermineNextState))]
+        public static class DetermineNextStatePatch
+        {
+            public static bool Prefix(ChainCouplerInteraction __instance, ref ChainCouplerInteraction.State __result)
+            {
+                if (!enabled)
+                    return true;
+
+                if (__instance.couplerAdapter.IsCoupled())
+                {
+                    if (__instance.couplerAdapter.coupler?.coupledTo?.visualCoupler?.chain?.GetComponent<ChainCouplerInteraction>() == null)
+                        __result = ChainCouplerInteraction.State.Disabled;
+                    else
+                        __result = ChainCouplerInteraction.State.Attached_Tight;
+                }
+                else
+                {
+                    __result = ChainCouplerInteraction.State.Parked;
+                }
+
+                return false;
+            }
         }
     }
 }

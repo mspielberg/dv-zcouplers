@@ -196,8 +196,6 @@ namespace DvMod.ZCouplers
                 ChainCouplerInteraction __instance,
                 ref Stateless.StateMachine<ChainCouplerInteraction.State, ChainCouplerInteraction.Trigger> __result)
             {
-                if (!enabled)
-                    return;
                 var car = TrainCar.Resolve(__instance.gameObject);
                 var frontRear = __instance.couplerAdapter.coupler.isFrontCoupler ? "front" : "rear";
                 __result.OnTransitioned((t) => Main.DebugLog(() => $"{car.ID} ({frontRear}): {t.Source} -> {t.Destination} ({t.Trigger})"));
