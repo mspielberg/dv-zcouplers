@@ -71,14 +71,14 @@ namespace DvMod.ZCouplers
         {
             public static IEnumerable<MethodBase> TargetMethods()
             {
-                if (!enabled)
-                    yield break;
                 yield return AccessTools.Method(typeof(ChainCouplerInteraction), nameof(ChainCouplerInteraction.Entry_Attached_Tightening_Couple));
                 yield return AccessTools.Method(typeof(ChainCouplerInteraction), nameof(ChainCouplerInteraction.Entry_Attached_Loosening_Uncouple));
             }
 
             public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
             {
+                if (!enabled)
+                    return instructions;
                 var insts = new List<CodeInstruction>(instructions);
                 var index = insts.FindIndex(ci => ci.LoadsField(AccessTools.DeclaredField(typeof(ChainCouplerInteraction), nameof(ChainCouplerInteraction.couplerAdapter))));
                 if (index >= 0)
@@ -94,6 +94,8 @@ namespace DvMod.ZCouplers
         {
             public static bool Prefix(ChainCouplerInteraction __instance)
             {
+                if (!enabled)
+                    return true;
                 __instance.attachedIK.solver.target = null;
                 __instance.attachedTo = null;
                 __instance.closestAttachPoint.SetAttachState(attached: false);
