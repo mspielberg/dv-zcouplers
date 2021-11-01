@@ -1,4 +1,5 @@
 using System.IO;
+using DV.CabControls.Spec;
 using HarmonyLib;
 using UnityEngine;
 
@@ -6,7 +7,7 @@ namespace DvMod.ZCouplers
 {
     public static class KnuckleCouplers
     {
-        private static readonly AssetBundle bundle = AssetBundle.LoadFromFile(Path.Combine(Main.mod.Path, "knucklecoupler"));
+        private static readonly AssetBundle bundle = AssetBundle.LoadFromFile(Path.Combine(Main.mod!.Path, "knucklecoupler"));
         private static readonly GameObject hookPrefab = bundle.LoadAsset<GameObject>("hook");
 
         [HarmonyPatch(typeof(ChainCouplerInteraction), nameof(ChainCouplerInteraction.Entry_Enabled))]
@@ -14,7 +15,7 @@ namespace DvMod.ZCouplers
         {
             public static void Postfix(ChainCouplerInteraction __instance)
             {
-                CreateMocks(__instance.couplerAdapter.coupler);
+                CreateHook(__instance.couplerAdapter.coupler);
             }
         }
 
@@ -32,8 +33,6 @@ namespace DvMod.ZCouplers
             t1.localEulerAngles = Vector3.zero;
             var offset = t1.InverseTransformPoint(t2.position);
             var angle = Mathf.Atan2(offset.x, offset.z) * Mathf.Rad2Deg;
-            // offset.y = 0f;
-            // var angle = Vector3.SignedAngle(Vector3.forward, offset, Vector3.up);
             t1.localEulerAngles = new Vector3(0, angle, 0);
         }
 
@@ -57,12 +56,16 @@ namespace DvMod.ZCouplers
         {
             public static void Postfix(ChainCouplerInteraction __instance)
             {
-                GetPivot(__instance).localEulerAngles = Vector3.zero;
+                var pivot = GetPivot(__instance);
+                if (pivot != null)
+                    pivot.localEulerAngles = Vector3.zero;
             }
         }
 
         private static Transform? GetPivot(ChainCouplerInteraction chainScript)
         {
+            if (chainScript == null)
+                return null;
             return chainScript.couplerAdapter.coupler.transform.Find("ZCouplers pivot");
         }
 
@@ -74,16 +77,25 @@ namespace DvMod.ZCouplers
 
         private const float PivotLength = 1.0f;
         private const float HeightOffset = -0.067f;
-        private static void CreateMocks(Coupler coupler)
+        private static void CreateHook(Coupler coupler)
         {
             var frontPivot = new GameObject("ZCouplers pivot");
             frontPivot.transform.SetParent(coupler.transform, false);
             frontPivot.transform.localPosition = new Vector3(0, HeightOffset, -PivotLength);
 
             var hook = GameObject.Instantiate(hookPrefab);
+            hook.layer = LayerMask.NameToLayer("Interactable");
             hook.transform.SetParent(frontPivot.transform, false);
             hook.transform.localPosition = PivotLength * Vector3.forward;
             SetMaterial(hook);
+
+            var collider = hook.GetComponent<MeshCollider>();
+            collider.convex = true;
+            collider.isTrigger = true;
+
+            var buttonSpec = hook.AddComponent<Button>();
+            buttonSpec.createRigidbody = false;
+            buttonSpec.useJoints = false;
         }
     }
 }
