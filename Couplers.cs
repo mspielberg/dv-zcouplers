@@ -280,7 +280,7 @@ namespace DvMod.ZCouplers
                 otherCoupler.IsCockOpen = otherCockOpen;
             }
 
-            private const float AutoCoupleRange = 0.495f;
+            private const float StaticOffset = 0.5f;
             private static IEnumerator ReplacementCoro(CouplingScanner __instance)
             {
                 yield return null;
@@ -308,7 +308,7 @@ namespace DvMod.ZCouplers
                     else
                     {
                         Main.DebugLog(coupler.train, () => $"{coupler.train.ID}: offset.z = {offset.z}");
-                        if (Main.settings.couplerType == CouplerType.JanneyKnuckle && Mathf.Abs(offset.z) < AutoCoupleRange)
+                        if (Main.settings.couplerType == CouplerType.JanneyKnuckle && StaticOffset - offset.z > Main.settings.autoCoupleThreshold * 1e-3)
                             TryCouple(coupler);
                     }
                 }
