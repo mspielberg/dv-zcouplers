@@ -13,7 +13,7 @@ namespace DvMod.ZCouplers
         [Draw("Auto couple threshold (mm)", Min = 0f, VisibleOn = "couplerType|JanneyKnuckle")] public float autoCoupleThreshold = 10f;
         [Draw("Chain strength (Mn)", Min = 0.1f, VisibleOn = "couplerType|BufferAndChain")] public float chainStrength = 0.85f;
         [Draw("Knuckle strength (Mn)", Min = 0.1f, VisibleOn = "couplerType|JanneyKnuckle")] public float knuckleStrength = 1.45f;
-        [Draw("Coupler stress smoothing", Min = 0, Max = 1)] public float couplerStressSmoothing = 0.9f;
+        [Draw("Coupler stress smoothing", Min = 0, Max = 1)] public float couplerStressSmoothing = 0.99f;
 
         [Draw("Compression spring rate")] public float bufferSpringRate = 2f;
         [Draw("Compression damper rate")] public float bufferDamperRate = 8f;
