@@ -15,8 +15,7 @@ namespace DvMod.ZCouplers
             this.GetComponent<Coupler>().Uncoupled += OnUncoupled;
         }
 
-
-
+        private const float PerFrameBreakChance = 0.01f;
         public void FixedUpdate()
         {
             if (joint == null)
@@ -30,7 +29,7 @@ namespace DvMod.ZCouplers
             jointStress = ((1f - Alpha) * jointStress) + (Alpha * scaledForce);
             // Main.DebugLog(TrainCar.Resolve(gameObject), () => $"custom coupler: currentForce={joint.currentForce.magnitude},scaledForce={scaledForce},recentStress={string.Join(",", recentStress)},jointStress={jointStress}");
             var couplerStrength = Main.settings.GetCouplerStrength();
-            if (couplerStrength > 0f && jointStress > couplerStrength * 1e6f)
+            if (couplerStrength > 0f && jointStress > couplerStrength * 1e6f && Random.value < PerFrameBreakChance)
             {
                 Main.DebugLog(() => $"Breaking coupler: currentForce={joint.currentForce.magnitude},recentStress={string.Join(",", recentStress)},jointStress={jointStress}");
                 joint!.gameObject.SendMessage("OnJointBreak", jointStress);
