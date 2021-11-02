@@ -133,7 +133,6 @@ namespace DvMod.ZCouplers
             hook.layer = LayerMask.NameToLayer("Interactable");
             hook.transform.SetParent(frontPivot.transform, false);
             hook.transform.localPosition = PivotLength * Vector3.forward;
-            SetMaterial(hook);
 
             var collider = hook.GetComponent<MeshCollider>();
             collider.convex = true;
@@ -143,6 +142,8 @@ namespace DvMod.ZCouplers
             var buttonSpec = hook.AddComponent<Button>();
             buttonSpec.createRigidbody = false;
             buttonSpec.useJoints = false;
+
+            SetMaterial(hook);
         }
 
         private static void OnButtonPressed(ChainCouplerInteraction chainScript)
