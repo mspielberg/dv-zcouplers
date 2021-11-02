@@ -52,34 +52,36 @@ namespace DvMod.ZCouplers
             }
 
             RegisterPull(
-                "Front coupler stress",
+                "Front coupler",
                 car => car.frontCoupler.GetComponent<CouplerBreaker>()?.jointStress,
-                v => $"{v / Main.settings.GetCouplerStrength() / 1e6f:P0}");
+                v => $"{v / Main.settings.GetCouplerStrength() / 1e6f:P0}",
+                hidden: true);
+
+            // RegisterPull(
+            //     "Front coupler Z",
+            //     car => JointDelta(car.frontCoupler)?.z,
+            //     v => $"{v * 1e3f:F3} mm");
+
+            // RegisterPull(
+            //     "Front coupler length",
+            //     car => JointDelta(car.frontCoupler)?.magnitude,
+            //     v => $"{v * 1e3f:F3} mm");
 
             RegisterPull(
-                "Front coupler Z",
-                car => JointDelta(car.frontCoupler)?.z,
-                v => $"{v * 1e3f:F3} mm");
-
-            RegisterPull(
-                "Front coupler length",
-                car => JointDelta(car.frontCoupler)?.magnitude,
-                v => $"{v * 1e3f:F3} mm");
-
-            RegisterPull(
-                "Rear coupler stress",
+                "Rear coupler",
                 car => car.rearCoupler.GetComponent<CouplerBreaker>()?.jointStress,
-                v => $"{v / Main.settings.GetCouplerStrength() / 1e6f:P0}");
+                v => $"{v / Main.settings.GetCouplerStrength() / 1e6f:P0}",
+                hidden: true);
 
-            RegisterPull(
-                "Rear coupler Z",
-                car => JointDelta(car.rearCoupler)?.z,
-                v => $"{v * 1e3f:F3} mm");
+            // RegisterPull(
+            //     "Rear coupler Z",
+            //     car => JointDelta(car.rearCoupler)?.z,
+            //     v => $"{v * 1e3f:F3} mm");
 
-            RegisterPull(
-                "Rear coupler length",
-                car => JointDelta(car.rearCoupler)?.magnitude,
-                v => $"{v * 1e3f:F3} mm");
+            // RegisterPull(
+            //     "Rear coupler length",
+            //     car => JointDelta(car.rearCoupler)?.magnitude,
+            //     v => $"{v * 1e3f:F3} mm");
         }
 
         private static Vector3? JointDelta(Coupler coupler)
