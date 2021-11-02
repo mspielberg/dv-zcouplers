@@ -4,6 +4,7 @@ using System.Reflection;
 using DV.CabControls;
 using DV.CabControls.Spec;
 using HarmonyLib;
+using Stateless;
 using UnityEngine;
 
 namespace DvMod.ZCouplers
@@ -165,6 +166,16 @@ namespace DvMod.ZCouplers
                 var chainTransform = __instance.chain.transform;
                 for (int i = 0; i < chainTransform.childCount; i++)
                     chainTransform.GetChild(i).gameObject.SetActive(false);
+            }
+        }
+
+        [HarmonyPatch(typeof(ChainCouplerInteraction), nameof(ChainCouplerInteraction.CoupleBrokenExternally))]
+        public static class CoupleBrokenExternallyPatch
+        {
+            public static bool Prefix(ChainCouplerInteraction __instance)
+            {
+                __instance.UncoupledExternally();
+                return false;
             }
         }
 
