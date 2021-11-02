@@ -15,6 +15,12 @@ namespace DvMod.ZCouplers
         {
             mod = modEntry;
 
+            if (UnityModManager.FindMod("ZRealism")?.Version is Version zrealismVersion && zrealismVersion != null && zrealismVersion < new Version(0, 4, 0))
+            {
+                mod.Logger.Error("ZCouplers is not compatible with versions of ZRealism before 0.4.0");
+                return false;
+            }
+
             try
             {
                 var loaded = Settings.Load<Settings>(modEntry);
