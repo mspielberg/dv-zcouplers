@@ -108,10 +108,17 @@ namespace DvMod.ZCouplers
             return coupler.transform.Find("ZCouplers pivot");
         }
 
+        private static Material? chainCouplerMaterial;
         private static void SetMaterial(GameObject hook)
         {
-            var material = TrainCar.Resolve(hook).transform.Find("[buffers]/HookPlate_F").GetComponent<MeshRenderer>().material;
-            hook.GetComponent<MeshRenderer>().material = material;
+            if (chainCouplerMaterial == null)
+            {
+                chainCouplerMaterial = TrainCar.Resolve(hook).interior
+                    .Find("ChainCoupler/drawgear pivot/CarHook")
+                    .GetComponent<MeshRenderer>().material;
+            }
+
+            hook.GetComponent<MeshRenderer>().material = chainCouplerMaterial;
         }
 
         private const float PivotLength = 1.0f;
