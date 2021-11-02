@@ -5,6 +5,6 @@
   "Version": "0.1.0",
   "AssemblyName": "ZCouplers.dll",
   "EntryMethod": "DvMod.ZCouplers.Main.Load",
-  "HomePage": "https://www.nexusmods.com/derailvalley/mods/???",
+  "HomePage": "https://www.nexusmods.com/derailvalley/mods/368",
   "Repository": "https://raw.githubusercontent.com/mspielberg/dv-zcouplers/master/resources/repository.json"
 }
