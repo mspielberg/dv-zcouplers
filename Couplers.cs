@@ -141,7 +141,7 @@ namespace DvMod.ZCouplers
             cj.linearLimitSpring = new SoftJointLimitSpring { spring = ChainSpring };
             cj.enableCollision = false;
             cj.breakForce = float.PositiveInfinity;
-            cj.breakTorque = 1e3f;
+            cj.breakTorque = float.PositiveInfinity;
 
             coupler.springyCJ = cj;
             if (!LooseChain.enabled)
