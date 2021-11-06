@@ -2,7 +2,7 @@
   "Id": "ZCouplers",
   "DisplayName": "Zeibach's Couplers",
   "Author": "Zeibach",
-  "Version": "0.1.1",
+  "Version": "0.1.2",
   "AssemblyName": "ZCouplers.dll",
   "EntryMethod": "DvMod.ZCouplers.Main.Load",
   "HomePage": "https://www.nexusmods.com/derailvalley/mods/368",
