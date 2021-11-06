@@ -12,7 +12,6 @@ namespace DvMod.ZCouplers
         [Draw("Coupler type (requires restart)")] public CouplerType couplerType = CouplerType.JanneyKnuckle;
 
         [Draw("Chain strength (Mn)", Min = 0.1f, VisibleOn = "couplerType|BufferAndChain")] public float chainStrength = 0.85f;
-        [Draw("Coupler stress smoothing", Min = 0, Max = 1)] public float couplerStressSmoothing = 0.99f;
         [Draw("Compression spring rate", Min = 0f, VisibleOn = "couplerType|BufferAndChain")] public float bufferSpringRate = 2f;
         [Draw("Compression damper rate", Min = 0f, VisibleOn = "couplerType|BufferAndChain")] public float bufferDamperRate = 8f;
 
