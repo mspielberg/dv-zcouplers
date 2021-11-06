@@ -10,13 +10,16 @@ namespace DvMod.ZCouplers
     public class Settings : UnityModManager.ModSettings, IDrawable
     {
         [Draw("Coupler type (requires restart)")] public CouplerType couplerType = CouplerType.JanneyKnuckle;
-        [Draw("Auto couple threshold (mm)", Min = 0f, VisibleOn = "couplerType|JanneyKnuckle")] public float autoCoupleThreshold = 10f;
-        [Draw("Chain strength (Mn)", Min = 0.1f, VisibleOn = "couplerType|BufferAndChain")] public float chainStrength = 0.85f;
-        [Draw("Knuckle strength (Mn)", Min = 0.1f, VisibleOn = "couplerType|JanneyKnuckle")] public float knuckleStrength = 1.45f;
-        [Draw("Coupler stress smoothing", Min = 0, Max = 1)] public float couplerStressSmoothing = 0.99f;
 
-        [Draw("Compression spring rate")] public float bufferSpringRate = 2f;
-        [Draw("Compression damper rate")] public float bufferDamperRate = 8f;
+        [Draw("Chain strength (Mn)", Min = 0.1f, VisibleOn = "couplerType|BufferAndChain")] public float chainStrength = 0.85f;
+        [Draw("Coupler stress smoothing", Min = 0, Max = 1)] public float couplerStressSmoothing = 0.99f;
+        [Draw("Compression spring rate", Min = 0f, VisibleOn = "couplerType|BufferAndChain")] public float bufferSpringRate = 2f;
+        [Draw("Compression damper rate", Min = 0f, VisibleOn = "couplerType|BufferAndChain")] public float bufferDamperRate = 8f;
+
+        [Draw("Knuckle strength (Mn)", Min = 0.1f, VisibleOn = "couplerType|JanneyKnuckle")] public float knuckleStrength = 1.85f;
+        [Draw("Compression spring rate", Min = 0f, VisibleOn = "couplerType|JanneyKnuckle")] public float drawgearSpringRate = 4f;
+        [Draw("Compression damper rate", Min = 0f, VisibleOn = "couplerType|JanneyKnuckle")] public float drawgearDamperRate = 8f;
+        [Draw("Auto couple threshold (mm)", Min = 0f, VisibleOn = "couplerType|JanneyKnuckle")] public float autoCoupleThreshold = 20f;
 
         [Draw("Enable logging")] public bool enableLogging = false;
         public readonly string? version = Main.mod?.Info.Version;
@@ -32,10 +35,30 @@ namespace DvMod.ZCouplers
 
         public float GetCouplerStrength()
         {
-            return Main.settings.couplerType switch
+            return couplerType switch
             {
                 CouplerType.BufferAndChain => chainStrength,
                 CouplerType.JanneyKnuckle => knuckleStrength,
+                _ => 0f,
+            };
+        }
+
+        public float GetSpringRate()
+        {
+            return couplerType switch
+            {
+                CouplerType.BufferAndChain => bufferSpringRate * 1e6f,
+                CouplerType.JanneyKnuckle => drawgearSpringRate * 1e6f,
+                _ => 0f,
+            };
+        }
+
+        public float GetDamperRate()
+        {
+            return couplerType switch
+            {
+                CouplerType.BufferAndChain => bufferDamperRate,
+                CouplerType.JanneyKnuckle => drawgearDamperRate,
                 _ => 0f,
             };
         }

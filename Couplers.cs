@@ -349,8 +349,8 @@ namespace DvMod.ZCouplers
             bufferCj.linearLimit = new SoftJointLimit { limit = 2f };
             bufferCj.linearLimitSpring = new SoftJointLimitSpring
             {
-                spring = Main.settings.bufferSpringRate * 1e6f,
-                damper = Main.settings.bufferDamperRate * 1e6f,
+                spring = Main.settings.GetSpringRate(),
+                damper = Main.settings.GetDamperRate(),
             };
             bufferCj.enableCollision = false;
             bufferCj.breakForce = float.PositiveInfinity;
