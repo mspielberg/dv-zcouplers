@@ -31,6 +31,7 @@ namespace DvMod.ZCouplers
 
         public void OnChange()
         {
+            Couplers.UpdateAllCompressionJoints();
         }
 
         public float GetCouplerStrength()

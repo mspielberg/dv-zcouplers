@@ -1,7 +1,7 @@
 using HarmonyLib;
 using System.Collections;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
+using System.Linq;
 using UnityEngine;
 
 namespace DvMod.ZCouplers
@@ -316,7 +316,7 @@ namespace DvMod.ZCouplers
             }
         }
 
-        internal static readonly ConditionalWeakTable<Coupler, ConfigurableJoint> bufferJoints = new ConditionalWeakTable<Coupler, ConfigurableJoint>();
+        internal static readonly Dictionary<Coupler, ConfigurableJoint> bufferJoints = new Dictionary<Coupler, ConfigurableJoint>();
 
         private static void CreateCompressionJoint(Coupler a, Coupler b)
         {
@@ -380,6 +380,25 @@ namespace DvMod.ZCouplers
         {
             var delta = joint.transform.InverseTransformPoint(joint.connectedBody.transform.TransformPoint(joint.connectedAnchor)) - joint.anchor;
             return isFrontCoupler ? delta : -delta;
+        }
+
+        public static void UpdateAllCompressionJoints()
+        {
+            var springRate = Main.settings.GetSpringRate();
+            var damperRate = Main.settings.GetDamperRate();
+
+            var firstJoint = bufferJoints.Values.FirstOrDefault();
+            if (firstJoint == null || (firstJoint.linearLimitSpring.spring == springRate && firstJoint.linearLimitSpring.damper == damperRate))
+                return;
+
+            foreach (var joint in bufferJoints.Values)
+            {
+                joint.linearLimitSpring = new SoftJointLimitSpring
+                {
+                    spring = springRate,
+                    damper = damperRate,
+                };
+            }
         }
     }
 }
