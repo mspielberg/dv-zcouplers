@@ -15,7 +15,7 @@ namespace DvMod.ZCouplers
         [Draw("Compression spring rate", Min = 0f, VisibleOn = "couplerType|BufferAndChain")] public float bufferSpringRate = 2f;
         [Draw("Compression damper rate", Min = 0f, VisibleOn = "couplerType|BufferAndChain")] public float bufferDamperRate = 8f;
 
-        [Draw("Knuckle strength (Mn)", Min = 0.1f, VisibleOn = "couplerType|JanneyKnuckle")] public float knuckleStrength = 1.85f;
+        [Draw("Knuckle strength (Mn)", Min = 0.1f, VisibleOn = "couplerType|JanneyKnuckle")] public float knuckleStrength = 1.78f;
         [Draw("Compression spring rate", Min = 0f, VisibleOn = "couplerType|JanneyKnuckle")] public float drawgearSpringRate = 4f;
         [Draw("Compression damper rate", Min = 0f, VisibleOn = "couplerType|JanneyKnuckle")] public float drawgearDamperRate = 16f;
         [Draw("Auto couple threshold (mm)", Min = 0f, VisibleOn = "couplerType|JanneyKnuckle")] public float autoCoupleThreshold = 20f;
