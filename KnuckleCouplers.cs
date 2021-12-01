@@ -114,19 +114,6 @@ namespace DvMod.ZCouplers
             return coupler.transform.Find("ZCouplers pivot");
         }
 
-        private static Material? chainCouplerMaterial;
-        private static void SetMaterial(GameObject hook)
-        {
-            if (chainCouplerMaterial == null)
-            {
-                chainCouplerMaterial = TrainCar.Resolve(hook).interior
-                    .Find("ChainCoupler/drawgear pivot/CarHook")
-                    .GetComponent<MeshRenderer>().material;
-            }
-
-            hook.GetComponent<MeshRenderer>().material = chainCouplerMaterial;
-        }
-
         private const float PivotLength = 1.0f;
         private const float HeightOffset = -0.067f;
         private static void CreateHook(Coupler coupler)
@@ -148,8 +135,6 @@ namespace DvMod.ZCouplers
             var buttonSpec = hook.AddComponent<Button>();
             buttonSpec.createRigidbody = false;
             buttonSpec.useJoints = false;
-
-            SetMaterial(hook);
         }
 
         private static void OnButtonPressed(ChainCouplerInteraction chainScript)
