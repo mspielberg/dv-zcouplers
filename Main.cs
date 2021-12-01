@@ -40,6 +40,10 @@ namespace DvMod.ZCouplers
             Harmony harmony = new Harmony(modEntry.Info.Id);
             harmony.PatchAll();
 
+            // Force static initializer to execute and load asset bundle
+            if (KnuckleCouplers.enabled)
+                mod.Logger.Log("knuckle couplers enabled");
+
             return true;
         }
 

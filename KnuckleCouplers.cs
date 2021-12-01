@@ -4,7 +4,6 @@ using System.Reflection;
 using DV.CabControls;
 using DV.CabControls.Spec;
 using HarmonyLib;
-using Stateless;
 using UnityEngine;
 
 namespace DvMod.ZCouplers
@@ -12,8 +11,14 @@ namespace DvMod.ZCouplers
     public static class KnuckleCouplers
     {
         public static readonly bool enabled = Main.settings.couplerType == CouplerType.JanneyKnuckle;
-        private static readonly AssetBundle bundle = AssetBundle.LoadFromFile(Path.Combine(Main.mod!.Path, "knucklecoupler"));
-        private static readonly GameObject hookPrefab = bundle.LoadAsset<GameObject>("hook");
+        private static readonly GameObject hookPrefab;
+
+        static KnuckleCouplers()
+        {
+            var bundle = AssetBundle.LoadFromFile(Path.Combine(Main.mod!.Path, "knucklecoupler"));
+            hookPrefab = bundle.LoadAsset<GameObject>("hook");
+            bundle.Unload(false);
+        }
 
         [HarmonyPatch(typeof(ChainCouplerInteraction), nameof(ChainCouplerInteraction.Entry_Enabled))]
         public static class Entry_EnabledPatch
