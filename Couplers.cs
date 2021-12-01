@@ -265,10 +265,10 @@ namespace DvMod.ZCouplers
 
             private static void TryCouple(Coupler coupler)
             {
-                if (coupler.IsCoupled())
+                if (coupler.IsCoupled() || coupler.train.derailed)
                     return;
                 var otherCoupler = coupler.GetFirstCouplerInRange();
-                if (otherCoupler == null)
+                if (otherCoupler == null || otherCoupler.train.derailed)
                     return;
                 bool hoseWasConnected = coupler.hoseAndCock.IsHoseConnected;
                 bool thisCockOpen = coupler.IsCockOpen;
