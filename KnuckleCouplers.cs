@@ -42,12 +42,17 @@ namespace DvMod.ZCouplers
             }
         }
 
-        private static void YLookAt(Transform t1, Transform t2)
+        private static void AdjustPivot(Transform pivot, Transform target)
         {
-            t1.localEulerAngles = Vector3.zero;
-            var offset = t1.InverseTransformPoint(t2.position);
+            pivot.localEulerAngles = Vector3.zero;
+            var offset = pivot.InverseTransformPoint(target.position);
             var angle = Mathf.Atan2(offset.x, offset.z) * Mathf.Rad2Deg;
-            t1.localEulerAngles = new Vector3(0, angle, 0);
+            pivot.localEulerAngles = new Vector3(0, angle, 0);
+
+            offset.y = 0f;
+            var distance = offset.magnitude;
+            var hook = pivot.Find("hook");
+            hook.localPosition = distance / 2 * Vector3.forward;
         }
 
         [HarmonyPatch(typeof(ChainCouplerInteraction), nameof(ChainCouplerInteraction.Entry_Attached))]
@@ -77,8 +82,7 @@ namespace DvMod.ZCouplers
                 var otherPivot = GetPivot(__instance.attachedTo);
                 if (pivot != null && otherPivot != null)
                 {
-                    YLookAt(pivot, otherPivot);
-                    YLookAt(otherPivot, pivot);
+                    AdjustPivot(pivot, otherPivot);
                 }
             }
         }
@@ -95,6 +99,8 @@ namespace DvMod.ZCouplers
                 {
                     pivot.localEulerAngles = Vector3.zero;
                     pivot.GetComponentInChildren<MeshCollider>().enabled = false;
+                    var hook = pivot.Find("hook");
+                    hook.localPosition = PivotLength * Vector3.forward;
                 }
                 if (__instance.attachedTo != null)
                 {
@@ -123,6 +129,7 @@ namespace DvMod.ZCouplers
             frontPivot.transform.localPosition = new Vector3(0, HeightOffset, -PivotLength);
 
             var hook = GameObject.Instantiate(hookPrefab);
+            hook.name = "hook";
             hook.layer = LayerMask.NameToLayer("Interactable");
             hook.transform.SetParent(frontPivot.transform, false);
             hook.transform.localPosition = PivotLength * Vector3.forward;
