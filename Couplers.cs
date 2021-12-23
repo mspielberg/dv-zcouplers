@@ -25,7 +25,7 @@ namespace DvMod.ZCouplers
                 ? System.Array.Find(scanners, scanner => scanner.transform.localPosition.z > 0)
                 : System.Array.Find(scanners, scanner => scanner.transform.localPosition.z < 0);
             if (scanner == null)
-                Debug.Log($"Could not find scanner for {(coupler.isFrontCoupler ? "front" : "rear")} coupler on {coupler.train.ID}");
+                Debug.Log($"Could not find scanner for {coupler.Position()} coupler on {coupler.train.ID}");
             return scanner;
         }
 
@@ -34,7 +34,7 @@ namespace DvMod.ZCouplers
             var scanner = GetScanner(coupler);
             if (scanner?.masterCoro != null)
             {
-                Main.DebugLog(() => $"{coupler.train.ID}: killing masterCoro for {(coupler.isFrontCoupler ? "front" : "rear")}");
+                Main.DebugLog(() => $"{coupler.train.ID} {coupler.Position()}: killing masterCoro");
                 scanner.StopCoroutine(scanner.masterCoro);
                 scanner.masterCoro = null;
             }
@@ -47,7 +47,7 @@ namespace DvMod.ZCouplers
             var scanner = GetScanner(coupler);
             if (scanner != null && scanner.masterCoro == null && scanner.isActiveAndEnabled)
             {
-                Main.DebugLog(() => $"{coupler.train.ID}: restarting masterCoro for {(coupler.isFrontCoupler ? "front" : "rear")}");
+                Main.DebugLog(() => $"{coupler.train.ID} {coupler.Position()}: restarting masterCoro");
                 scanner.masterCoro = scanner.StartCoroutine(scanner.MasterCoro());
             }
         }
@@ -287,13 +287,17 @@ namespace DvMod.ZCouplers
                 var coupler = GetCoupler(__instance);
                 if (coupler.IsCoupled())
                 {
-                    Main.DebugLog(() => $"{coupler.train.ID}: MasterCoro exiting immediately");
+                    Main.DebugLog(() => $"{coupler.train.ID} {coupler.Position()}: MasterCoro exiting immediately");
                     __instance.masterCoro = null;
                     yield break;
                 }
                 else
                 {
-                    Main.DebugLog(() => $"{coupler.train.ID}: MasterCoro started");
+                    Main.DebugLog(() =>
+                    {
+                        var otherCoupler = GetCoupler(__instance.nearbyScanner);
+                        return $"{coupler.train.ID} {coupler.Position()}: MasterCoro started with {otherCoupler.train.ID} {otherCoupler.Position()}";
+                    });
                 }
 
                 var wait = WaitFor.Seconds(0.1f);
@@ -400,5 +404,7 @@ namespace DvMod.ZCouplers
                 };
             }
         }
+
+        public static string Position(this Coupler coupler) => coupler.isFrontCoupler ? "front" : "rear";
     }
 }
