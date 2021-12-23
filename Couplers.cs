@@ -270,14 +270,7 @@ namespace DvMod.ZCouplers
                 var otherCoupler = coupler.GetFirstCouplerInRange();
                 if (otherCoupler == null || otherCoupler.train.derailed)
                     return;
-                bool hoseWasConnected = coupler.hoseAndCock.IsHoseConnected;
-                bool thisCockOpen = coupler.IsCockOpen;
-                bool otherCockOpen = otherCoupler.IsCockOpen;
-                coupler.CoupleTo(otherCoupler);
-                if (!hoseWasConnected)
-                    coupler.DisconnectAirHose(true);
-                coupler.IsCockOpen = thisCockOpen;
-                otherCoupler.IsCockOpen = otherCockOpen;
+                coupler.CoupleTo(otherCoupler, viaChainInteraction: true);
             }
 
             private const float StaticOffset = 0.5f;
