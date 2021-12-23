@@ -194,6 +194,29 @@ namespace DvMod.ZCouplers
             }
         }
 
+        // Ensure CouplingScanners start active
+        [HarmonyPatch]
+        public static class CarSpawnerSpawnCarPatch
+        {
+            public static IEnumerable<System.Reflection.MethodBase> TargetMethods()
+            {
+                yield return AccessTools.Method(typeof(CarSpawner), nameof(CarSpawner.SpawnCar));
+                yield return AccessTools.Method(typeof(CarSpawner), nameof(CarSpawner.SpawnLoadedCar));
+            }
+
+            public static void Postfix(TrainCar __result)
+            {
+                __result.StartCoroutine(Coro(__result));
+            }
+
+            private static IEnumerator Coro(TrainCar train)
+            {
+                yield return null;
+                foreach (var scanner in train.transform.GetComponentsInChildren<CouplingScanner>())
+                    scanner.enabled = true;
+            }
+        }
+
         // Ensure CouplingScanners stay active when not in view
         [HarmonyPatch(typeof(ChainCouplerVisibilityOptimizer), nameof(ChainCouplerVisibilityOptimizer.Disable))]
         public static class ChainCouplerVisibilityOptimizerDisablePatch
