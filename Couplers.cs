@@ -18,15 +18,7 @@ namespace DvMod.ZCouplers
 
         private static CouplingScanner? GetScanner(Coupler coupler)
         {
-            var scanners = coupler.train.transform.Find("[buffers]")?.GetComponentsInChildren<CouplingScanner>();
-            if (scanners == null)
-                return null;
-            var scanner = coupler.isFrontCoupler
-                ? System.Array.Find(scanners, scanner => scanner.transform.localPosition.z > 0)
-                : System.Array.Find(scanners, scanner => scanner.transform.localPosition.z < 0);
-            if (scanner == null)
-                Debug.Log($"Could not find scanner for {coupler.Position()} coupler on {coupler.train.ID}");
-            return scanner;
+            return coupler.visualCoupler?.GetComponent<CouplingScanner>();
         }
 
         private static void KillCouplingScanner(Coupler coupler)
@@ -195,25 +187,21 @@ namespace DvMod.ZCouplers
         }
 
         // Ensure CouplingScanners start active
-        [HarmonyPatch]
-        public static class CarSpawnerSpawnCarPatch
+        [HarmonyPatch(typeof(Coupler), nameof(Coupler.AutoCouple))]
+        public static class AutoCouplePatch
         {
-            public static IEnumerable<System.Reflection.MethodBase> TargetMethods()
+            public static void Postfix(Coupler __instance, ref IEnumerator __result)
             {
-                yield return AccessTools.Method(typeof(CarSpawner), nameof(CarSpawner.SpawnCar));
-                yield return AccessTools.Method(typeof(CarSpawner), nameof(CarSpawner.SpawnLoadedCar));
-            }
+                var scanner = GetScanner(__instance);
+                if (scanner == null)
+                    return;
 
-            public static void Postfix(TrainCar __result)
-            {
-                __result.StartCoroutine(Coro(__result));
-            }
+                scanner.enabled = false;
 
-            private static IEnumerator Coro(TrainCar train)
-            {
-                yield return null;
-                foreach (var scanner in train.transform.GetComponentsInChildren<CouplingScanner>())
+                __result = new EnumeratorWrapper(__result, () =>
+                {
                     scanner.enabled = true;
+                });
             }
         }
 
@@ -328,8 +316,14 @@ namespace DvMod.ZCouplers
                     else
                     {
                         Main.DebugLog(coupler.train, () => $"{coupler.train.ID}: offset.z = {offset.z}");
-                        if (Main.settings.couplerType == CouplerType.JanneyKnuckle && StaticOffset - offset.z > Main.settings.autoCoupleThreshold * 1e-3)
+                        var compression = StaticOffset - offset.z;
+                        if (__instance.nearbyScanner.isActiveAndEnabled
+                            && Main.settings.couplerType == CouplerType.JanneyKnuckle
+                            && compression > Main.settings.autoCoupleThreshold * 1e-3)
+                        {
+                            Main.DebugLog(() => $"{coupler.train.ID} {coupler.Position()}: auto coupling due to compression={compression}");
                             TryCouple(coupler);
+                        }
                     }
                 }
                 __instance.Unpair(true);
