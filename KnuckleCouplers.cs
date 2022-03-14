@@ -27,7 +27,7 @@ namespace DvMod.ZCouplers
             {
                 if (!enabled)
                     return;
-                CreateHook(__instance.couplerAdapter.coupler);
+                CreateHook(__instance);
             }
         }
 
@@ -39,6 +39,7 @@ namespace DvMod.ZCouplers
                 if (!enabled)
                     return;
                 GameObject.Destroy(GetPivot(__instance)?.gameObject);
+                pivots.Remove(__instance);
             }
         }
 
@@ -97,7 +98,7 @@ namespace DvMod.ZCouplers
                 var pivot = GetPivot(__instance);
                 if (pivot != null)
                 {
-                    pivot.localEulerAngles = Vector3.zero;
+                    pivot.localEulerAngles = __instance.couplerAdapter.coupler.transform.localEulerAngles;
                     pivot.GetComponentInChildren<MeshCollider>().enabled = false;
                     var hook = pivot.Find("hook");
                     hook.localPosition = PivotLength * Vector3.forward;
@@ -110,28 +111,32 @@ namespace DvMod.ZCouplers
             }
         }
 
+        private static readonly Dictionary<ChainCouplerInteraction, Transform> pivots = new Dictionary<ChainCouplerInteraction, Transform>();
+
         private static Transform? GetPivot(ChainCouplerInteraction chainScript)
         {
             if (chainScript == null)
                 return null;
-            var coupler = chainScript.couplerAdapter.coupler;
-            if (coupler == null)
-                return null;
-            return coupler.transform.Find("ZCouplers pivot");
+            pivots.TryGetValue(chainScript, out var pivot);
+            return pivot;
         }
 
         private const float PivotLength = 1.0f;
         private const float HeightOffset = -0.067f;
-        private static void CreateHook(Coupler coupler)
+        private static void CreateHook(ChainCouplerInteraction chainScript)
         {
-            var frontPivot = new GameObject("ZCouplers pivot");
-            frontPivot.transform.SetParent(coupler.transform, false);
-            frontPivot.transform.localPosition = new Vector3(0, HeightOffset, -PivotLength);
+            var coupler = chainScript.couplerAdapter.coupler;
+
+            var pivot = new GameObject("ZCouplers pivot");
+            pivot.transform.SetParent(coupler.transform, false);
+            pivot.transform.localPosition = new Vector3(0, HeightOffset, -PivotLength);
+            pivot.transform.parent = coupler.train.interior;
+            pivots.Add(chainScript, pivot.transform);
 
             var hook = GameObject.Instantiate(hookPrefab);
             hook.name = "hook";
             hook.layer = LayerMask.NameToLayer("Interactable");
-            hook.transform.SetParent(frontPivot.transform, false);
+            hook.transform.SetParent(pivot.transform, false);
             hook.transform.localPosition = PivotLength * Vector3.forward;
 
             var collider = hook.GetComponent<MeshCollider>();
