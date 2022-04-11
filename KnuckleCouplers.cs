@@ -20,6 +20,8 @@ namespace DvMod.ZCouplers
             bundle.Unload(false);
         }
 
+        private static readonly HashSet<Coupler> unlockedCouplers = new HashSet<Coupler>();
+
         [HarmonyPatch(typeof(ChainCouplerInteraction), nameof(ChainCouplerInteraction.Entry_Enabled))]
         public static class Entry_EnabledPatch
         {
@@ -63,9 +65,6 @@ namespace DvMod.ZCouplers
             {
                 if (!enabled)
                     return;
-                var pivot = GetPivot(__instance);
-                pivot!.GetComponentInChildren<ButtonBase>().Used = () => OnButtonPressed(__instance);
-                pivot!.GetComponentInChildren<MeshCollider>().enabled = true;
 
                 __instance.attachedTo = __instance.couplerAdapter.coupler.coupledTo.visualCoupler.chain.GetComponent<ChainCouplerInteraction>();
                 __instance.attachedTo.attachedTo = __instance;
@@ -99,7 +98,6 @@ namespace DvMod.ZCouplers
                 if (pivot != null)
                 {
                     pivot.localEulerAngles = __instance.couplerAdapter.coupler.transform.localEulerAngles;
-                    pivot.GetComponentInChildren<MeshCollider>().enabled = false;
                     var hook = pivot.Find("hook");
                     hook.localPosition = PivotLength * Vector3.forward;
                 }
@@ -141,21 +139,70 @@ namespace DvMod.ZCouplers
 
             var collider = hook.GetComponent<MeshCollider>();
             collider.convex = true;
-            collider.enabled = false;
             collider.isTrigger = true;
 
             var buttonSpec = hook.AddComponent<Button>();
             buttonSpec.createRigidbody = false;
             buttonSpec.useJoints = false;
+            hook.GetComponent<ButtonBase>().Used = () => OnButtonPressed(chainScript);
+
+            var infoArea = hook.AddComponent<InfoArea>();
+            infoArea.infoType = unlockedCouplers.Contains(coupler) ? KnuckleCouplerLock : KnuckleCouplerUnlock;
         }
 
         private static void OnButtonPressed(ChainCouplerInteraction chainScript)
         {
-            chainScript.couplerAdapter.coupler.Uncouple(
+            var coupler = chainScript.couplerAdapter.coupler;
+            if (unlockedCouplers.Contains(coupler))
+            {
+                unlockedCouplers.Remove(coupler);
+                chainScript.PlaySound(chainScript.parkSound, chainScript.transform.position);
+            }
+            else
+            {
+                unlockedCouplers.Add(coupler);
+                chainScript.PlaySound(chainScript.attachSound, chainScript.transform.position);
+            }
+
+            Main.DebugLog(() => "Searching for InfoArea");
+            if (GetPivot(chainScript)?.Find("hook")?.GetComponent<InfoArea>() is InfoArea infoArea)
+            {
+                infoArea.infoType = infoArea.infoType == KnuckleCouplerLock ? KnuckleCouplerUnlock : KnuckleCouplerLock;
+                Main.DebugLog(() => $"Found hook. Set infoType to {infoArea.infoType} on {coupler.train.ID} {coupler.isFrontCoupler}");
+            }
+
+            coupler.Uncouple(
                 playAudio: true,
                 calledOnOtherCoupler: false,
                 dueToBrokenCouple: false,
                 viaChainInteraction: true);
+        }
+
+        public static InteractionInfoType KnuckleCouplerUnlock = (InteractionInfoType)23000;
+        public static InteractionInfoType KnuckleCouplerLock = (InteractionInfoType)23001;
+
+        public static bool IsReadyToCouple(Coupler coupler)
+        {
+            return !unlockedCouplers.Contains(coupler);
+        }
+
+        [HarmonyPatch(typeof(InteractionTextControllerNonVr), nameof(InteractionTextControllerNonVr.GetText))]
+        public static class GetTextPatch
+        {
+            public static bool Prefix(InteractionInfoType infoType, ref string __result)
+            {
+                if (infoType == KnuckleCouplerUnlock)
+                {
+                    __result = $"Press {InteractionTextControllerNonVr.Btn_Use} to unlock coupler";
+                    return false;
+                }
+                if (infoType == KnuckleCouplerLock)
+                {
+                    __result = $"Press {InteractionTextControllerNonVr.Btn_Use} to ready coupler";
+                    return false;
+                }
+                return true;
+            }
         }
 
         [HarmonyPatch(typeof(ChainCouplerVisibilityOptimizer), nameof(ChainCouplerVisibilityOptimizer.Enable))]
