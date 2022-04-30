@@ -150,41 +150,67 @@ namespace DvMod.ZCouplers
             infoArea.infoType = unlockedCouplers.Contains(coupler) ? KnuckleCouplerLock : KnuckleCouplerUnlock;
         }
 
-        private static void OnButtonPressed(ChainCouplerInteraction chainScript)
-        {
-            var coupler = chainScript.couplerAdapter.coupler;
-            if (unlockedCouplers.Contains(coupler))
-            {
-                unlockedCouplers.Remove(coupler);
-                chainScript.PlaySound(chainScript.parkSound, chainScript.transform.position);
-            }
-            else
-            {
-                unlockedCouplers.Add(coupler);
-                chainScript.PlaySound(chainScript.attachSound, chainScript.transform.position);
-            }
+        public static InteractionInfoType KnuckleCouplerUnlock = (InteractionInfoType)23000;
+        public static InteractionInfoType KnuckleCouplerLock = (InteractionInfoType)23001;
 
-            Main.DebugLog(() => "Searching for InfoArea");
+        public static void UnlockCoupler(Coupler coupler, bool viaChainInteraction)
+        {
+            if (!enabled)
+                return;
+            if (unlockedCouplers.Contains(coupler))
+                return;
+            var chainScript = coupler.visualCoupler.chainAdapter.chainScript;
+            if (unlockedCouplers.Add(coupler))
+                chainScript.PlaySound(chainScript.attachSound, chainScript.transform.position);
             if (GetPivot(chainScript)?.Find("hook")?.GetComponent<InfoArea>() is InfoArea infoArea)
-            {
-                infoArea.infoType = infoArea.infoType == KnuckleCouplerLock ? KnuckleCouplerUnlock : KnuckleCouplerLock;
-                Main.DebugLog(() => $"Found hook. Set infoType to {infoArea.infoType} on {coupler.train.ID} {coupler.isFrontCoupler}");
-            }
+                infoArea.infoType = KnuckleCouplerLock;
 
             coupler.Uncouple(
                 playAudio: true,
                 calledOnOtherCoupler: false,
                 dueToBrokenCouple: false,
-                viaChainInteraction: true);
+                viaChainInteraction);
         }
 
-        public static InteractionInfoType KnuckleCouplerUnlock = (InteractionInfoType)23000;
-        public static InteractionInfoType KnuckleCouplerLock = (InteractionInfoType)23001;
+        public static void ReadyCoupler(Coupler coupler)
+        {
+            if (!enabled)
+                return;
+            if (!unlockedCouplers.Contains(coupler))
+                return;
+            var chainScript = coupler.visualCoupler.chainAdapter.chainScript;
+            if (unlockedCouplers.Remove(coupler))
+                chainScript.PlaySound(chainScript.parkSound, chainScript.transform.position);
+            if (GetPivot(chainScript)?.Find("hook")?.GetComponent<InfoArea>() is InfoArea infoArea)
+                infoArea.infoType = KnuckleCouplerUnlock;
+        }
+
+        private static void OnButtonPressed(ChainCouplerInteraction chainScript)
+        {
+            var coupler = chainScript.couplerAdapter.coupler;
+            if (unlockedCouplers.Contains(coupler))
+                ReadyCoupler(coupler);
+            else
+                UnlockCoupler(coupler, viaChainInteraction: true);
+        }
 
         public static bool IsReadyToCouple(Coupler coupler)
         {
             return !unlockedCouplers.Contains(coupler);
         }
+
+        public static bool HasUnlockedCoupler(Trainset trainset)
+        {
+            if (!enabled)
+                return false;
+            foreach (var car in trainset.cars)
+            {
+                if (unlockedCouplers.Contains(car.frontCoupler) || unlockedCouplers.Contains(car.rearCoupler))
+                    return true;
+            }
+
+            return false;
+       }
 
         [HarmonyPatch(typeof(InteractionTextControllerNonVr), nameof(InteractionTextControllerNonVr.GetText))]
         public static class GetTextPatch
