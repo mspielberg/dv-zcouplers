@@ -3,6 +3,7 @@
   "DisplayName": "Zeibach's Couplers",
   "Author": "Zeibach",
   "Version": "0.2.0",
+  "LoadAfter": ["DVCustomCarLoader", "HeadsUpDisplay"],
   "AssemblyName": "ZCouplers.dll",
   "EntryMethod": "DvMod.ZCouplers.Main.Load",
   "HomePage": "https://www.nexusmods.com/derailvalley/mods/368",
