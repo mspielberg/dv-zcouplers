@@ -137,9 +137,16 @@ namespace DvMod.ZCouplers
             hook.transform.SetParent(pivot.transform, false);
             hook.transform.localPosition = PivotLength * Vector3.forward;
 
-            var collider = hook.GetComponent<MeshCollider>();
-            collider.convex = true;
-            collider.isTrigger = true;
+            var interactionCollider = hook.GetComponent<MeshCollider>();
+            interactionCollider.convex = true;
+            interactionCollider.isTrigger = true;
+
+            var colliderHost = new GameObject("walkable");
+            colliderHost.layer = LayerMask.NameToLayer("Train_Walkable");
+            colliderHost.transform.SetParent(hook.transform, worldPositionStays: false);
+            var walkableCollider = colliderHost.AddComponent<BoxCollider>();
+            walkableCollider.center = new Vector3(0f, 0.003f, 0f);
+            walkableCollider.size = new Vector3(0.004f, 0.004f, 0.001f);
 
             var buttonSpec = hook.AddComponent<Button>();
             buttonSpec.createRigidbody = false;
