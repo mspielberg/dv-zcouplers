@@ -8,8 +8,6 @@ namespace DvMod.ZCouplers
 {
     public static class Couplers
     {
-        private static readonly bool enabled = true;
-
         private const float ChainSpring = 2e7f; // ~1,200,000 lb/in
         private const float LooseChainLength = 1.1f;
         private const float TightChainLength = 1.0f;
@@ -50,8 +48,7 @@ namespace DvMod.ZCouplers
             public static bool Prefix(Coupler __instance)
             {
                 // ignore tender joint
-                if (!enabled ||
-                    (CarTypes.IsSteamLocomotive(__instance.train.carType) && !__instance.isFrontCoupler))
+                if (__instance.train.GetComponent<DV.SteamTenderAutoCoupleMechanism>() != null && !__instance.isFrontCoupler)
                 {
                     return true;
                 }
@@ -76,8 +73,6 @@ namespace DvMod.ZCouplers
 
             public static void Prefix(Coupler __instance)
             {
-                if (!enabled)
-                    return;
                 // Prevent Uncouple from destroying compression joint
                 compressionJoints[__instance] = __instance.rigidCJ;
                 __instance.rigidCJ = null;
@@ -90,8 +85,6 @@ namespace DvMod.ZCouplers
 
             public static void Postfix(Coupler __instance)
             {
-                if (!enabled)
-                    return;
                 __instance.rigidCJ = compressionJoints[__instance];
                 compressionJoints.Remove(__instance);
                 __instance.jointCoroRigid = coros[__instance];
@@ -104,8 +97,6 @@ namespace DvMod.ZCouplers
         {
             public static void Postfix(TrainCar trainCar)
             {
-                if (!enabled)
-                    return;
                 // remove pre-coupling joints, if any
                 DestroyCompressionJoint(trainCar.frontCoupler);
                 DestroyCompressionJoint(trainCar.rearCoupler);
@@ -198,10 +189,7 @@ namespace DvMod.ZCouplers
 
                 scanner.enabled = false;
 
-                __result = new EnumeratorWrapper(__result, () =>
-                {
-                    scanner.enabled = true;
-                });
+                __result = new EnumeratorWrapper(__result, () => scanner.enabled = true);
             }
         }
 
@@ -211,8 +199,6 @@ namespace DvMod.ZCouplers
         {
             public static bool Prefix(ChainCouplerVisibilityOptimizer __instance)
             {
-                if (!enabled)
-                    return true;
                 if (!__instance.enabled)
                     return false;
                 __instance.enabled = false;
@@ -226,8 +212,6 @@ namespace DvMod.ZCouplers
         {
             public static void Postfix(CouplingScanner __instance)
             {
-                if (!enabled)
-                    return;
                 var scanner = __instance;
                 __instance.ScanStateChanged += (CouplingScanner otherScanner) =>
                 {
@@ -262,8 +246,6 @@ namespace DvMod.ZCouplers
         {
             public static bool Prefix(CouplingScanner __instance, ref IEnumerator __result)
             {
-                if (!enabled)
-                    return true;
                 __result = ReplacementCoro(__instance);
                 return false;
             }
