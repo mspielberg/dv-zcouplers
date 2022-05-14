@@ -124,8 +124,10 @@ namespace DvMod.ZCouplers
         private static void CreateHook(ChainCouplerInteraction chainScript)
         {
             var coupler = chainScript.couplerAdapter.coupler;
-
-            var pivot = new GameObject("ZCouplers pivot");
+            if (coupler.isFrontCoupler)
+                var pivot = new GameObject("ZCouplers pivot front");
+            else
+                var pivot = new GameObject("ZCouplers pivot rear");
             pivot.transform.SetParent(coupler.transform, false);
             pivot.transform.localPosition = new Vector3(0, HeightOffset, -PivotLength);
             pivot.transform.parent = coupler.train.interior;
