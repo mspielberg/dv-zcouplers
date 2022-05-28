@@ -299,8 +299,8 @@ namespace DvMod.ZCouplers
                     {
                         Main.DebugLog(coupler.train, () => $"{coupler.train.ID}: offset.z = {offset.z}");
                         var compression = StaticOffset - offset.z;
-                        if (__instance.nearbyScanner.isActiveAndEnabled
-                            && Main.settings.couplerType == CouplerType.JanneyKnuckle
+                        if (KnuckleCouplers.enabled
+                            && __instance.nearbyScanner.isActiveAndEnabled
                             && compression > Main.settings.autoCoupleThreshold * 1e-3f
                             && KnuckleCouplers.IsReadyToCouple(coupler)
                             && KnuckleCouplers.IsReadyToCouple(GetCoupler(__instance.nearbyScanner)))

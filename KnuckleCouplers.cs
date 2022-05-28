@@ -10,13 +10,13 @@ namespace DvMod.ZCouplers
 {
     public static class KnuckleCouplers
     {
-        public static readonly bool enabled = Main.settings.couplerType == CouplerType.JanneyKnuckle;
+        public static readonly bool enabled = Main.settings.couplerType != CouplerType.BufferAndChain;
         private static readonly GameObject hookPrefab;
 
         static KnuckleCouplers()
         {
-            var bundle = AssetBundle.LoadFromFile(Path.Combine(Main.mod!.Path, "knucklecoupler"));
-            hookPrefab = bundle.LoadAsset<GameObject>("hook");
+            var bundle = AssetBundle.LoadFromFile(Path.Combine(Main.mod!.Path, "ZCouplers.assetbundle"));
+            hookPrefab = bundle.LoadAsset<GameObject>(Main.settings.couplerType.ToString());
             bundle.Unload(false);
         }
 
@@ -137,16 +137,15 @@ namespace DvMod.ZCouplers
             hook.transform.SetParent(pivot.transform, false);
             hook.transform.localPosition = PivotLength * Vector3.forward;
 
-            var interactionCollider = hook.GetComponent<MeshCollider>();
-            interactionCollider.convex = true;
+            var interactionCollider = hook.GetComponent<BoxCollider>();
             interactionCollider.isTrigger = true;
 
             var colliderHost = new GameObject("walkable");
             colliderHost.layer = LayerMask.NameToLayer("Train_Walkable");
             colliderHost.transform.SetParent(hook.transform, worldPositionStays: false);
             var walkableCollider = colliderHost.AddComponent<BoxCollider>();
-            walkableCollider.center = new Vector3(0f, 0.003f, 0f);
-            walkableCollider.size = new Vector3(0.004f, 0.004f, 0.001f);
+            walkableCollider.center = interactionCollider.center;
+            walkableCollider.size = interactionCollider.size;
 
             var buttonSpec = hook.AddComponent<Button>();
             buttonSpec.createRigidbody = false;
