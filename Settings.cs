@@ -10,7 +10,7 @@ namespace DvMod.ZCouplers
     }
     public class Settings : UnityModManager.ModSettings, IDrawable
     {
-        [Draw("Coupler type (requires restart)")] public CouplerType couplerType = CouplerType.AARKnuckle;
+        [Draw("Coupler type (requires restart)")] public CouplerType couplerType = CouplerType.SA3Knuckle;
 
         [Draw("Chain strength (Mn)", Min = 0.1f, VisibleOn = "couplerType|BufferAndChain")]
         public float chainStrength = 0.85f;
