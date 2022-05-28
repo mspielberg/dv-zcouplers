@@ -95,7 +95,7 @@ namespace DvMod.ZCouplers
                 if (!enabled)
                     return;
                 var pivot = GetPivot(__instance);
-                if (pivot != null)
+                if (pivot != null && __instance.couplerAdapter.coupler != null)
                 {
                     pivot.localEulerAngles = __instance.couplerAdapter.coupler.transform.localEulerAngles;
                     var hook = pivot.Find("hook");
