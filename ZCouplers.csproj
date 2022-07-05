@@ -19,6 +19,7 @@
     <Reference Include="DVCustomCarLoader"/>
     <Reference Include="DV.BrakeSystem"/>
     <Reference Include="DV.Utils"/>
+    <Reference Include="Newtonsoft.Json"/>
     <Reference Include="Stateless"/>
     <Reference Include="UnityEngine.AssetBundleModule"/>
     <Reference Include="UnityEngine.AudioModule"/>
