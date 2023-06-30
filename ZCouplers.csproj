@@ -4,27 +4,33 @@
     <LangVersion>8.0</LangVersion>
     <Nullable>enable</Nullable>
     <RootNamespace>DvMod.ZCouplers</RootNamespace>
-    <InformationalVersion>0.3.0</InformationalVersion>
+    <InformationalVersion>1.0.0</InformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="RedworkDE.Publicizer" Version="0.2.2" />
-    <PublicizeAssembly Include="Assembly-CSharp" Private="True" Readonly="True" />
+    <PackageReference Include="Krafs.Publicizer" Version="2.2.1" />
+    <Publicize Include="Assembly-CSharp" IncludeCompilerGeneratedMembers="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BepInEx.Analyzers" Version="1.*" PrivateAssets="all" />
+    <PackageReference Include="BepInEx.Core" Version="5.*" />
+    <PackageReference Include="BepInEx.PluginInfoProps" Version="1.*" />
+    <PackageReference Include="UnityEngine.Modules" Version="2019.4.22" IncludeAssets="compile" />
   </ItemGroup>
 
   <ItemGroup>
     <Reference Include="0Harmony"/>
     <Reference Include="Assembly-CSharp"/>
     <Reference Include="Assembly-CSharp-firstpass"/>
-    <Reference Include="DVCustomCarLoader"/>
+    <!-- <Reference Include="DVCustomCarLoader"/> -->
     <Reference Include="DV.BrakeSystem"/>
     <Reference Include="DV.Utils"/>
     <Reference Include="Newtonsoft.Json"/>
     <Reference Include="Stateless"/>
-    <Reference Include="UnityEngine.AssetBundleModule"/>
-    <Reference Include="UnityEngine.AudioModule"/>
-    <Reference Include="UnityEngine.CoreModule"/>
-    <Reference Include="UnityEngine.PhysicsModule"/>
-    <Reference Include="UnityModManager"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="ZCouplers.assetbundle" />
   </ItemGroup>
 </Project>

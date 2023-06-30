@@ -1,22 +1,24 @@
-using System.Collections.Generic;
-using System.IO;
-using System.Reflection;
+using DV;
 using DV.CabControls;
 using DV.CabControls.Spec;
 using HarmonyLib;
+using System.Collections.Generic;
+using System.Reflection;
 using UnityEngine;
 
 namespace DvMod.ZCouplers
 {
     public static class KnuckleCouplers
     {
-        public static readonly bool enabled = Main.settings.couplerType != CouplerType.BufferAndChain;
+        public static readonly bool enabled = Main.settings.couplerType.Value != CouplerType.BufferAndChain;
         private static readonly GameObject hookPrefab;
 
         static KnuckleCouplers()
         {
-            var bundle = AssetBundle.LoadFromFile(Path.Combine(Main.mod!.Path, "ZCouplers.assetbundle"));
-            hookPrefab = bundle.LoadAsset<GameObject>(Main.settings.couplerType.ToString());
+            var bundleStream = typeof(KnuckleCouplers).Assembly.GetManifestResourceStream(typeof(Main), "ZCouplers.assetbundle");
+            var bundle = AssetBundle.LoadFromStream(bundleStream);
+            CouplerType couplerType = Main.settings.couplerType.Value;
+            hookPrefab = bundle.LoadAsset<GameObject>(couplerType.ToString());
             bundle.Unload(false);
         }
 
@@ -150,7 +152,7 @@ namespace DvMod.ZCouplers
             var buttonSpec = hook.AddComponent<Button>();
             buttonSpec.createRigidbody = false;
             buttonSpec.useJoints = false;
-            hook.GetComponent<ButtonBase>().Used = () => OnButtonPressed(chainScript);
+            hook.GetComponent<ButtonBase>().Used += () => OnButtonPressed(chainScript);
 
             var infoArea = hook.AddComponent<InfoArea>();
             infoArea.infoType = unlockedCouplers.Contains(coupler) ? KnuckleCouplerLock : KnuckleCouplerUnlock;
@@ -218,19 +220,19 @@ namespace DvMod.ZCouplers
             return false;
        }
 
-        [HarmonyPatch(typeof(InteractionTextControllerNonVr), nameof(InteractionTextControllerNonVr.GetText))]
+        [HarmonyPatch(typeof(InteractionText), nameof(InteractionText.GetText))]
         public static class GetTextPatch
         {
             public static bool Prefix(InteractionInfoType infoType, ref string __result)
             {
                 if (infoType == KnuckleCouplerUnlock)
                 {
-                    __result = $"Press {InteractionTextControllerNonVr.Btn_Use} to unlock coupler";
+                    __result = $"Press {InteractionText.Instance.BtnUse} to unlock coupler";
                     return false;
                 }
                 if (infoType == KnuckleCouplerLock)
                 {
-                    __result = $"Press {InteractionTextControllerNonVr.Btn_Use} to ready coupler";
+                    __result = $"Press {InteractionText.Instance.BtnUse} to ready coupler";
                     return false;
                 }
                 return true;

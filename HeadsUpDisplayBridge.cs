@@ -1,13 +1,13 @@
 using System;
 using System.Linq;
 using UnityEngine;
-using UnityModManagerNet;
 using Formatter = System.Func<float, string>;
 using Provider = System.Func<TrainCar, float?>;
 using Pusher = System.Action<TrainCar, float>;
 
 namespace DvMod.ZCouplers
 {
+    /*
     internal sealed class HeadsUpDisplayBridge
     {
         public static HeadsUpDisplayBridge? instance;
@@ -54,7 +54,7 @@ namespace DvMod.ZCouplers
             RegisterPull(
                 "Front coupler",
                 car => car.frontCoupler.GetComponent<CouplerBreaker>()?.jointStress,
-                v => $"{v / Main.settings.GetCouplerStrength() / 1e6f:P0}",
+                v => $"{v / Main.settings.GetCouplerStrength():P0}",
                 hidden: true);
 
             // RegisterPull(
@@ -70,7 +70,7 @@ namespace DvMod.ZCouplers
             RegisterPull(
                 "Rear coupler",
                 car => car.rearCoupler.GetComponent<CouplerBreaker>()?.jointStress,
-                v => $"{v / Main.settings.GetCouplerStrength() / 1e6f:P0}",
+                v => $"{v / Main.settings.GetCouplerStrength():P0}",
                 hidden: true);
 
             // RegisterPull(
@@ -97,4 +97,5 @@ namespace DvMod.ZCouplers
             return isFrontCoupler ? delta : -delta;
         }
     }
+    */
 }

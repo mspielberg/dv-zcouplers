@@ -29,7 +29,7 @@ namespace DvMod.ZCouplers
             jointStress = recentStress.Max();
             // jointStress = ((1f - Alpha) * jointStress) + (Alpha * scaledForce);
             // Main.DebugLog(TrainCar.Resolve(gameObject), () => $"custom coupler: currentForce={joint.currentForce.magnitude},scaledForce={scaledForce},recentStress={string.Join(",", recentStress)},jointStress={jointStress}");
-            var couplerStrength = Main.settings.GetCouplerStrength() * 1e6f;
+            var couplerStrength = Main.settings.GetCouplerStrength();
             if (couplerStrength > 0f && recentStress.All(s => s > couplerStrength) && Random.value < PerFrameBreakChance)
             {
                 Main.DebugLog(() => $"Breaking coupler: currentForce={scaledForce},recentStress={string.Join(",", recentStress)}");

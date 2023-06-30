@@ -1,4 +1,4 @@
-using UnityModManagerNet;
+using BepInEx.Configuration;
 
 namespace DvMod.ZCouplers
 {
@@ -8,68 +8,73 @@ namespace DvMod.ZCouplers
         AARKnuckle = 1,
         SA3Knuckle = 2,
     }
-    public class Settings : UnityModManager.ModSettings, IDrawable
+
+    public class Settings
     {
-        [Draw("Coupler type (requires restart)")] public CouplerType couplerType = CouplerType.SA3Knuckle;
+        public ConfigEntry<CouplerType> couplerType;
 
-        [Draw("Chain strength (Mn)", Min = 0.1f, VisibleOn = "couplerType|BufferAndChain")]
-        public float chainStrength = 0.85f;
-        [Draw("Compression spring rate", Min = 0f, VisibleOn = "couplerType|BufferAndChain")]
-        public float bufferSpringRate = 2f;
-        [Draw("Compression damper rate", Min = 0f, VisibleOn = "couplerType|BufferAndChain")]
-        public float bufferDamperRate = 8f;
+        public ConfigEntry<float> chainStrength;
+        public ConfigEntry<float> bufferSpringRate;
+        public ConfigEntry<float> bufferDamperRate;
 
-        [Draw("Knuckle strength (Mn)", Min = 0.1f, InvisibleOn = "couplerType|BufferAndChain")]
-        public float knuckleStrength = 1.78f;
-        [Draw("Compression spring rate", Min = 0f, InvisibleOn = "couplerType|BufferAndChain")]
-        public float drawgearSpringRate = 0.1f;
-        [Draw("Compression damper rate", Min = 0f, InvisibleOn = "couplerType|BufferAndChain")]
-        public float drawgearDamperRate = 100f;
-        [Draw("Auto couple threshold (mm)", Min = 0f, InvisibleOn = "couplerType|BufferAndChain")]
-        public float autoCoupleThreshold = 20f;
+        public ConfigEntry<float> knuckleStrength;
+        public ConfigEntry<float> drawgearSpringRate;
+        public ConfigEntry<float> drawgearDamperRate;
+        public ConfigEntry<float> autoCoupleThreshold;
 
-        [Draw("Enable logging")] public bool enableLogging = false;
-        public readonly string? version = Main.mod?.Info.Version;
+        public ConfigEntry<bool> enableLogging;
+        public readonly string? version;
 
-        override public void Save(UnityModManager.ModEntry entry)
+        private static readonly AcceptableValueRange<float> POSITIVE = new AcceptableValueRange<float>(0.1f, float.PositiveInfinity);
+
+        public Settings(ConfigFile configFile)
         {
-            Save<Settings>(this, entry);
-        }
+            couplerType = configFile.Bind("general", "couplerType", CouplerType.SA3Knuckle, new ConfigDescription("Coupler type (requires restart)"));
 
-        public void OnChange()
-        {
-            Couplers.UpdateAllCompressionJoints();
+            chainStrength = configFile.Bind("chain", "strength", 0.85f, new ConfigDescription("Chain strength (Mn)", POSITIVE));
+            bufferSpringRate = configFile.Bind("chain", "spring", 2f, new ConfigDescription("Compression spring rate", POSITIVE));
+            bufferDamperRate = configFile.Bind("chain", "damper", 8f, new ConfigDescription("Compression damper rate", POSITIVE));
+
+            knuckleStrength = configFile.Bind("knuckle", "strength", 1.78f, new ConfigDescription("Knuckle strength (Mn)", POSITIVE));
+            drawgearSpringRate = configFile.Bind("knuckle", "spring", 0.1f, new ConfigDescription("Compression spring rate", POSITIVE));
+            drawgearDamperRate = configFile.Bind("knuckle", "damper", 100f, new ConfigDescription("Compression damper rate", POSITIVE));
+
+            autoCoupleThreshold = configFile.Bind("knuckle", "autoCoupleThreshold", 20f, new ConfigDescription("Auto couple threshold (mm)", POSITIVE));
+
+            configFile.SettingChanged += (sender, e) => Couplers.UpdateAllCompressionJoints();
+
+            enableLogging = configFile.Bind("logging", "enable", true);
         }
 
         public float GetCouplerStrength()
         {
-            return couplerType switch
+            return couplerType.Value switch
             {
-                CouplerType.BufferAndChain => chainStrength,
-                CouplerType.AARKnuckle => knuckleStrength,
-                CouplerType.SA3Knuckle => knuckleStrength,
+                CouplerType.BufferAndChain => chainStrength.Value * 1e6f,
+                CouplerType.AARKnuckle => knuckleStrength.Value * 1e6f,
+                CouplerType.SA3Knuckle => knuckleStrength.Value * 1e6f,
                 _ => 0f,
             };
         }
 
         public float GetSpringRate()
         {
-            return couplerType switch
+            return couplerType.Value switch
             {
-                CouplerType.BufferAndChain => bufferSpringRate * 1e6f,
-                CouplerType.AARKnuckle => drawgearSpringRate * 1e6f,
-                CouplerType.SA3Knuckle => drawgearSpringRate * 1e6f,
+                CouplerType.BufferAndChain => bufferSpringRate.Value * 1e6f,
+                CouplerType.AARKnuckle => drawgearSpringRate.Value * 1e6f,
+                CouplerType.SA3Knuckle => drawgearSpringRate.Value * 1e6f,
                 _ => 0f,
             };
         }
 
         public float GetDamperRate()
         {
-            return couplerType switch
+            return couplerType.Value switch
             {
-                CouplerType.BufferAndChain => bufferDamperRate,
-                CouplerType.AARKnuckle => drawgearDamperRate,
-                CouplerType.SA3Knuckle => drawgearDamperRate,
+                CouplerType.BufferAndChain => bufferDamperRate.Value,
+                CouplerType.AARKnuckle => drawgearDamperRate.Value,
+                CouplerType.SA3Knuckle => drawgearDamperRate.Value,
                 _ => 0f,
             };
         }
