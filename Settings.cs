@@ -1,6 +1,5 @@
 using BepInEx.Configuration;
 using System;
-using System.Linq;
 
 namespace DvMod.ZCouplers
 {

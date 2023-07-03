@@ -92,14 +92,31 @@ namespace DvMod.ZCouplers
             }
         }
 
+        [HarmonyPatch(typeof(TrainCar), nameof(TrainCar.UncoupleSelf))]
+        public static class UncoupleSelfPatch
+        {
+            public static void Postfix(TrainCar __instance)
+            {
+                Main.DebugLog(() => "TrainCar.UncoupleSelf.Postfix");
+                // remove pre-coupling joints, if any, before car is teleported
+                DestroyCompressionJoint(__instance.frontCoupler);
+                DestroyCompressionJoint(__instance.rearCoupler);
+                KillCouplingScanner(__instance.frontCoupler);
+                KillCouplingScanner(__instance.rearCoupler);
+            }
+        }
+
         [HarmonyPatch(typeof(CarSpawner), nameof(CarSpawner.PrepareTrainCarForDeleting))]
         public static class PrepareTrainCarForDeletingPatch
         {
             public static void Postfix(TrainCar trainCar)
             {
+                Main.DebugLog(() => "TrainCar.PrepareTrainCarForDeleting.Postfix");
                 // remove pre-coupling joints, if any
                 DestroyCompressionJoint(trainCar.frontCoupler);
                 DestroyCompressionJoint(trainCar.rearCoupler);
+                KillCouplingScanner(trainCar.frontCoupler);
+                KillCouplingScanner(trainCar.rearCoupler);
             }
         }
 
@@ -314,7 +331,8 @@ namespace DvMod.ZCouplers
             }
         }
 
-        internal static readonly Dictionary<Coupler, ConfigurableJoint> bufferJoints = new Dictionary<Coupler, ConfigurableJoint>();
+        internal static readonly Dictionary<Coupler, (Coupler otherCoupler, ConfigurableJoint joint)> bufferJoints =
+            new Dictionary<Coupler, (Coupler otherCoupler, ConfigurableJoint joint)>();
 
         private static void CreateCompressionJoint(Coupler a, Coupler b)
         {
@@ -354,24 +372,31 @@ namespace DvMod.ZCouplers
             bufferCj.breakForce = float.PositiveInfinity;
             bufferCj.breakTorque = float.PositiveInfinity;
 
-            bufferJoints.Add(a, bufferCj);
+            bufferJoints.Add(a, (b, bufferCj));
+            bufferJoints.Add(b, (a, bufferCj));
         }
 
         private static void DestroyCompressionJoint(Coupler coupler)
         {
-            if (coupler.rigidCJ == null)
+            if (!bufferJoints.TryGetValue(coupler, out var result))
                 return;
-            Main.DebugLog(() => $"Destroying compression joint between {TrainCar.Resolve(coupler.gameObject)?.ID} and {TrainCar.Resolve(coupler.rigidCJ.connectedBody.gameObject)?.ID}");
-            if (coupler.jointCoroRigid != null)
+
+            Main.DebugLog(() => $"Destroying compression joint between {TrainCar.Resolve(coupler.gameObject)?.ID} and {TrainCar.Resolve(result.otherCoupler.gameObject)?.ID}");
+            Component.Destroy(result.joint);
+
+            foreach (var c in new Coupler[]{ coupler, result.otherCoupler })
             {
-                coupler.StopCoroutine(coupler.jointCoroRigid);
-                coupler.jointCoroRigid = null;
+                if (c.jointCoroRigid != null)
+                {
+                    c.StopCoroutine(c.jointCoroRigid);
+                    c.jointCoroRigid = null;
+                }
+                Component.Destroy(c.rigidCJ);
+                c.rigidCJ = null;
             }
-            Component.Destroy(coupler.rigidCJ);
-            coupler.rigidCJ = null;
-            if (bufferJoints.TryGetValue(coupler, out var bufferJoint))
-                Component.Destroy(bufferJoint);
+
             bufferJoints.Remove(coupler);
+            bufferJoints.Remove(result.otherCoupler);
         }
 
         private static Vector3 JointDelta(Joint joint, bool isFrontCoupler)
@@ -382,14 +407,17 @@ namespace DvMod.ZCouplers
 
         public static void UpdateAllCompressionJoints()
         {
+            if (bufferJoints.Count == 0)
+                return;
+
             var springRate = Main.settings.GetSpringRate();
             var damperRate = Main.settings.GetDamperRate();
 
-            var firstJoint = bufferJoints.Values.FirstOrDefault();
+            var firstJoint = bufferJoints.Values.FirstOrDefault().joint;
             if (firstJoint == null || (firstJoint.linearLimitSpring.spring == springRate && firstJoint.linearLimitSpring.damper == damperRate))
                 return;
 
-            foreach (var joint in bufferJoints.Values)
+            foreach (var joint in bufferJoints.Values.Select(x => x.joint))
             {
                 joint.linearLimitSpring = new SoftJointLimitSpring
                 {
