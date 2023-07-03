@@ -1,4 +1,6 @@
 using BepInEx.Configuration;
+using System;
+using System.Linq;
 
 namespace DvMod.ZCouplers
 {
@@ -29,7 +31,8 @@ namespace DvMod.ZCouplers
 
         public Settings(ConfigFile configFile)
         {
-            couplerType = configFile.Bind("general", "couplerType", CouplerType.SA3Knuckle, new ConfigDescription("Coupler type (requires restart)"));
+            var couplerTypeDescription = new ConfigDescription($"One of: {string.Join(", ", Enum.GetNames(typeof(CouplerType)))}");
+            couplerType = configFile.Bind("general", "couplerType", CouplerType.SA3Knuckle, couplerTypeDescription);
 
             chainStrength = configFile.Bind("chain", "strength", 0.85f, new ConfigDescription("Chain strength (Mn)", POSITIVE));
             bufferSpringRate = configFile.Bind("chain", "spring", 2f, new ConfigDescription("Compression spring rate", POSITIVE));
