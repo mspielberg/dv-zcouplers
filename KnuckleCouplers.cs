@@ -4,6 +4,7 @@ using DV.CabControls.Spec;
 using HarmonyLib;
 using System.Collections.Generic;
 using System.Reflection;
+using DV.ThingTypes;
 using UnityEngine;
 
 namespace DvMod.ZCouplers
@@ -20,6 +21,18 @@ namespace DvMod.ZCouplers
             CouplerType couplerType = Main.settings.couplerType.Value;
             hookPrefab = bundle.LoadAsset<GameObject>(couplerType.ToString());
             bundle.Unload(false);
+        }
+
+        public static void RemoveBuffers()
+        {
+            foreach (TrainCarLivery livery in Globals.G.Types.Liveries)
+            {
+                Transform[] children = livery.prefab.GetComponentsInChildren<Transform>();
+                foreach (Transform child in children)
+                    // Search for buffer pads, then buffer stems. Stems aren't named or placed consistently, so we have to generalize.
+                    if (child.name.StartsWith("Buffer_") || child.name.Replace("_", "").ToLowerInvariant().Contains("bufferstem"))
+                        child.gameObject.SetActive(false);
+            }
         }
 
         private static readonly HashSet<Coupler> unlockedCouplers = new HashSet<Coupler>();
