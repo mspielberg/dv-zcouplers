@@ -26,7 +26,6 @@ namespace DvMod.ZCouplers
             // Force static initializer to execute and load asset bundle
             if (KnuckleCouplers.enabled)
             {
-                KnuckleCouplers.RemoveBuffers();
                 Logger.LogInfo("Loaded {settings.couplerType}");
             }
             // CCLIntegration.Initialize(DebugLog);

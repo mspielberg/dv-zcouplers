@@ -18,6 +18,7 @@ namespace DvMod.ZCouplers
         public ConfigEntry<float> bufferSpringRate;
         public ConfigEntry<float> bufferDamperRate;
 
+        public ConfigEntry<bool> showBuffersWithKnuckles;
         public ConfigEntry<float> knuckleStrength;
         public ConfigEntry<float> drawgearSpringRate;
         public ConfigEntry<float> drawgearDamperRate;
@@ -37,6 +38,12 @@ namespace DvMod.ZCouplers
             bufferSpringRate = configFile.Bind("chain", "spring", 2f, new ConfigDescription("Compression spring rate", POSITIVE));
             bufferDamperRate = configFile.Bind("chain", "damper", 8f, new ConfigDescription("Compression damper rate", POSITIVE));
 
+            showBuffersWithKnuckles = configFile.Bind("knuckle", "showBuffers", false, "Whether to show buffers when knuckles are in use");
+            showBuffersWithKnuckles.SettingChanged += (sender, args) =>
+            {
+                if (KnuckleCouplers.enabled)
+                    KnuckleCouplers.ToggleBuffers(showBuffersWithKnuckles.Value);
+            };
             knuckleStrength = configFile.Bind("knuckle", "strength", 1.78f, new ConfigDescription("Knuckle strength (Mn)", POSITIVE));
             drawgearSpringRate = configFile.Bind("knuckle", "spring", 0.1f, new ConfigDescription("Compression spring rate", POSITIVE));
             drawgearDamperRate = configFile.Bind("knuckle", "damper", 100f, new ConfigDescription("Compression damper rate", POSITIVE));
