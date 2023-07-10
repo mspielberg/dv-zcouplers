@@ -131,11 +131,19 @@ namespace DvMod.ZCouplers
             cj.connectedAnchor = coupler.coupledTo.transform.localPosition;
 
             cj.xMotion = ConfigurableJointMotion.Limited;
-            cj.yMotion = ConfigurableJointMotion.Limited;
+            cj.yMotion = ConfigurableJointMotion.Locked;
             cj.zMotion = ConfigurableJointMotion.Limited;
+            cj.angularXMotion = ConfigurableJointMotion.Limited;
             cj.angularYMotion = ConfigurableJointMotion.Limited;
+            cj.angularZMotion = ConfigurableJointMotion.Limited;
 
+            cj.lowAngularXLimit = new SoftJointLimit { limit = 5f };
+            cj.highAngularXLimit = new SoftJointLimit { limit = 5f };
             cj.angularYLimit = new SoftJointLimit { limit = 30f };
+            cj.angularZLimit = new SoftJointLimit { limit = 5 };
+
+            cj.angularXLimitSpring = new SoftJointLimitSpring { spring = ChainSpring };
+            cj.angularYZLimitSpring = new SoftJointLimitSpring { spring = ChainSpring };
 
             cj.linearLimit = new SoftJointLimit { limit = LooseChainLength };
             cj.linearLimitSpring = new SoftJointLimitSpring { spring = ChainSpring };
