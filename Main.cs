@@ -8,7 +8,7 @@ namespace DvMod.ZCouplers
     public class Main : BaseUnityPlugin
     {
         public const string GUID = "com.github.mspielberg.dv-zcouplers";
-        public const string Version = "1.0.0";
+        public const string Version = "1.1.0";
 
         public static Main? Instance;
 
