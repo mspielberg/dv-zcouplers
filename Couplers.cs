@@ -131,7 +131,7 @@ namespace DvMod.ZCouplers
             cj.connectedAnchor = coupler.coupledTo.transform.localPosition;
 
             cj.xMotion = ConfigurableJointMotion.Limited;
-            cj.yMotion = ConfigurableJointMotion.Locked;
+            cj.yMotion = ConfigurableJointMotion.Limited;
             cj.zMotion = ConfigurableJointMotion.Limited;
             cj.angularXMotion = ConfigurableJointMotion.Limited;
             cj.angularYMotion = ConfigurableJointMotion.Limited;
