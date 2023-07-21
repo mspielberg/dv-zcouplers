@@ -29,20 +29,60 @@ namespace DvMod.ZCouplers
             Main.DebugLog(() => $"Toggling buffer visibility {(visible ? "on" : "off")}");
             // Modify prefabs for any new cars that are instantiated.
             foreach (TrainCarLivery livery in Globals.G.Types.Liveries) 
-                ToggleBuffers(livery.prefab, visible);
+                ToggleBuffers(livery.prefab, livery, visible);
             // Modify existing cars so the setting can update in real-time.
             if (CarSpawner.Instance == null) return;
-            foreach (TrainCar car in CarSpawner.Instance.allCars) 
-                ToggleBuffers(car.gameObject, visible);
+            foreach (TrainCar car in CarSpawner.Instance.allCars)
+                ToggleBuffers(car.gameObject, car.carLivery, visible);
         }
 
-        private static void ToggleBuffers(GameObject root, bool visible)
+        private static void ToggleBuffers(GameObject root, TrainCarLivery livery, bool visible)
         {
             MeshRenderer[] renderers = root.GetComponentsInChildren<MeshRenderer>();
             foreach (MeshRenderer renderer in renderers)
                 // Search for buffer pads, then buffer stems. Stems aren't named or placed consistently, so we have to generalize.
                 if (renderer.name.StartsWith("Buffer_") || renderer.name.Replace("_", "").ToLowerInvariant().Contains("bufferstem"))
                     renderer.enabled = visible;
+
+            Transform colliders = root.transform.Find("[colliders]");
+            if (colliders == null)
+            {
+                Main.DebugLog(() => $"Failed to find [colliders] object on {livery.id}");
+                return;
+            }
+
+            foreach (string name in new[] { "[walkable]", "[items]" })
+            {
+                Transform t = colliders.Find(name);
+                if (t == null)
+                    Main.DebugLog(() => $"Failed to find '{name}' object on {livery.id}");
+                else
+                    ToggleCapsules(livery, t, visible);
+            }
+        }
+
+        private static void ToggleCapsules(TrainCarLivery livery, Transform transform, bool visible, byte limit = 4, bool checkLivery = true)
+        {
+            if (checkLivery && livery.id == "LocoS282A")
+            {
+                Transform exterior = transform.Find("Exterior");
+                if (exterior == null)
+                    Main.DebugLog(() => $"Failed to find 'Exterior' object on {livery.id}");
+                else
+                    ToggleCapsules(livery, exterior, visible, 2, false);
+
+                return;
+            }
+
+            CapsuleCollider[] capsules = transform.GetComponentsInChildren<CapsuleCollider>();
+            if (capsules.Length < limit)
+            {
+                Main.DebugLog(() => $"Only found {capsules.Length} capsules on {livery.id}, expected {limit}");
+                return;
+            }
+
+            for (int i = 0; i < limit; i++)
+                capsules[i].enabled = visible;
         }
 
         private static readonly HashSet<Coupler> unlockedCouplers = new HashSet<Coupler>();
