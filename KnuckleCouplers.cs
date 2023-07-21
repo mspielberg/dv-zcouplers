@@ -11,17 +11,17 @@ namespace DvMod.ZCouplers
 {
     public static class KnuckleCouplers
     {
-        public static readonly bool enabled = Main.settings.couplerType.Value != CouplerType.BufferAndChain;
+        public static readonly bool enabled = Main.settings.couplerType != CouplerType.BufferAndChain;
         private static readonly GameObject hookPrefab;
 
         static KnuckleCouplers()
         {
             var bundleStream = typeof(KnuckleCouplers).Assembly.GetManifestResourceStream(typeof(Main), "ZCouplers.assetbundle");
             var bundle = AssetBundle.LoadFromStream(bundleStream);
-            CouplerType couplerType = Main.settings.couplerType.Value;
+            CouplerType couplerType = Main.settings.couplerType;
             hookPrefab = bundle.LoadAsset<GameObject>(couplerType.ToString());
             bundle.Unload(false);
-            ToggleBuffers(Main.settings.showBuffersWithKnuckles.Value);
+            ToggleBuffers(Main.settings.showBuffersWithKnuckles);
         }
 
         public static void ToggleBuffers(bool visible)

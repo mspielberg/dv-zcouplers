@@ -1,34 +1,43 @@
-using BepInEx;
-using HarmonyLib;
 using System;
+using HarmonyLib;
+using UnityModManagerNet;
 
 namespace DvMod.ZCouplers
 {
-    [BepInPlugin(GUID, "ZCouplers", Version)]
-    public class Main : BaseUnityPlugin
+    [EnableReloading]
+    public static class Main
     {
-        public const string GUID = "com.github.mspielberg.dv-zcouplers";
-        public const string Version = "1.1.0";
+        public static UnityModManager.ModEntry? mod;
+        public static Settings settings = new Settings();
 
-        public static Main? Instance;
-
-        public static Settings settings;
-
-        public void Awake()
+        public static bool Load(UnityModManager.ModEntry modEntry)
         {
-            Instance = this;
-            settings = new Settings(Config);
+            mod = modEntry;
+
+            try
+            {
+                Settings? loaded = Settings.Load<Settings>(modEntry);
+                settings = loaded.version == modEntry.Info.Version ? loaded : new Settings();
+            }
+            catch
+            {
+                settings = new Settings();
+            }
+
+            modEntry.OnGUI = settings.Draw;
+            modEntry.OnSaveGUI = settings.Save;
 
             // HeadsUpDisplayBridge.Init();
-            Harmony harmony = new Harmony(GUID);
+            Harmony harmony = new Harmony(modEntry.Info.Id);
             harmony.PatchAll();
 
             // Force static initializer to execute and load asset bundle
             if (KnuckleCouplers.enabled)
-            {
-                Logger.LogInfo("Loaded {settings.couplerType}");
-            }
-            // CCLIntegration.Initialize(DebugLog);
+                mod.Logger.Log("Loaded {settings.couplerType}");
+
+            // CCLIntegration.Initialize();
+
+            return true;
         }
 
         public static void DebugLog(TrainCar car, Func<string> message)
@@ -39,8 +48,8 @@ namespace DvMod.ZCouplers
 
         public static void DebugLog(Func<string> message)
         {
-            if (settings.enableLogging.Value)
-                Instance?.Logger.LogDebug(message());
+            if (settings.enableLogging)
+                mod?.Logger.Log(message());
         }
     }
 }

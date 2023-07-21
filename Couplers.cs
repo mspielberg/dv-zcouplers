@@ -326,7 +326,7 @@ namespace DvMod.ZCouplers
                         var compression = StaticOffset - offset.z;
                         if (KnuckleCouplers.enabled
                             && __instance.nearbyScanner.isActiveAndEnabled
-                            && compression > Main.settings.autoCoupleThreshold.Value * 1e-3f
+                            && compression > Main.settings.autoCoupleThreshold * 1e-3f
                             && KnuckleCouplers.IsReadyToCouple(coupler)
                             && KnuckleCouplers.IsReadyToCouple(GetCoupler(__instance.nearbyScanner)))
                         {
