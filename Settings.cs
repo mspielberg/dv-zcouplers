@@ -51,9 +51,9 @@ namespace DvMod.ZCouplers
         public float GetCouplerStrength()
         {
             return couplerType switch {
-                CouplerType.BufferAndChain => chainStrength,
-                CouplerType.AARKnuckle => knuckleStrength,
-                CouplerType.SA3Knuckle => knuckleStrength,
+                CouplerType.BufferAndChain => chainStrength * 1e6f,
+                CouplerType.AARKnuckle => knuckleStrength * 1e6f,
+                CouplerType.SA3Knuckle => knuckleStrength * 1e6f,
                 _ => 0f
             };
         }
