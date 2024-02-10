@@ -17,7 +17,7 @@ namespace DvMod.ZCouplers
         [Draw("Chain strength (Mn)", Min = 0.1f, VisibleOn = "couplerType|BufferAndChain")]
         public float chainStrength = 0.85f;
         [Draw("Compression spring rate", Min = 0f, VisibleOn = "couplerType|BufferAndChain")]
-        public float bufferSpringRate = 2f;
+        public float bufferSpringRate = 2000f;
         [Draw("Compression damper rate", Min = 0f, VisibleOn = "couplerType|BufferAndChain")]
         public float bufferDamperRate = 8f;
 
@@ -26,7 +26,7 @@ namespace DvMod.ZCouplers
         [Draw("Knuckle strength (Mn)", Min = 0.1f, InvisibleOn = "couplerType|BufferAndChain")]
         public float knuckleStrength = 1.78f;
         [Draw("Compression spring rate", Min = 0f, InvisibleOn = "couplerType|BufferAndChain")]
-        public float drawgearSpringRate = 0.1f;
+        public float drawgearSpringRate = 1f;
         [Draw("Compression damper rate", Min = 0f, InvisibleOn = "couplerType|BufferAndChain")]
         public float drawgearDamperRate = 100f;
         [Draw("Auto couple threshold (mm)", Min = 0f, InvisibleOn = "couplerType|BufferAndChain")]
@@ -61,9 +61,9 @@ namespace DvMod.ZCouplers
         public float GetSpringRate()
         {
             return couplerType switch {
-                CouplerType.BufferAndChain => bufferSpringRate * 1e6f,
-                CouplerType.AARKnuckle => drawgearSpringRate * 1e6f,
-                CouplerType.SA3Knuckle => drawgearSpringRate * 1e6f,
+                CouplerType.BufferAndChain => bufferSpringRate * 1e3f,
+                CouplerType.AARKnuckle => drawgearSpringRate * 1e3f,
+                CouplerType.SA3Knuckle => drawgearSpringRate * 1e3f,
                 _ => 0f
             };
         }
@@ -71,9 +71,9 @@ namespace DvMod.ZCouplers
         public float GetDamperRate()
         {
             return couplerType switch {
-                CouplerType.BufferAndChain => bufferDamperRate,
-                CouplerType.AARKnuckle => drawgearDamperRate,
-                CouplerType.SA3Knuckle => drawgearDamperRate,
+                CouplerType.BufferAndChain => bufferDamperRate * 1e3f,
+                CouplerType.AARKnuckle => drawgearDamperRate * 1e3f,
+                CouplerType.SA3Knuckle => drawgearDamperRate * 1e3f,
                 _ => 0f
             };
         }
