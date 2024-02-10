@@ -16,6 +16,11 @@ namespace DvMod.ZCouplers
 
         static KnuckleCouplers()
         {
+            if (!enabled)
+            {
+                // don't even try to load assets if knuckle couplers are disabled
+                return;
+            }
             var bundleStream = typeof(KnuckleCouplers).Assembly.GetManifestResourceStream(typeof(Main), "ZCouplers.assetbundle");
             var bundle = AssetBundle.LoadFromStream(bundleStream);
             CouplerType couplerType = Main.settings.couplerType;
