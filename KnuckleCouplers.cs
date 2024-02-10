@@ -196,6 +196,7 @@ namespace DvMod.ZCouplers
             pivots.Add(chainScript, pivot.transform);
 
             var hook = GameObject.Instantiate(hookPrefab);
+            hook.SetActive(false); // defer Awake() until all components are added and initialized
             hook.name = "hook";
             hook.layer = LayerMask.NameToLayer("Interactable");
             hook.transform.SetParent(pivot.transform, false);
@@ -214,10 +215,12 @@ namespace DvMod.ZCouplers
             var buttonSpec = hook.AddComponent<Button>();
             buttonSpec.createRigidbody = false;
             buttonSpec.useJoints = false;
-            hook.GetComponent<ButtonBase>().Used += () => OnButtonPressed(chainScript);
+            buttonSpec.colliderGameObjects = new GameObject[] { hook };
 
             var infoArea = hook.AddComponent<InfoArea>();
             infoArea.infoType = unlockedCouplers.Contains(coupler) ? KnuckleCouplerLock : KnuckleCouplerUnlock;
+            hook.SetActive(true); // this should create an actual Button through excuting
+            hook.GetComponent<ButtonBase>().Used += () => OnButtonPressed(chainScript);
         }
 
         public static InteractionInfoType KnuckleCouplerUnlock = (InteractionInfoType)23000;

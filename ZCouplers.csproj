@@ -29,6 +29,7 @@
     <Reference Include="DV.BrakeSystem"/>
     <Reference Include="DV.Utils"/>
     <Reference Include="Newtonsoft.Json"/>
+    <Reference Include="RootMotion"/>
     <Reference Include="Stateless"/>
   </ItemGroup>
 

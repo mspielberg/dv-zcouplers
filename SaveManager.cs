@@ -20,10 +20,10 @@ namespace DvMod.ZCouplers
             }
         }
 
-        [HarmonyPatch(typeof(CarsSaveManager), nameof(CarsSaveManager.InstantiateCar))]
+        [HarmonyPatch(typeof(CarsSaveManager), nameof(CarsSaveManager.InstantiateCarFromSavegame))]
         public static class InstantiateCarPatch
         {
-            public static void Postfix(JObject carData, TrainCar __result)
+            public static void Postfix(JObject carData, RailTrack[] tracks, TrainCar __result)
             {
                 static void SetupCoupler(Coupler coupler, bool locked)
                 {
