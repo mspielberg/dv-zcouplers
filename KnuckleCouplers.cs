@@ -12,7 +12,7 @@ namespace DvMod.ZCouplers
     public static class KnuckleCouplers
     {
         public static readonly bool enabled = Main.settings.couplerType != CouplerType.BufferAndChain;
-        private static readonly GameObject hookPrefab;
+        private static readonly GameObject? hookPrefab;
 
         static KnuckleCouplers()
         {
@@ -199,6 +199,12 @@ namespace DvMod.ZCouplers
             pivot.transform.localPosition = new Vector3(0, HeightOffset, -PivotLength);
             pivot.transform.parent = coupler.train.interior;
             pivots.Add(chainScript, pivot.transform);
+
+            if (hookPrefab == null)
+            {
+                Main.DebugLog(() => "Hook prefab is null, cannot create knuckle coupler hook");
+                return;
+            }
 
             var hook = GameObject.Instantiate(hookPrefab);
             hook.SetActive(false); // defer Awake() until all components are added and initialized
