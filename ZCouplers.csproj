@@ -28,6 +28,8 @@
     <!-- <Reference Include="DVCustomCarLoader"/> -->
     <Reference Include="DV.BrakeSystem"/>
     <Reference Include="DV.Utils"/>
+    <Reference Include="DV.CabControls.Spec"/>
+    <Reference Include="DV.RailTrack"/>
     <Reference Include="Newtonsoft.Json"/>
     <Reference Include="RootMotion"/>
     <Reference Include="Stateless"/>
