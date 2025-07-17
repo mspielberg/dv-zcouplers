@@ -17,11 +17,21 @@ namespace DvMod.ZCouplers
             try
             {
                 Settings? loaded = Settings.Load<Settings>(modEntry);
-                settings = loaded.version == modEntry.Info.Version ? loaded : new Settings();
+                if (loaded != null)
+                {
+                    settings = loaded;
+                    modEntry.Logger.Log("Loaded existing settings");
+                }
+                else
+                {
+                    settings = new Settings();
+                    modEntry.Logger.Log("Created new settings (no existing file)");
+                }
             }
-            catch
+            catch (Exception ex)
             {
                 settings = new Settings();
+                modEntry.Logger.Log($"Failed to load settings, using defaults: {ex.Message}");
             }
 
             modEntry.OnGUI = settings.Draw;
@@ -33,7 +43,7 @@ namespace DvMod.ZCouplers
 
             // Force static initializer to execute and load asset bundle
             if (KnuckleCouplers.enabled)
-                mod.Logger.Log("Loaded {settings.couplerType}");
+                mod.Logger.Log($"Loaded {settings.couplerType}");
 
             // CCLIntegration.Initialize();
 
