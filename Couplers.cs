@@ -8,6 +8,17 @@ namespace DvMod.ZCouplers
 {
     public static class Couplers
     {
+        // Custom tension joint management
+        private static readonly Dictionary<Coupler, ConfigurableJoint> customTensionJoints = new Dictionary<Coupler, ConfigurableJoint>();
+        
+        // Track when joints were last created to prevent rapid recreation
+        private static readonly Dictionary<Coupler, float> lastJointCreationTime = new Dictionary<Coupler, float>();
+        private const float MinJointCreationInterval = 2.0f; // Seconds between joint creation attempts
+        
+        // Track when couplers were manually uncoupled to prevent immediate recoupling
+        private static readonly Dictionary<Coupler, float> lastUncouplingTime = new Dictionary<Coupler, float>();
+        private const float UncouplingCooldown = 5.0f; // Seconds before allowing recoupling after manual uncoupling
+        
         private const float ChainSpring = 2e7f; // ~1,200,000 lb/in
         private const float LooseChainLength = 1.1f;
         private const float TightChainLength = 1.0f;
@@ -21,12 +32,21 @@ namespace DvMod.ZCouplers
 
         private static void KillCouplingScanner(Coupler coupler)
         {
-            var scanner = GetScanner(coupler);
-            if (scanner?.masterCoro != null)
+            if (coupler == null)
+                return;
+                
+            try
             {
-                Main.DebugLog(() => $"{coupler.train.ID} {coupler.Position()}: killing masterCoro");
-                scanner.StopCoroutine(scanner.masterCoro);
-                scanner.masterCoro = null;
+                var scanner = GetScanner(coupler);
+                if (scanner?.masterCoro != null)
+                {
+                    scanner.StopCoroutine(scanner.masterCoro);
+                    scanner.masterCoro = null;
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Main.DebugLog(() => $"Error killing coupling scanner: {ex.Message}");
             }
         }
 
@@ -34,11 +54,136 @@ namespace DvMod.ZCouplers
         {
             if (coupler == null)
                 return;
-            var scanner = GetScanner(coupler);
-            if (scanner != null && scanner.masterCoro == null && scanner.isActiveAndEnabled)
+                
+            try
             {
-                Main.DebugLog(() => $"{coupler.train.ID} {coupler.Position()}: restarting masterCoro");
-                scanner.masterCoro = scanner.StartCoroutine(scanner.MasterCoro());
+                var scanner = GetScanner(coupler);
+                if (scanner != null && scanner.masterCoro == null && scanner.isActiveAndEnabled)
+                {
+                    scanner.masterCoro = scanner.StartCoroutine(scanner.MasterCoro());
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Main.DebugLog(() => $"Error restarting coupling scanner: {ex.Message}");
+            }
+        }
+        
+        private static void SeparateCarsAfterUncoupling(Coupler coupler1, Coupler coupler2)
+        {
+            if (coupler1?.train?.gameObject == null || coupler2?.train?.gameObject == null)
+                return;
+                
+            try
+            {
+                var rb1 = coupler1.train.GetComponent<Rigidbody>();
+                var rb2 = coupler2.train.GetComponent<Rigidbody>();
+                
+                if (rb1 != null && rb2 != null)
+                {
+                    // Calculate separation direction
+                    var direction = (coupler1.transform.position - coupler2.transform.position).normalized;
+                    var separationForce = 2000f; // Increased force significantly
+                    
+                    // Apply opposing forces to separate the cars
+                    rb1.AddForce(direction * separationForce, ForceMode.Impulse);
+                    rb2.AddForce(-direction * separationForce, ForceMode.Impulse);
+                    
+                    Main.DebugLog(() => $"Applied separation force between {coupler1.train.ID} and {coupler2.train.ID}");
+                }
+                
+                // Temporarily disable coupling scanners to prevent immediate recoupling
+                var scanner1 = GetScanner(coupler1);
+                var scanner2 = GetScanner(coupler2);
+                
+                if (scanner1 != null)
+                {
+                    scanner1.enabled = false;
+                    scanner1.StartCoroutine(ReEnableScanner(scanner1, coupler1.train.ID, 3.0f));
+                }
+                if (scanner2 != null)
+                {
+                    scanner2.enabled = false;
+                    scanner2.StartCoroutine(ReEnableScanner(scanner2, coupler2.train.ID, 3.0f));
+                }
+                
+            }
+            catch (System.Exception ex)
+            {
+                Main.DebugLog(() => $"Error separating cars after uncoupling: {ex.Message}");
+            }
+        }
+        
+        private static IEnumerator ReEnableScanner(CouplingScanner scanner, string trainId, float delay)
+        {
+            yield return new WaitForSeconds(delay);
+            
+            if (scanner != null)
+            {
+                scanner.enabled = true;
+                Main.DebugLog(() => $"Re-enabled coupling scanner for {trainId}");
+            }
+        }
+        
+        private static void DestroyAllJoints(Coupler coupler)
+        {
+            if (coupler?.train?.gameObject == null)
+                return;
+                
+            try
+            {
+                var trainCar = coupler.train;
+                Main.DebugLog(() => $"Destroying all joints on {trainCar.ID}");
+                
+                // Destroy ALL ConfigurableJoints on this car
+                var allJoints = trainCar.GetComponents<ConfigurableJoint>();
+                foreach (var joint in allJoints)
+                {
+                    if (joint != null)
+                        Component.Destroy(joint);
+                }
+                
+                // Destroy ALL FixedJoints on this car
+                var fixedJoints = trainCar.GetComponents<FixedJoint>();
+                foreach (var joint in fixedJoints)
+                {
+                    if (joint != null)
+                        Component.Destroy(joint);
+                }
+                
+                // Destroy ALL SpringJoints on this car
+                var springJoints = trainCar.GetComponents<SpringJoint>();
+                foreach (var joint in springJoints)
+                {
+                    if (joint != null)
+                        Component.Destroy(joint);
+                }
+                
+                // Destroy ALL HingeJoints on this car
+                var hingeJoints = trainCar.GetComponents<HingeJoint>();
+                foreach (var joint in hingeJoints)
+                {
+                    if (joint != null)
+                        Component.Destroy(joint);
+                }
+                
+                // Clear the rigidCJ and jointCoroRigid from both couplers on this car
+                if (trainCar.frontCoupler != null)
+                {
+                    trainCar.frontCoupler.rigidCJ = null;
+                    trainCar.frontCoupler.jointCoroRigid = null;
+                }
+                if (trainCar.rearCoupler != null)
+                {
+                    trainCar.rearCoupler.rigidCJ = null;
+                    trainCar.rearCoupler.jointCoroRigid = null;
+                }
+                
+                Main.DebugLog(() => $"Completed joint destruction for {trainCar.ID}");
+            }
+            catch (System.Exception ex)
+            {
+                Main.DebugLog(() => $"Error in nuclear joint cleanup: {ex.Message}");
             }
         }
 
@@ -53,10 +198,73 @@ namespace DvMod.ZCouplers
                     return true;
                 }
 
+                // Prevent joint creation during save loading to avoid physics instability
+                if (SaveManager.IsLoadingFromSave)
+                {
+                    Main.DebugLog(() => $"Skipping joint creation during save loading: {__instance.train.ID}");
+                    return true;
+                }
+
+                // Safety check: don't create joints if train is derailed or moving too fast
+                if (__instance.train.derailed || __instance.coupledTo?.train.derailed == true)
+                {
+                    Main.DebugLog(() => $"Skipping joint creation - train derailed: {__instance.train.ID}");
+                    return true;
+                }
+
+                // Safety check: don't create joints if cars are moving too fast (loading/teleporting)
+                var velocity1 = __instance.train.GetComponent<Rigidbody>()?.velocity.magnitude ?? 0f;
+                var velocity2 = __instance.coupledTo?.train.GetComponent<Rigidbody>()?.velocity.magnitude ?? 0f;
+                if (velocity1 > 5f || velocity2 > 5f)
+                {
+                    Main.DebugLog(() => $"Skipping joint creation - cars moving too fast: {__instance.train.ID} ({velocity1:F1} m/s) to {__instance.coupledTo?.train.ID} ({velocity2:F1} m/s)");
+                    return true;
+                }
+
+                // Safety check: don't create joints too frequently (prevent load/teleport spam)
+                var currentTime = Time.time;
+                if (lastJointCreationTime.TryGetValue(__instance, out var lastTime) && (currentTime - lastTime) < MinJointCreationInterval)
+                {
+                    Main.DebugLog(() => $"Skipping joint creation - too soon after last creation: {__instance.train.ID}");
+                    return true;
+                }
+                
+                // Safety check: don't recouple immediately after manual uncoupling
+                if (lastUncouplingTime.TryGetValue(__instance, out var lastUncoupling) && (currentTime - lastUncoupling) < UncouplingCooldown)
+                {
+                    Main.DebugLog(() => $"Skipping joint creation - uncoupling cooldown active: {__instance.train.ID} ({(UncouplingCooldown - (currentTime - lastUncoupling)):F1}s remaining)");
+                    return true;
+                }
+                if (__instance.coupledTo != null && lastUncouplingTime.TryGetValue(__instance.coupledTo, out var partnerLastUncoupling) && (currentTime - partnerLastUncoupling) < UncouplingCooldown)
+                {
+                    Main.DebugLog(() => $"Skipping joint creation - partner uncoupling cooldown active: {__instance.coupledTo.train.ID}");
+                    return true;
+                }
+
+                // Safety check: don't create joints if we already have custom tension joints
+                if (customTensionJoints.ContainsKey(__instance) || (__instance.coupledTo != null && customTensionJoints.ContainsKey(__instance.coupledTo)))
+                {
+                    Main.DebugLog(() => $"Skipping joint creation - joints already exist: {__instance.train.ID}");
+                    return false;
+                }
+
+                // Safety check: ensure we have a valid coupled partner
+                if (__instance.coupledTo == null)
+                {
+                    Main.DebugLog(() => $"Skipping joint creation - no coupled partner: {__instance.train.ID}");
+                    return true;
+                }
+
                 Main.DebugLog(() => $"Creating tension joint between {__instance.train.ID} and {__instance.coupledTo.train.ID}");
+                
+                // Record the time of joint creation
+                lastJointCreationTime[__instance] = currentTime;
+                lastJointCreationTime[__instance.coupledTo] = currentTime;
+                
                 CreateTensionJoint(__instance);
                 var breaker = __instance.gameObject.AddComponent<CouplerBreaker>();
-                breaker.joint = __instance.springyCJ;
+                if (customTensionJoints.TryGetValue(__instance, out var tensionJoint))
+                    breaker.joint = tensionJoint;
                 if (__instance.rigidCJ == null && __instance.coupledTo.rigidCJ == null)
                     CreateCompressionJoint(__instance, __instance.coupledTo);
                 KillCouplingScanner(__instance);
@@ -73,14 +281,62 @@ namespace DvMod.ZCouplers
 
             public static void Prefix(Coupler __instance)
             {
+                Main.DebugLog(() => $"Uncoupling {__instance.train.ID} from {__instance.coupledTo?.train.ID}");
+                
+                // Record uncoupling time to prevent immediate recoupling
+                var currentTime = Time.time;
+                lastUncouplingTime[__instance] = currentTime;
+                if (__instance.coupledTo != null)
+                    lastUncouplingTime[__instance.coupledTo] = currentTime;
+                
+                // Clear any pending coupler states for these cars
+                SaveManager.ClearPendingStatesForCar(__instance.train);
+                if (__instance.coupledTo?.train != null)
+                    SaveManager.ClearPendingStatesForCar(__instance.coupledTo.train);
+                
                 // Prevent Uncouple from destroying compression joint
                 compressionJoints[__instance] = __instance.rigidCJ;
                 __instance.rigidCJ = null;
                 coros[__instance] = __instance.jointCoroRigid;
                 __instance.jointCoroRigid = null;
 
+                // Destroy tension joints on both couplers - be more aggressive about cleanup
+                DestroyTensionJoint(__instance);
+                if (__instance.coupledTo != null)
+                {
+                    DestroyTensionJoint(__instance.coupledTo);
+                }
+
+                // Also destroy compression joints to ensure complete disconnection
+                DestroyCompressionJoint(__instance);
+                if (__instance.coupledTo != null)
+                {
+                    DestroyCompressionJoint(__instance.coupledTo);
+                }
+                
+                // Destroy all Unity joints on both cars to ensure complete physical disconnection
+                DestroyAllJoints(__instance);
+                if (__instance.coupledTo != null)
+                {
+                    DestroyAllJoints(__instance.coupledTo);
+                }
+
+                // Update knuckle coupler visual state to show uncoupled
+                KnuckleCouplers.UnlockCoupler(__instance, viaChainInteraction: false);
+                if (__instance.coupledTo != null)
+                {
+                    KnuckleCouplers.UnlockCoupler(__instance.coupledTo, viaChainInteraction: false);
+                }
+
+                // Restart coupling scanners and apply separation force
                 RestartCouplingScanner(__instance);
-                RestartCouplingScanner(__instance.coupledTo);
+                if (__instance.coupledTo != null)
+                {
+                    RestartCouplingScanner(__instance.coupledTo);
+                    SeparateCarsAfterUncoupling(__instance, __instance.coupledTo);
+                }
+                    
+                Main.DebugLog(() => $"Completed uncoupling cleanup for {__instance.train.ID}");
             }
 
             public static void Postfix(Coupler __instance)
@@ -101,6 +357,11 @@ namespace DvMod.ZCouplers
                 // remove pre-coupling joints, if any, before car is teleported
                 DestroyCompressionJoint(__instance.frontCoupler);
                 DestroyCompressionJoint(__instance.rearCoupler);
+                
+                // remove tension joints
+                DestroyTensionJoint(__instance.frontCoupler);
+                DestroyTensionJoint(__instance.rearCoupler);
+                
                 KillCouplingScanner(__instance.frontCoupler);
                 KillCouplingScanner(__instance.rearCoupler);
             }
@@ -111,17 +372,49 @@ namespace DvMod.ZCouplers
         {
             public static void Postfix(TrainCar trainCar)
             {
-                Main.DebugLog(() => "TrainCar.PrepareTrainCarForDeleting.Postfix");
-                // remove pre-coupling joints, if any
-                DestroyCompressionJoint(trainCar.frontCoupler);
-                DestroyCompressionJoint(trainCar.rearCoupler);
-                KillCouplingScanner(trainCar.frontCoupler);
-                KillCouplingScanner(trainCar.rearCoupler);
+                try
+                {
+                    if (trainCar == null)
+                        return;
+                        
+                    Main.DebugLog(() => $"TrainCar.PrepareTrainCarForDeleting.Postfix for {trainCar.ID}");
+                    
+                    // Safely remove joints - check for null and validity before cleanup
+                    SafeCleanupCoupler(trainCar.frontCoupler);
+                    SafeCleanupCoupler(trainCar.rearCoupler);
+                }
+                catch (System.Exception ex)
+                {
+                    Main.DebugLog(() => $"Error during car deletion cleanup: {ex.Message}");
+                    // Don't rethrow - let the game continue its deletion process
+                }
+            }
+            
+            private static void SafeCleanupCoupler(Coupler coupler)
+            {
+                if (coupler == null || coupler.gameObject == null)
+                    return;
+                    
+                try
+                {
+                    // Only cleanup if the objects are still valid
+                    DestroyCompressionJoint(coupler);
+                    DestroyTensionJoint(coupler);
+                    KillCouplingScanner(coupler);
+                }
+                catch (System.Exception ex)
+                {
+                    Main.DebugLog(() => $"Error cleaning up coupler: {ex.Message}");
+                }
             }
         }
 
         private static void CreateTensionJoint(Coupler coupler)
         {
+            // Enhanced logging for tension joint creation
+            var coupledTo = coupler.coupledTo;
+            Main.DebugLog(() => $"TENSION JOINT: Creating for {coupler.train.ID} {coupler.Position()} -> {coupledTo?.train.ID} {coupledTo?.Position()}");
+            
             var anchorOffset =  Vector3.forward * TightChainLength * (coupler.isFrontCoupler ? -1f : 1f);
 
             var cj = coupler.train.gameObject.AddComponent<ConfigurableJoint>();
@@ -151,55 +444,34 @@ namespace DvMod.ZCouplers
             cj.breakForce = float.PositiveInfinity;
             cj.breakTorque = float.PositiveInfinity;
 
-            coupler.springyCJ = cj;
+            // Store tension joint
+            customTensionJoints[coupler] = cj;
+            Main.DebugLog(() => $"TENSION JOINT: Created successfully for {coupler.train.ID} {coupler.Position()}, total tension joints: {customTensionJoints.Count}");
+            
             if (!LooseChain.enabled)
                 TightenChain(coupler);
         }
 
         public static void TightenChain(Coupler coupler)
         {
-            if (coupler.springyCJ == null)
+            if (!customTensionJoints.TryGetValue(coupler, out var tensionJoint))
             {
-                if (coupler.coupledTo?.springyCJ != null)
+                if (coupler.coupledTo != null && customTensionJoints.ContainsKey(coupler.coupledTo))
                     TightenChain(coupler.coupledTo);
                 return;
             }
-            if (coupler.jointCoroSpringy != null)
-                coupler.StopCoroutine(coupler.jointCoroSpringy);
-            coupler.jointCoroSpringy = coupler.StartCoroutine(TightenChainCoro(coupler.springyCJ));
-        }
-
-        private static IEnumerator TightenChainCoro(ConfigurableJoint cj)
-        {
-            while (cj.linearLimit.limit > TightChainLength)
-            {
-                yield return WaitFor.FixedUpdate;
-                var tightenAmount = Time.deltaTime * TightenSpeed;
-                cj.linearLimit = new SoftJointLimit { limit = Mathf.Max(TightChainLength, cj.linearLimit.limit - tightenAmount) };
-            }
+            tensionJoint.linearLimit = new SoftJointLimit { limit = TightChainLength };
         }
 
         public static void LoosenChain(Coupler coupler)
         {
-            if (coupler.springyCJ == null)
+            if (!customTensionJoints.TryGetValue(coupler, out var tensionJoint))
             {
-                if (coupler.coupledTo?.springyCJ != null)
+                if (coupler.coupledTo != null && customTensionJoints.ContainsKey(coupler.coupledTo))
                     LoosenChain(coupler.coupledTo);
                 return;
             }
-            if (coupler.jointCoroSpringy != null)
-                coupler.StopCoroutine(coupler.jointCoroSpringy);
-            coupler.jointCoroSpringy = coupler.StartCoroutine(LoosenChainCoro(coupler.springyCJ));
-        }
-
-        private static IEnumerator LoosenChainCoro(ConfigurableJoint cj)
-        {
-            while (cj.linearLimit.limit < LooseChainLength)
-            {
-                yield return WaitFor.FixedUpdate;
-                var tightenAmount = Time.deltaTime * TightenSpeed;
-                cj.linearLimit = new SoftJointLimit { limit = Mathf.Min(LooseChainLength, cj.linearLimit.limit + tightenAmount) };
-            }
+            tensionJoint.linearLimit = new SoftJointLimit { limit = LooseChainLength };
         }
 
         // Ensure CouplingScanners start active
@@ -386,25 +658,124 @@ namespace DvMod.ZCouplers
 
         private static void DestroyCompressionJoint(Coupler coupler)
         {
-            if (!bufferJoints.TryGetValue(coupler, out var result))
+            if (coupler == null || !bufferJoints.TryGetValue(coupler, out var result))
                 return;
 
-            Main.DebugLog(() => $"Destroying compression joint between {TrainCar.Resolve(coupler.gameObject)?.ID} and {TrainCar.Resolve(result.otherCoupler.gameObject)?.ID}");
-            Component.Destroy(result.joint);
-
-            foreach (var c in new Coupler[]{ coupler, result.otherCoupler })
+            try
             {
-                if (c.jointCoroRigid != null)
-                {
-                    c.StopCoroutine(c.jointCoroRigid);
-                    c.jointCoroRigid = null;
-                }
-                Component.Destroy(c.rigidCJ);
-                c.rigidCJ = null;
-            }
+                Main.DebugLog(() => $"Destroying compression joint between {TrainCar.Resolve(coupler.gameObject)?.ID} and {TrainCar.Resolve(result.otherCoupler.gameObject)?.ID}");
+                
+                // Safely destroy the joint
+                if (result.joint != null)
+                    Component.Destroy(result.joint);
 
-            bufferJoints.Remove(coupler);
-            bufferJoints.Remove(result.otherCoupler);
+                foreach (var c in new Coupler[]{ coupler, result.otherCoupler })
+                {
+                    if (c != null)
+                    {
+                        try
+                        {
+                            if (c.jointCoroRigid != null)
+                            {
+                                c.StopCoroutine(c.jointCoroRigid);
+                                c.jointCoroRigid = null;
+                            }
+                            if (c.rigidCJ != null)
+                            {
+                                Component.Destroy(c.rigidCJ);
+                                c.rigidCJ = null;
+                            }
+                        }
+                        catch (System.Exception ex)
+                        {
+                            Main.DebugLog(() => $"Error cleaning up coupler {c?.train?.ID}: {ex.Message}");
+                        }
+                    }
+                }
+
+                bufferJoints.Remove(coupler);
+                bufferJoints.Remove(result.otherCoupler);
+            }
+            catch (System.Exception ex)
+            {
+                Main.DebugLog(() => $"Error destroying compression joint: {ex.Message}");
+                // Still try to remove from dictionary to prevent memory leaks
+                bufferJoints.Remove(coupler);
+                if (result.otherCoupler != null)
+                    bufferJoints.Remove(result.otherCoupler);
+            }
+        }
+
+        private static void DestroyTensionJoint(Coupler coupler)
+        {
+            if (coupler == null)
+                return;
+                
+            try
+            {
+                if (customTensionJoints.TryGetValue(coupler, out var tensionJoint))
+                {
+                    if (tensionJoint != null)
+                    {
+                        Main.DebugLog(() => $"TENSION JOINT: Destroying for {coupler.train.ID} {coupler.Position()}");
+                        UnityEngine.Object.Destroy(tensionJoint);
+                    }
+                    customTensionJoints.Remove(coupler);
+                    lastJointCreationTime.Remove(coupler); // Clean up timing tracking
+                    Main.DebugLog(() => $"TENSION JOINT: Destroyed and removed from dictionary for {coupler.train.ID} {coupler.Position()}, remaining joints: {customTensionJoints.Count}");
+                }
+                else
+                {
+                    Main.DebugLog(() => $"TENSION JOINT: No tension joint found to destroy for {coupler.train.ID} {coupler.Position()}");
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Main.DebugLog(() => $"Error destroying tension joint: {ex.Message}");
+                // Still try to remove from dictionaries to prevent memory leaks
+                customTensionJoints.Remove(coupler);
+                lastJointCreationTime.Remove(coupler);
+            }
+        }
+
+        // Public method to check if tension joint exists
+        public static bool HasTensionJoint(Coupler coupler)
+        {
+            return coupler != null && customTensionJoints.ContainsKey(coupler);
+        }
+
+        // Public method to force create tension joint (used by SaveManager)
+        public static void ForceCreateTensionJoint(Coupler coupler)
+        {
+            if (coupler == null || !coupler.IsCoupled() || coupler.coupledTo == null)
+                return;
+                
+            if (customTensionJoints.ContainsKey(coupler))
+                return; // Already exists
+                
+            Main.DebugLog(() => $"FORCE CREATING tension joint for {coupler.train.ID} {coupler.Position()} -> {coupler.coupledTo.train.ID} {coupler.coupledTo.Position()}");
+            CreateTensionJoint(coupler);
+            
+            // Also create compression joint if needed
+            if (coupler.rigidCJ == null && coupler.coupledTo.rigidCJ == null)
+                CreateCompressionJoint(coupler, coupler.coupledTo);
+        }
+
+        // Public method to check joint states for debugging
+        public static void LogJointStates(string context)
+        {
+            Main.DebugLog(() => $"JOINT STATES ({context}): Tension joints: {customTensionJoints.Count}");
+            foreach (var kvp in customTensionJoints.ToList())
+            {
+                var coupler = kvp.Key;
+                var joint = kvp.Value;
+                if (coupler?.train != null && joint != null)
+                {
+                    var distance = joint.connectedBody != null ? 
+                        Vector3.Distance(coupler.transform.position, joint.connectedBody.transform.TransformPoint(joint.connectedAnchor)) : 0f;
+                    Main.DebugLog(() => $"  {coupler.train.ID} {coupler.Position()} -> {coupler.coupledTo?.train.ID}, distance: {distance:F2}m, joint valid: {joint != null}");
+                }
+            }
         }
 
         private static Vector3 JointDelta(Joint joint, bool isFrontCoupler)
