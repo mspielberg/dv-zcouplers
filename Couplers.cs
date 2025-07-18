@@ -341,10 +341,19 @@ namespace DvMod.ZCouplers
 
             public static void Postfix(Coupler __instance)
             {
-                __instance.rigidCJ = compressionJoints[__instance];
-                compressionJoints.Remove(__instance);
-                __instance.jointCoroRigid = coros[__instance];
-                coros.Remove(__instance);
+                // Safely restore compression joint if it was stored
+                if (compressionJoints.TryGetValue(__instance, out var storedJoint))
+                {
+                    __instance.rigidCJ = storedJoint;
+                    compressionJoints.Remove(__instance);
+                }
+                
+                // Safely restore coroutine if it was stored
+                if (coros.TryGetValue(__instance, out var storedCoro))
+                {
+                    __instance.jointCoroRigid = storedCoro;
+                    coros.Remove(__instance);
+                }
             }
         }
 
