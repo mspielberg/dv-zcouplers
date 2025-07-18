@@ -76,21 +76,6 @@ namespace DvMod.ZCouplers
                 
             try
             {
-                var rb1 = coupler1.train.GetComponent<Rigidbody>();
-                var rb2 = coupler2.train.GetComponent<Rigidbody>();
-                
-                if (rb1 != null && rb2 != null)
-                {
-                    // Calculate separation direction
-                    var direction = (coupler1.transform.position - coupler2.transform.position).normalized;
-                    var separationForce = 2000f; // Increased force significantly
-                    
-                    // Apply opposing forces to separate the cars
-                    rb1.AddForce(direction * separationForce, ForceMode.Impulse);
-                    rb2.AddForce(-direction * separationForce, ForceMode.Impulse);
-                    
-                    Main.DebugLog(() => $"Applied separation force between {coupler1.train.ID} and {coupler2.train.ID}");
-                }
                 
                 // Temporarily disable coupling scanners to prevent immediate recoupling
                 var scanner1 = GetScanner(coupler1);
@@ -110,7 +95,7 @@ namespace DvMod.ZCouplers
             }
             catch (System.Exception ex)
             {
-                Main.DebugLog(() => $"Error separating cars after uncoupling: {ex.Message}");
+                Main.DebugLog(() => $"Error in uncoupling cleanup: {ex.Message}");
             }
         }
         
