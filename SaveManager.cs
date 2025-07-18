@@ -194,19 +194,14 @@ namespace DvMod.ZCouplers
                 {
                     Main.DebugLog(() => $"WARNING: {coupler.train.ID} {coupler.Position()} should be locked but is not coupled - save state inconsistency");
                 }
-                KnuckleCouplers.ReadyCoupler(coupler);
+                // Use visual state update only - don't trigger actual coupling/uncoupling during save loading
+                KnuckleCouplers.UpdateCouplerVisualState(coupler, locked: true);
             }
             else
             {
-                // Only unlock if currently coupled
-                if (coupler.IsCoupled())
-                {
-                    KnuckleCouplers.UnlockCoupler(coupler, true);
-                }
-                else
-                {
-                    Main.DebugLog(() => $"Coupler {coupler.train.ID} {coupler.Position()} should be unlocked and is already uncoupled - correct state");
-                }
+                // Update visual state to show unlocked without triggering actual uncoupling
+                KnuckleCouplers.UpdateCouplerVisualState(coupler, locked: false);
+                Main.DebugLog(() => $"Set coupler {coupler.train.ID} {coupler.Position()} visual state to unlocked");
             }
         }
         

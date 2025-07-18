@@ -278,10 +278,17 @@ namespace DvMod.ZCouplers
         {
             private static readonly Dictionary<Coupler, ConfigurableJoint> compressionJoints = new Dictionary<Coupler, ConfigurableJoint>();
             private static readonly Dictionary<Coupler, Coroutine> coros = new Dictionary<Coupler, Coroutine>();
+            private static readonly Dictionary<Coupler, Coupler> partnerCouplers = new Dictionary<Coupler, Coupler>();
 
             public static void Prefix(Coupler __instance)
             {
                 Main.DebugLog(() => $"Uncoupling {__instance.train.ID} from {__instance.coupledTo?.train.ID}");
+                
+                // Store the partner coupler reference before it gets cleared
+                if (__instance.coupledTo != null)
+                {
+                    partnerCouplers[__instance] = __instance.coupledTo;
+                }
                 
                 // Record uncoupling time to prevent immediate recoupling
                 var currentTime = Time.time;
@@ -321,13 +328,6 @@ namespace DvMod.ZCouplers
                     DestroyAllJoints(__instance.coupledTo);
                 }
 
-                // Update knuckle coupler visual state to show uncoupled
-                KnuckleCouplers.UnlockCoupler(__instance, viaChainInteraction: false);
-                if (__instance.coupledTo != null)
-                {
-                    KnuckleCouplers.UnlockCoupler(__instance.coupledTo, viaChainInteraction: false);
-                }
-
                 // Restart coupling scanners and apply separation force
                 RestartCouplingScanner(__instance);
                 if (__instance.coupledTo != null)
@@ -353,6 +353,21 @@ namespace DvMod.ZCouplers
                 {
                     __instance.jointCoroRigid = storedCoro;
                     coros.Remove(__instance);
+                }
+                
+                // Update knuckle coupler visual state to show uncoupled (now that uncoupling is complete)
+                KnuckleCouplers.UpdateCouplerVisualState(__instance, locked: false);
+                
+                // Also update the partner coupler's visual state if we stored it
+                if (partnerCouplers.TryGetValue(__instance, out var partnerCoupler))
+                {
+                    KnuckleCouplers.UpdateCouplerVisualState(partnerCoupler, locked: false);
+                    partnerCouplers.Remove(__instance);
+                    Main.DebugLog(() => $"Updated visual state for both uncoupled couplers: {__instance.train.ID} and {partnerCoupler.train.ID}");
+                }
+                else
+                {
+                    Main.DebugLog(() => $"Updated visual state for uncoupled coupler: {__instance.train.ID} {__instance.Position()}");
                 }
             }
         }
