@@ -7,7 +7,7 @@ namespace DvMod.ZCouplers
 {
     public static class LooseChain
     {
-        public static readonly bool enabled = Main.settings.couplerType == CouplerType.BufferAndChain;
+        public static readonly bool enabled = false; // Always disabled since BufferAndChain is removed
         private static readonly HashSet<Coupler> looseCouplers = new HashSet<Coupler>();
 
         [HarmonyPatch(typeof(ChainCouplerInteraction), nameof(ChainCouplerInteraction.Entry_Attached_Loose))]
@@ -33,14 +33,14 @@ namespace DvMod.ZCouplers
             }
         }
 
-        [HarmonyPatch(typeof(ChainCouplerInteraction), nameof(ChainCouplerInteraction.Update_Attached_Loose))]
-        public static class UpdateAttachedLoosePatch
-        {
-            public static bool Prefix()
-            {
-                return !enabled;
-            }
-        }
+        //[HarmonyPatch(typeof(ChainCouplerInteraction), nameof(ChainCouplerInteraction.Update_Attached_Loose))]
+        //public static class UpdateAttachedLoosePatch
+        //{
+        //    public static bool Prefix()
+        //    {
+        //        return !enabled;
+        //    }
+        //}
 
         [HarmonyPatch(typeof(ChainCouplerInteraction), nameof(ChainCouplerInteraction.Entry_Attached_Tight))]
         public static class EntryAttachedTightPatch
@@ -135,7 +135,7 @@ namespace DvMod.ZCouplers
                         __result = ChainCouplerInteraction.State.Other_Attached_Parked;
                         return false;
                     }
-                    if (__instance.couplerAdapter.coupler.springyCJ != null)
+                    if (looseCouplers.Contains(__instance.couplerAdapter.coupler))
                     {
                         __result = looseCouplers.Contains(__instance.couplerAdapter.coupler)
                             ? ChainCouplerInteraction.State.Attached_Loose
@@ -166,6 +166,11 @@ namespace DvMod.ZCouplers
                 if (!enabled)
                     return true;
                 Main.DebugLog(() => $"OnCoupled: {e.thisCoupler.train.ID}<=>{e.otherCoupler.train.ID},viaChain={e.viaChainInteraction}");
+                
+                // Update knuckle coupler visual state to show coupled (locked)
+                KnuckleCouplers.ReadyCoupler(e.thisCoupler);
+                KnuckleCouplers.ReadyCoupler(e.otherCoupler);
+                
                 if (!e.viaChainInteraction)
                 {
                     __instance.chainScript.CoupledExternally(e.otherCoupler);

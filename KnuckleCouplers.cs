@@ -11,8 +11,8 @@ namespace DvMod.ZCouplers
 {
     public static class KnuckleCouplers
     {
-        public static readonly bool enabled = Main.settings.couplerType != CouplerType.BufferAndChain;
-        private static readonly GameObject hookPrefab;
+        public static readonly bool enabled = true; // Always enabled since BufferAndChain is removed
+        private static readonly GameObject? hookPrefab;
 
         static KnuckleCouplers()
         {
@@ -200,6 +200,12 @@ namespace DvMod.ZCouplers
             pivot.transform.parent = coupler.train.interior;
             pivots.Add(chainScript, pivot.transform);
 
+            if (hookPrefab == null)
+            {
+                Main.DebugLog(() => "Hook prefab is null, cannot create knuckle coupler hook");
+                return;
+            }
+
             var hook = GameObject.Instantiate(hookPrefab);
             hook.SetActive(false); // defer Awake() until all components are added and initialized
             hook.name = "hook";
@@ -261,6 +267,52 @@ namespace DvMod.ZCouplers
                 chainScript.PlaySound(chainScript.parkSound, chainScript.transform.position);
             if (GetPivot(chainScript)?.Find("hook")?.GetComponent<InfoArea>() is InfoArea infoArea)
                 infoArea.infoType = KnuckleCouplerUnlock;
+        }
+
+        // Update visual state only without triggering actual uncoupling
+        public static void UpdateCouplerVisualState(Coupler coupler, bool locked)
+        {
+            if (!enabled)
+                return;
+                
+            var chainScript = coupler.visualCoupler?.chainAdapter?.chainScript;
+            if (chainScript == null)
+                return;
+                
+            if (locked)
+            {
+                // Coupler should show as locked (ready to unlock)
+                unlockedCouplers.Remove(coupler);
+                if (GetPivot(chainScript)?.Find("hook")?.GetComponent<InfoArea>() is InfoArea infoArea)
+                    infoArea.infoType = KnuckleCouplerUnlock;
+            }
+            else
+            {
+                // Coupler should show as unlocked (ready to couple)
+                unlockedCouplers.Add(coupler);
+                if (GetPivot(chainScript)?.Find("hook")?.GetComponent<InfoArea>() is InfoArea infoArea)
+                    infoArea.infoType = KnuckleCouplerLock;
+                    
+                // Manually trigger visual disconnection for knuckle couplers
+                var pivot = GetPivot(chainScript);
+                if (pivot != null)
+                {
+                    pivot.localEulerAngles = coupler.transform.localEulerAngles;
+                    var hook = pivot.Find("hook");
+                    if (hook != null)
+                    {
+                        hook.localPosition = PivotLength * Vector3.forward;
+                        Main.DebugLog(() => $"Reset knuckle coupler hook position for {coupler.train.ID} {coupler.Position()}");
+                    }
+                }
+                
+                // Clear the attached reference if it exists
+                if (chainScript.attachedTo != null)
+                {
+                    chainScript.attachedTo.attachedTo = null;
+                    chainScript.attachedTo = null;
+                }
+            }
         }
 
         private static void OnButtonPressed(ChainCouplerInteraction chainScript)
@@ -360,6 +412,22 @@ namespace DvMod.ZCouplers
             public static bool Prefix()
             {
                 return !enabled;
+            }
+        }
+
+        [HarmonyPatch(typeof(ChainCouplerCouplerAdapter), nameof(ChainCouplerCouplerAdapter.OnCoupled))]
+        public static class OnCoupledPatch
+        {
+            public static void Postfix(ChainCouplerCouplerAdapter __instance, CoupleEventArgs e)
+            {
+                if (!enabled)
+                    return;
+                    
+                Main.DebugLog(() => $"Knuckle OnCoupled: {e.thisCoupler.train.ID}<=>{e.otherCoupler.train.ID},viaChain={e.viaChainInteraction}");
+                
+                // Update knuckle coupler visual state to show coupled (locked) without triggering uncoupling
+                UpdateCouplerVisualState(e.thisCoupler, locked: true);
+                UpdateCouplerVisualState(e.otherCoupler, locked: true);
             }
         }
 
