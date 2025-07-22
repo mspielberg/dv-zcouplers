@@ -4,3 +4,6 @@
 /dv
 .idea/
 Directory.Build.targets
+References/
+ModPackage/
+.github/
