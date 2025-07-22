@@ -17,9 +17,9 @@ namespace DvMod.ZCouplers
         public bool showBuffersWithKnuckles = false;
         [Draw("Knuckle strength (Mn)", Min = 0.1f)]
         public float knuckleStrength = 1.78f;
-        [Draw("Compression spring rate", Min = 0f)]
-        public float drawgearSpringRate = 1f;
-        [Draw("Compression damper rate", Min = 0f)]
+        [Draw("Tension spring rate (Mn/m)", Min = 0f)]
+        public float drawgearSpringRate = 20f; // 20 MN/m = 2e7 N/m
+        [Draw("Compression damper rate (kN*s/m)", Min = 0f)]
         public float drawgearDamperRate = 100f;
         [Draw("Auto couple threshold (mm)", Min = 0f)]
         public float autoCoupleThreshold = 20f;
@@ -52,17 +52,17 @@ namespace DvMod.ZCouplers
         public float GetSpringRate()
         {
             return couplerType switch {
-                CouplerType.AARKnuckle => drawgearSpringRate * 1e3f,
-                CouplerType.SA3Knuckle => drawgearSpringRate * 1e3f,
-                _ => drawgearSpringRate * 1e3f // Default to drawgear spring rate
+                CouplerType.AARKnuckle => drawgearSpringRate * 1e6f, // Convert MN/m to N/m
+                CouplerType.SA3Knuckle => drawgearSpringRate * 1e6f, // Convert MN/m to N/m
+                _ => drawgearSpringRate * 1e6f // Default to drawgear spring rate
             };
         }
 
         public float GetDamperRate()
         {
             return couplerType switch {
-                CouplerType.AARKnuckle => drawgearDamperRate * 1e3f,
-                CouplerType.SA3Knuckle => drawgearDamperRate * 1e3f,
+                CouplerType.AARKnuckle => drawgearDamperRate * 1e3f, // Convert kN*s/m to N*s/m
+                CouplerType.SA3Knuckle => drawgearDamperRate * 1e3f, // Convert kN*s/m to N*s/m
                 _ => drawgearDamperRate * 1e3f // Default to drawgear damper rate
             };
         }

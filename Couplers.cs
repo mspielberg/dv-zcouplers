@@ -19,7 +19,6 @@ namespace DvMod.ZCouplers
         private static readonly Dictionary<Coupler, float> lastUncouplingTime = new Dictionary<Coupler, float>();
         private const float UncouplingCooldown = 5.0f; // Seconds before allowing recoupling after manual uncoupling
         
-        private const float ChainSpring = 2e7f; // ~1,200,000 lb/in
         private const float LooseChainLength = 1.1f;
         private const float TightChainLength = 1.0f;
         private const float TightenSpeed = 0.1f;
@@ -508,11 +507,11 @@ namespace DvMod.ZCouplers
             cj.angularZLimit = new SoftJointLimit { limit = 5 };
 
             // Configure spring forces
-            cj.angularXLimitSpring = new SoftJointLimitSpring { spring = ChainSpring };
-            cj.angularYZLimitSpring = new SoftJointLimitSpring { spring = ChainSpring };
+            cj.angularXLimitSpring = new SoftJointLimitSpring { spring = Main.settings.GetSpringRate() };
+            cj.angularYZLimitSpring = new SoftJointLimitSpring { spring = Main.settings.GetSpringRate() };
 
             cj.linearLimit = new SoftJointLimit { limit = LooseChainLength };
-            cj.linearLimitSpring = new SoftJointLimitSpring { spring = ChainSpring };
+            cj.linearLimitSpring = new SoftJointLimitSpring { spring = Main.settings.GetSpringRate() };
             cj.enableCollision = false;
             cj.breakForce = float.PositiveInfinity;
             cj.breakTorque = float.PositiveInfinity;
@@ -700,7 +699,7 @@ namespace DvMod.ZCouplers
             bottomedCj.zMotion = ConfigurableJointMotion.Limited;
 
             bottomedCj.linearLimit = new SoftJointLimit { limit = BufferTravel + 2f };
-            bottomedCj.linearLimitSpring = new SoftJointLimitSpring { spring = ChainSpring };
+            bottomedCj.linearLimitSpring = new SoftJointLimitSpring { spring = Main.settings.GetSpringRate() };
             bottomedCj.enableCollision = false;
             bottomedCj.breakForce = float.PositiveInfinity;
             bottomedCj.breakTorque = float.PositiveInfinity;
