@@ -11,7 +11,7 @@ namespace DvMod.ZCouplers
 {
     public static class KnuckleCouplers
     {
-        public static readonly bool enabled = Main.settings.couplerType != CouplerType.BufferAndChain;
+        public static readonly bool enabled = true; // Always enabled since BufferAndChain is removed
         private static readonly GameObject? hookPrefab;
 
         static KnuckleCouplers()
