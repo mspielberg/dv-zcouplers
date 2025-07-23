@@ -15,10 +15,6 @@ namespace DvMod.ZCouplers
         private static readonly Dictionary<Coupler, float> lastJointCreationTime = new Dictionary<Coupler, float>();
         private const float MinJointCreationInterval = 2.0f; // Seconds between joint creation attempts
         
-        // Track when couplers were manually uncoupled to prevent immediate recoupling
-        private static readonly Dictionary<Coupler, float> lastUncouplingTime = new Dictionary<Coupler, float>();
-        private const float UncouplingCooldown = 5.0f; // Seconds before allowing recoupling after manual uncoupling
-        
         private const float LooseChainLength = 1.1f;
         private const float TightChainLength = 1.0f;
         private const float TightenSpeed = 0.1f;
@@ -206,18 +202,6 @@ namespace DvMod.ZCouplers
                     Main.DebugLog(() => $"Skipping joint creation - too soon after last creation: {__instance.train.ID}");
                     return true;
                 }
-                
-                // Prevent immediate recoupling after manual uncoupling
-                if (lastUncouplingTime.TryGetValue(__instance, out var lastUncoupling) && (currentTime - lastUncoupling) < UncouplingCooldown)
-                {
-                    Main.DebugLog(() => $"Skipping joint creation - uncoupling cooldown active: {__instance.train.ID} ({(UncouplingCooldown - (currentTime - lastUncoupling)):F1}s remaining)");
-                    return true;
-                }
-                if (__instance.coupledTo != null && lastUncouplingTime.TryGetValue(__instance.coupledTo, out var partnerLastUncoupling) && (currentTime - partnerLastUncoupling) < UncouplingCooldown)
-                {
-                    Main.DebugLog(() => $"Skipping joint creation - partner uncoupling cooldown active: {__instance.coupledTo.train.ID}");
-                    return true;
-                }
 
                 // Prevent duplicate joint creation
                 if (customTensionJoints.ContainsKey(__instance) || (__instance.coupledTo != null && customTensionJoints.ContainsKey(__instance.coupledTo)))
@@ -268,12 +252,6 @@ namespace DvMod.ZCouplers
                 {
                     partnerCouplers[__instance] = __instance.coupledTo;
                 }
-                
-                // Record uncoupling time to prevent immediate recoupling
-                var currentTime = Time.time;
-                lastUncouplingTime[__instance] = currentTime;
-                if (__instance.coupledTo != null)
-                    lastUncouplingTime[__instance.coupledTo] = currentTime;
                 
                 // Clear any pending coupler states for these cars
                 SaveManager.ClearPendingStatesForCar(__instance.train);
