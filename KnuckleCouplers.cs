@@ -415,6 +415,8 @@ namespace DvMod.ZCouplers
             }
         }
 
+        private static readonly HashSet<string> synchronizedCouplings = new HashSet<string>();
+
         [HarmonyPatch(typeof(ChainCouplerCouplerAdapter), nameof(ChainCouplerCouplerAdapter.OnCoupled))]
         public static class OnCoupledPatch
         {
@@ -428,6 +430,45 @@ namespace DvMod.ZCouplers
                 // Update knuckle coupler visual state to show coupled (locked) without triggering uncoupling
                 UpdateCouplerVisualState(e.thisCoupler, locked: true);
                 UpdateCouplerVisualState(e.otherCoupler, locked: true);
+                
+                // Ensure both coupler state machines are synchronized for external coupling
+                // During UI coupling, only one OnCoupled event may fire, so we need to ensure 
+                // both couplers have their states properly updated
+                if (!e.viaChainInteraction)
+                {
+                    // Create a unique coupling ID to prevent duplicate synchronization
+                    var couplingId = $"{e.thisCoupler.train.ID}-{e.otherCoupler.train.ID}";
+                    var reverseCouplingId = $"{e.otherCoupler.train.ID}-{e.thisCoupler.train.ID}";
+                    
+                    if (!synchronizedCouplings.Contains(couplingId) && !synchronizedCouplings.Contains(reverseCouplingId))
+                    {
+                        synchronizedCouplings.Add(couplingId);
+                        
+                        // Force state machine re-evaluation for both couplers by disabling and re-enabling
+                        var thisChainScript = e.thisCoupler.visualCoupler?.chain?.GetComponent<ChainCouplerInteraction>();
+                        var otherChainScript = e.otherCoupler.visualCoupler?.chain?.GetComponent<ChainCouplerInteraction>();
+                        
+                        if (thisChainScript != null && otherChainScript != null)
+                        {
+                            // Temporarily disable and re-enable to force state refresh
+                            thisChainScript.enabled = false;
+                            otherChainScript.enabled = false;
+                            thisChainScript.enabled = true;
+                            otherChainScript.enabled = true;
+                            
+                            Main.DebugLog(() => $"Forced state synchronization for external coupling: {e.thisCoupler.train.ID} and {e.otherCoupler.train.ID}");
+                        }
+                        
+                        // Clean up the synchronization record after a short delay
+                        __instance.StartCoroutine(CleanupSynchronizationRecord(couplingId));
+                    }
+                }
+            }
+            
+            private static System.Collections.IEnumerator CleanupSynchronizationRecord(string couplingId)
+            {
+                yield return new UnityEngine.WaitForSeconds(1.0f);
+                synchronizedCouplings.Remove(couplingId);
             }
         }
 
