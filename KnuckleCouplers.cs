@@ -3,6 +3,7 @@ using DV.CabControls;
 using DV.CabControls.Spec;
 using HarmonyLib;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using DV.ThingTypes;
 using UnityEngine;
@@ -39,55 +40,252 @@ namespace DvMod.ZCouplers
             if (CarSpawner.Instance == null) return;
             foreach (TrainCar car in CarSpawner.Instance.allCars)
                 ToggleBuffers(car.gameObject, car.carLivery, visible);
+            
+            // Force rendering system update to ensure changes are visible immediately
+            ForceRenderingUpdate();
         }
 
         private static void ToggleBuffers(GameObject root, TrainCarLivery livery, bool visible)
         {
-            MeshRenderer[] renderers = root.GetComponentsInChildren<MeshRenderer>();
-            foreach (MeshRenderer renderer in renderers)
-                // Search for buffer pads, then buffer stems. Stems aren't named or placed consistently, so we have to generalize.
-                if (renderer.name.StartsWith("Buffer_") || renderer.name.Replace("_", "").ToLowerInvariant().Contains("bufferstem"))
-                    renderer.enabled = visible;
-
-            Transform colliders = root.transform.Find("[colliders]");
-            if (colliders == null)
+            // Handle modern [buffers] hierarchy
+            Transform buffers = root.transform.Find("[buffers]");
+            if (buffers != null)
             {
-                Main.DebugLog(() => $"Failed to find [colliders] object on {livery.id}");
-                return;
+                ToggleBufferVisuals(buffers, livery, visible);
+            }
+            else
+            {
+                // Fallback for cars without [buffers] hierarchy
+                Main.DebugLog(() => $"Using fallback buffer method for {livery.id} (no [buffers] hierarchy found)");
+                MeshRenderer[] renderers = root.GetComponentsInChildren<MeshRenderer>();
+                int fallbackToggles = 0;
+                
+                foreach (MeshRenderer renderer in renderers)
+                {
+                    if (IsZCouplersObject(renderer.transform))
+                        continue;
+                    
+                    if (renderer.name.StartsWith("Buffer_") || renderer.name.Replace("_", "").ToLowerInvariant().Contains("bufferstem"))
+                    {
+                        renderer.enabled = visible;
+                        ForceRendererUpdate(renderer);
+                        fallbackToggles++;
+                        Main.DebugLog(() => $"Fallback toggled: {renderer.name} on {livery.id}");
+                    }
+                }
+                
+                if (fallbackToggles == 0)
+                {
+                    Main.DebugLog(() => $"No buffer elements found via fallback method for {livery.id}");
+                }
             }
 
-            foreach (string name in new[] { "[walkable]", "[items]" })
+            ToggleSpecialLocoBufferStems(root, livery, visible);
+        }
+
+        private static void ToggleBufferVisuals(Transform buffers, TrainCarLivery livery, bool visible)
+        {
+            int toggledVisuals = 0;
+            MeshRenderer[] allRenderers = buffers.GetComponentsInChildren<MeshRenderer>();
+            
+            foreach (MeshRenderer renderer in allRenderers)
             {
-                Transform t = colliders.Find(name);
-                if (t == null)
-                    Main.DebugLog(() => $"Failed to find '{name}' object on {livery.id}");
-                else
-                    ToggleCapsules(livery, t, visible);
+                if (IsZCouplersObject(renderer.transform))
+                    continue;
+                
+                // Preserve coupling mechanism
+                if (renderer.name == "BuffersAndChainRig")
+                    continue;
+                
+                // Hide buffer visual elements
+                if (renderer.name.StartsWith("CabooseExteriorBufferStems") || 
+                    renderer.name.StartsWith("Buffer_") || 
+                    renderer.name.Replace("_", "").ToLowerInvariant().Contains("bufferstem"))
+                {
+                    renderer.enabled = visible;
+                    ForceRendererUpdate(renderer);
+                    toggledVisuals++;
+                    Main.DebugLog(() => $"Toggled buffer visual: {renderer.name} on {livery.id}");
+                }
+            }
+
+            if (toggledVisuals > 0)
+            {
+                Main.DebugLog(() => $"Toggled {toggledVisuals} buffer visual elements on {livery.id}");
             }
         }
 
-        private static void ToggleCapsules(TrainCarLivery livery, Transform transform, bool visible, byte limit = 4, bool checkLivery = true)
+        private static bool IsZCouplersObject(Transform transform)
         {
-            if (checkLivery && livery.id == "LocoS282A")
+            Transform current = transform;
+            while (current != null)
             {
-                Transform exterior = transform.Find("Exterior");
-                if (exterior == null)
-                    Main.DebugLog(() => $"Failed to find 'Exterior' object on {livery.id}");
-                else
-                    ToggleCapsules(livery, exterior, visible, 2, false);
+                string name = current.name;
+                
+                if (name.StartsWith("ZCouplers pivot") || 
+                    name == "hook" || 
+                    (name == "walkable" && current.parent != null && current.parent.name == "hook"))
+                {
+                    return true;
+                }
+                
+                current = current.parent;
+            }
+            return false;
+        }
 
-                return;
+        private static void ToggleSpecialLocoBufferStems(GameObject root, TrainCarLivery livery, bool visible)
+        {
+            Transform bufferStemsTransform = null;
+            string stemName = "";
+
+            switch (livery.id)
+            {
+                case "LocoS282A":
+                    bufferStemsTransform = root.transform.Find("LocoS282A_Body/Static_LOD0/s282_buffer_stems");
+                    stemName = "s282_buffer_stems";
+                    break;
+
+                case "LocoS282B":
+                    bufferStemsTransform = root.transform.Find("LocoS282B_Body/LOD0/s282_tender_buffer_stems");
+                    stemName = "s282_tender_buffer_stems";
+                    
+                    // Handle LOD1 version
+                    Transform lod1Transform = root.transform.Find("LocoS282B_Body/LOD1/s282_tender_buffer_stems_LOD1");
+                    if (lod1Transform != null)
+                    {
+                        MeshRenderer lod1Renderer = lod1Transform.GetComponent<MeshRenderer>();
+                        if (lod1Renderer != null)
+                        {
+                            lod1Renderer.enabled = visible;
+                            ForceRendererUpdate(lod1Renderer);
+                            Main.DebugLog(() => $"Toggled s282_tender_buffer_stems_LOD1 on {livery.id} to {visible}");
+                        }
+                    }
+                    break;
+
+                case "LocoS060":
+                    bufferStemsTransform = root.transform.Find("LocoS060_Body/Static/s060_buffer_stems");
+                    stemName = "s060_buffer_stems";
+                    break;
+
+                case "LocoMicroshunter":
+                    bufferStemsTransform = root.transform.Find("LocoMicroshunter_Body/microshunter_buffer_stems");
+                    stemName = "microshunter_buffer_stems";
+                    break;
+
+                default:
+                    return;
             }
 
-            CapsuleCollider[] capsules = transform.GetComponentsInChildren<CapsuleCollider>();
-            if (capsules.Length < limit)
+            if (bufferStemsTransform != null)
             {
-                Main.DebugLog(() => $"Only found {capsules.Length} capsules on {livery.id}, expected {limit}");
-                return;
+                Main.DebugLog(() => $"Found {stemName} transform on {livery.id}");
+                
+                MeshRenderer meshRenderer = bufferStemsTransform.GetComponent<MeshRenderer>();
+                if (meshRenderer != null)
+                {
+                    meshRenderer.enabled = visible;
+                    ForceRendererUpdate(meshRenderer);
+                    Main.DebugLog(() => $"Toggled {stemName} MeshRenderer on {livery.id} to {visible}");
+                }
+                
+                SkinnedMeshRenderer skinnedRenderer = bufferStemsTransform.GetComponent<SkinnedMeshRenderer>();
+                if (skinnedRenderer != null)
+                {
+                    skinnedRenderer.enabled = visible;
+                    ForceRendererUpdate(skinnedRenderer);
+                    Main.DebugLog(() => $"Toggled {stemName} SkinnedMeshRenderer on {livery.id} to {visible}");
+                }
+                
+                // Handle child renderers
+                MeshRenderer[] childMeshRenderers = bufferStemsTransform.GetComponentsInChildren<MeshRenderer>();
+                SkinnedMeshRenderer[] childSkinnedRenderers = bufferStemsTransform.GetComponentsInChildren<SkinnedMeshRenderer>();
+                
+                foreach (MeshRenderer childRenderer in childMeshRenderers)
+                {
+                    if (childRenderer.transform != bufferStemsTransform)
+                    {
+                        childRenderer.enabled = visible;
+                        ForceRendererUpdate(childRenderer);
+                        Main.DebugLog(() => $"Toggled child MeshRenderer {childRenderer.name} of {stemName} on {livery.id} to {visible}");
+                    }
+                }
+                
+                foreach (SkinnedMeshRenderer childRenderer in childSkinnedRenderers)
+                {
+                    if (childRenderer.transform != bufferStemsTransform)
+                    {
+                        childRenderer.enabled = visible;
+                        ForceRendererUpdate(childRenderer);
+                        Main.DebugLog(() => $"Toggled child SkinnedMeshRenderer {childRenderer.name} of {stemName} on {livery.id} to {visible}");
+                    }
+                }
+                
+                Component[] allComponents = bufferStemsTransform.GetComponents<Component>();
+                Main.DebugLog(() => $"Components on {stemName}: {string.Join(", ", allComponents.Select(c => c.GetType().Name))}");
+                
+                if (meshRenderer == null && skinnedRenderer == null && childMeshRenderers.Length == 0 && childSkinnedRenderers.Length == 0)
+                {
+                    Main.DebugLog(() => $"No renderers found on {stemName} for {livery.id}");
+                }
             }
+            else
+            {
+                Main.DebugLog(() => $"Could not find {stemName} buffer stems on {livery.id}");
+            }
+        }
 
-            for (int i = 0; i < limit; i++)
-                capsules[i].enabled = visible;
+        private static string GetTransformPath(Transform transform, Transform root)
+        {
+            if (transform == root)
+                return root.name;
+            
+            var path = transform.name;
+            var current = transform.parent;
+            
+            while (current != null && current != root)
+            {
+                path = current.name + "/" + path;
+                current = current.parent;
+            }
+            
+            return root.name + "/" + path;
+        }
+
+        private static void ForceRendererUpdate(Renderer renderer)
+        {
+            if (renderer == null) return;
+            
+            try
+            {
+                bool currentState = renderer.enabled;
+                renderer.enabled = false;
+                renderer.enabled = currentState;
+                renderer.transform.hasChanged = true;
+            }
+            catch (System.Exception ex)
+            {
+                Main.DebugLog(() => $"Error in ForceRendererUpdate: {ex.Message}");
+            }
+        }
+
+        private static void ForceRenderingUpdate()
+        {
+            try
+            {
+                UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+                
+                Camera mainCamera = Camera.main;
+                if (mainCamera != null)
+                {
+                    mainCamera.Render();
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Main.DebugLog(() => $"Error in ForceRenderingUpdate: {ex.Message}");
+            }
         }
 
         private static readonly HashSet<Coupler> unlockedCouplers = new HashSet<Coupler>();
