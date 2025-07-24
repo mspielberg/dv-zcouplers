@@ -41,8 +41,11 @@ namespace DvMod.ZCouplers
             foreach (TrainCar car in CarSpawner.Instance.allCars)
                 ToggleBuffers(car.gameObject, car.carLivery, visible);
             
+            // Ensure all existing trains have knuckle couplers
+            EnsureKnuckleCouplersForAllTrains();
+            
             // Force rendering system update to ensure changes are visible immediately
-            ForceRenderingUpdate();
+            ForceGlobalRenderingUpdate();
         }
 
         private static void ToggleBuffers(GameObject root, TrainCarLivery livery, bool visible)
@@ -270,7 +273,7 @@ namespace DvMod.ZCouplers
             }
         }
 
-        private static void ForceRenderingUpdate()
+        private static void ForceGlobalRenderingUpdate()
         {
             try
             {
@@ -284,7 +287,7 @@ namespace DvMod.ZCouplers
             }
             catch (System.Exception ex)
             {
-                Main.DebugLog(() => $"Error in ForceRenderingUpdate: {ex.Message}");
+                Main.DebugLog(() => $"Error in ForceGlobalRenderingUpdate: {ex.Message}");
             }
         }
 
@@ -391,6 +394,16 @@ namespace DvMod.ZCouplers
         private const float HeightOffset = -0.067f;
         private static void CreateHook(ChainCouplerInteraction chainScript)
         {
+            if (chainScript == null)
+                return;
+                
+            // Check if hook already exists
+            if (GetPivot(chainScript) != null)
+            {
+                Main.DebugLog(() => $"Knuckle coupler already exists for {chainScript.couplerAdapter?.coupler?.train?.ID}, skipping creation");
+                return;
+            }
+            
             var coupler = chainScript.couplerAdapter.coupler;
             var pivot = new GameObject(coupler.isFrontCoupler ? "ZCouplers pivot front" : "ZCouplers pivot rear");
             pivot.transform.SetParent(coupler.transform, false);
@@ -539,6 +552,88 @@ namespace DvMod.ZCouplers
 
             return false;
        }
+       
+        /// Ensures all active train cars have knuckle couplers. 
+        public static void EnsureKnuckleCouplersForAllTrains()
+        {
+            if (!enabled)
+                return;
+
+            if (CarSpawner.Instance == null)
+                return;
+
+            int created = 0;
+            foreach (TrainCar car in CarSpawner.Instance.allCars)
+            {
+                if (car?.gameObject == null)
+                    continue;
+
+                // Check front coupler
+                if (car.frontCoupler?.visualCoupler?.chainAdapter?.chainScript != null)
+                {
+                    var frontChainScript = car.frontCoupler.visualCoupler.chainAdapter.chainScript;
+                    if (GetPivot(frontChainScript) == null && frontChainScript.enabled)
+                    {
+                        Main.DebugLog(() => $"Creating missing knuckle coupler for {car.ID} front");
+                        CreateHook(frontChainScript);
+                        created++;
+                    }
+                }
+
+                // Check rear coupler
+                if (car.rearCoupler?.visualCoupler?.chainAdapter?.chainScript != null)
+                {
+                    var rearChainScript = car.rearCoupler.visualCoupler.chainAdapter.chainScript;
+                    if (GetPivot(rearChainScript) == null && rearChainScript.enabled)
+                    {
+                        Main.DebugLog(() => $"Creating missing knuckle coupler for {car.ID} rear");
+                        CreateHook(rearChainScript);
+                        created++;
+                    }
+                }
+            }
+
+            if (created > 0)
+            {
+                Main.DebugLog(() => $"Created {created} missing knuckle couplers for existing trains");
+            }
+        }
+
+        /// Ensures a specific train car has knuckle couplers on both ends.
+        /// Returns the number of knuckle couplers created.
+        public static int EnsureKnuckleCouplersForTrain(TrainCar car)
+        {
+            if (!enabled || car?.gameObject == null)
+                return 0;
+                
+            int created = 0;
+            
+            // Check front coupler
+            if (car.frontCoupler?.visualCoupler?.chainAdapter?.chainScript != null)
+            {
+                var frontChainScript = car.frontCoupler.visualCoupler.chainAdapter.chainScript;
+                if (GetPivot(frontChainScript) == null && frontChainScript.enabled)
+                {
+                    Main.DebugLog(() => $"Creating missing knuckle coupler for {car.ID} front");
+                    CreateHook(frontChainScript);
+                    created++;
+                }
+            }
+            
+            // Check rear coupler
+            if (car.rearCoupler?.visualCoupler?.chainAdapter?.chainScript != null)
+            {
+                var rearChainScript = car.rearCoupler.visualCoupler.chainAdapter.chainScript;
+                if (GetPivot(rearChainScript) == null && rearChainScript.enabled)
+                {
+                    Main.DebugLog(() => $"Creating missing knuckle coupler for {car.ID} rear");
+                    CreateHook(rearChainScript);
+                    created++;
+                }
+            }
+            
+            return created;
+        }
 
         [HarmonyPatch(typeof(InteractionText), nameof(InteractionText.GetText))]
         public static class GetTextPatch
@@ -569,6 +664,76 @@ namespace DvMod.ZCouplers
                 var chainTransform = __instance.chain.transform;
                 for (int i = 0; i < chainTransform.childCount; i++)
                     chainTransform.GetChild(i).gameObject.SetActive(false);
+                
+                // Check if this coupler needs a knuckle coupler created
+                var chainScript = __instance.chain.GetComponent<ChainCouplerInteraction>();
+                if (chainScript != null && chainScript.enabled && GetPivot(chainScript) == null)
+                {
+                    var coupler = chainScript.couplerAdapter?.coupler;
+                    if (coupler != null)
+                    {
+                        Main.DebugLog(() => $"Creating missing knuckle coupler for {coupler.train.ID} {coupler.Position()} during visibility enable");
+                        CreateHook(chainScript);
+                    }
+                }
+            }
+        }
+
+        /// Patch to catch train cars when they're being set up, including teleported trains.
+        [HarmonyPatch(typeof(TrainCar), nameof(TrainCar.Start))]
+        public static class TrainCarStartPatch
+        {
+            public static void Postfix(TrainCar __instance)
+            {
+                if (!enabled)
+                    return;
+                    
+                // Delay the check to ensure the train car is fully initialized
+                __instance.StartCoroutine(DelayedKnuckleCouplerCheck(__instance));
+            }
+            
+            private static System.Collections.IEnumerator DelayedKnuckleCouplerCheck(TrainCar trainCar)
+            {
+                // Wait a frame for the train car to be fully set up
+                yield return null;
+                
+                if (trainCar != null)
+                {
+                    int created = EnsureKnuckleCouplersForTrain(trainCar);
+                    if (created > 0)
+                    {
+                        Main.DebugLog(() => $"Created {created} knuckle couplers for train {trainCar.ID} during TrainCar.Start");
+                    }
+                }
+            }
+        }
+
+        /// Patch to catch all train spawning, including teleported trains.
+        [HarmonyPatch(typeof(CarSpawner), nameof(CarSpawner.SpawnCar))]
+        public static class CarSpawnerSpawnCarPatch
+        {
+            public static void Postfix(TrainCar __result)
+            {
+                if (!enabled || __result == null)
+                    return;
+                    
+                // Delay the check to ensure the train car is fully set up
+                __result.StartCoroutine(DelayedSpawnKnuckleCouplerCheck(__result));
+            }
+            
+            private static System.Collections.IEnumerator DelayedSpawnKnuckleCouplerCheck(TrainCar trainCar)
+            {
+                // Wait a bit longer for spawned cars to be fully initialized
+                yield return new WaitForSeconds(0.5f);
+                
+                if (trainCar != null)
+                {
+                    int created = EnsureKnuckleCouplersForTrain(trainCar);
+                    if (created > 0)
+                    {
+                        Main.DebugLog(() => $"Created {created} knuckle couplers for spawned train {trainCar.ID}");
+                    }
+                }
             }
         }
 
@@ -677,6 +842,14 @@ namespace DvMod.ZCouplers
             {
                 if (!enabled)
                     return true;
+
+                // Check if we need to create a knuckle coupler for this chain script
+                if (GetPivot(__instance) == null && __instance.couplerAdapter?.coupler != null)
+                {
+                    var coupler = __instance.couplerAdapter.coupler;
+                    Main.DebugLog(() => $"Creating missing knuckle coupler for {coupler.train.ID} {coupler.Position()} via DetermineNextState");
+                    CreateHook(__instance);
+                }
 
                 if (__instance.couplerAdapter.IsCoupled())
                 {
