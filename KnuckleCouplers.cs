@@ -51,7 +51,7 @@ namespace DvMod.ZCouplers
         private static void ToggleBuffers(GameObject root, TrainCarLivery livery, bool visible)
         {
             // Handle modern [buffers] hierarchy
-            Transform buffers = root.transform.Find("[buffers]");
+            Transform? buffers = root.transform.Find("[buffers]");
             if (buffers != null)
             {
                 ToggleBufferVisuals(buffers, livery, visible);
@@ -120,7 +120,7 @@ namespace DvMod.ZCouplers
 
         private static bool IsZCouplersObject(Transform transform)
         {
-            Transform current = transform;
+            Transform? current = transform;
             while (current != null)
             {
                 string name = current.name;
@@ -139,7 +139,7 @@ namespace DvMod.ZCouplers
 
         private static void ToggleSpecialLocoBufferStems(GameObject root, TrainCarLivery livery, bool visible)
         {
-            Transform bufferStemsTransform = null;
+            Transform? bufferStemsTransform = null;
             string stemName = "";
 
             switch (livery.id)
@@ -154,7 +154,7 @@ namespace DvMod.ZCouplers
                     stemName = "s282_tender_buffer_stems";
                     
                     // Handle LOD1 version
-                    Transform lod1Transform = root.transform.Find("LocoS282B_Body/LOD1/s282_tender_buffer_stems_LOD1");
+                    Transform? lod1Transform = root.transform.Find("LocoS282B_Body/LOD1/s282_tender_buffer_stems_LOD1");
                     if (lod1Transform != null)
                     {
                         MeshRenderer lod1Renderer = lod1Transform.GetComponent<MeshRenderer>();
@@ -847,11 +847,11 @@ namespace DvMod.ZCouplers
                 if (GetPivot(__instance) == null && __instance.couplerAdapter?.coupler != null)
                 {
                     var coupler = __instance.couplerAdapter.coupler;
-                    Main.DebugLog(() => $"Creating missing knuckle coupler for {coupler.train.ID} {coupler.Position()} via DetermineNextState");
+                    Main.DebugLog(() => $"Creating missing knuckle coupler for {coupler!.train.ID} {coupler.Position()} via DetermineNextState");
                     CreateHook(__instance);
                 }
 
-                if (__instance.couplerAdapter.IsCoupled())
+                if (__instance.couplerAdapter?.IsCoupled() == true)
                 {
                     var partner = __instance.couplerAdapter.coupler?.coupledTo?.visualCoupler?.chain?.GetComponent<ChainCouplerInteraction>();
                     if (partner == null)
