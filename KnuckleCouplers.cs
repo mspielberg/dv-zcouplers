@@ -165,6 +165,98 @@ namespace DvMod.ZCouplers
                             Main.DebugLog(() => $"Toggled s282_tender_buffer_stems_LOD1 on {livery.id} to {visible}");
                         }
                     }
+                    
+                    // Handle colliders hierarchy version
+                    Transform? collidersBufferStemsTransform = root.transform.Find("[colliders]/LocoS282B_Body/LOD0/s282_tender_buffer_stems");
+                    if (collidersBufferStemsTransform != null)
+                    {
+                        Main.DebugLog(() => $"Found s282_tender_buffer_stems in colliders hierarchy on {livery.id}");
+                        
+                        MeshRenderer collidersMeshRenderer = collidersBufferStemsTransform.GetComponent<MeshRenderer>();
+                        if (collidersMeshRenderer != null)
+                        {
+                            collidersMeshRenderer.enabled = visible;
+                            ForceRendererUpdate(collidersMeshRenderer);
+                            Main.DebugLog(() => $"Toggled s282_tender_buffer_stems MeshRenderer in colliders on {livery.id} to {visible}");
+                        }
+                        
+                        SkinnedMeshRenderer collidersSkinnedRenderer = collidersBufferStemsTransform.GetComponent<SkinnedMeshRenderer>();
+                        if (collidersSkinnedRenderer != null)
+                        {
+                            collidersSkinnedRenderer.enabled = visible;
+                            ForceRendererUpdate(collidersSkinnedRenderer);
+                            Main.DebugLog(() => $"Toggled s282_tender_buffer_stems SkinnedMeshRenderer in colliders on {livery.id} to {visible}");
+                        }
+                        
+                        // Handle child renderers in colliders hierarchy
+                        MeshRenderer[] collidersChildMeshRenderers = collidersBufferStemsTransform.GetComponentsInChildren<MeshRenderer>();
+                        SkinnedMeshRenderer[] collidersChildSkinnedRenderers = collidersBufferStemsTransform.GetComponentsInChildren<SkinnedMeshRenderer>();
+                        
+                        foreach (MeshRenderer childRenderer in collidersChildMeshRenderers)
+                        {
+                            if (childRenderer.transform != collidersBufferStemsTransform)
+                            {
+                                childRenderer.enabled = visible;
+                                ForceRendererUpdate(childRenderer);
+                                Main.DebugLog(() => $"Toggled child MeshRenderer {childRenderer.name} of s282_tender_buffer_stems in colliders on {livery.id} to {visible}");
+                            }
+                        }
+                        
+                        foreach (SkinnedMeshRenderer childRenderer in collidersChildSkinnedRenderers)
+                        {
+                            if (childRenderer.transform != collidersBufferStemsTransform)
+                            {
+                                childRenderer.enabled = visible;
+                                ForceRendererUpdate(childRenderer);
+                                Main.DebugLog(() => $"Toggled child SkinnedMeshRenderer {childRenderer.name} of s282_tender_buffer_stems in colliders on {livery.id} to {visible}");
+                            }
+                        }
+                    }
+                    
+                    // Handle colliders hierarchy LOD1 version
+                    Transform? collidersLod1Transform = root.transform.Find("[colliders]/LocoS282B_Body/LOD1/s282_tender_buffer_stems_LOD1");
+                    if (collidersLod1Transform != null)
+                    {
+                        MeshRenderer collidersLod1Renderer = collidersLod1Transform.GetComponent<MeshRenderer>();
+                        if (collidersLod1Renderer != null)
+                        {
+                            collidersLod1Renderer.enabled = visible;
+                            ForceRendererUpdate(collidersLod1Renderer);
+                            Main.DebugLog(() => $"Toggled s282_tender_buffer_stems_LOD1 in colliders on {livery.id} to {visible}");
+                        }
+                        
+                        SkinnedMeshRenderer collidersLod1SkinnedRenderer = collidersLod1Transform.GetComponent<SkinnedMeshRenderer>();
+                        if (collidersLod1SkinnedRenderer != null)
+                        {
+                            collidersLod1SkinnedRenderer.enabled = visible;
+                            ForceRendererUpdate(collidersLod1SkinnedRenderer);
+                            Main.DebugLog(() => $"Toggled s282_tender_buffer_stems_LOD1 SkinnedMeshRenderer in colliders on {livery.id} to {visible}");
+                        }
+                        
+                        // Handle child renderers in colliders LOD1 hierarchy
+                        MeshRenderer[] collidersLod1ChildMeshRenderers = collidersLod1Transform.GetComponentsInChildren<MeshRenderer>();
+                        SkinnedMeshRenderer[] collidersLod1ChildSkinnedRenderers = collidersLod1Transform.GetComponentsInChildren<SkinnedMeshRenderer>();
+                        
+                        foreach (MeshRenderer childRenderer in collidersLod1ChildMeshRenderers)
+                        {
+                            if (childRenderer.transform != collidersLod1Transform)
+                            {
+                                childRenderer.enabled = visible;
+                                ForceRendererUpdate(childRenderer);
+                                Main.DebugLog(() => $"Toggled child MeshRenderer {childRenderer.name} of s282_tender_buffer_stems_LOD1 in colliders on {livery.id} to {visible}");
+                            }
+                        }
+                        
+                        foreach (SkinnedMeshRenderer childRenderer in collidersLod1ChildSkinnedRenderers)
+                        {
+                            if (childRenderer.transform != collidersLod1Transform)
+                            {
+                                childRenderer.enabled = visible;
+                                ForceRendererUpdate(childRenderer);
+                                Main.DebugLog(() => $"Toggled child SkinnedMeshRenderer {childRenderer.name} of s282_tender_buffer_stems_LOD1 in colliders on {livery.id} to {visible}");
+                            }
+                        }
+                    }
                     break;
 
                 case "LocoS060":
@@ -175,6 +267,36 @@ namespace DvMod.ZCouplers
                 case "LocoMicroshunter":
                     bufferStemsTransform = root.transform.Find("LocoMicroshunter_Body/microshunter_buffer_stems");
                     stemName = "microshunter_buffer_stems";
+                    break;
+
+                case "LocoDM3":
+                    bufferStemsTransform = root.transform.Find("LocoDM3_Body/buffer_stems");
+                    stemName = "buffer_stems";
+                    break;
+
+                case "LocoDH4":
+                    bufferStemsTransform = root.transform.Find("LocoDH4_Body/dh4_buffer_stems");
+                    stemName = "dh4_buffer_stems";
+                    break;
+
+                case "LocoDM1U":
+                    bufferStemsTransform = root.transform.Find("LocoDM1U_Body/buffer_stems");
+                    stemName = "buffer_stems";
+                    break;
+
+                case "LocoDE6":
+                    bufferStemsTransform = root.transform.Find("LocoDE6_Body/BufferStems");
+                    stemName = "BufferStems";
+                    break;
+
+                case "LocoDE6Slug":
+                    bufferStemsTransform = root.transform.Find("LocoDE6Slug_Body/de6_slug_buffer_stems");
+                    stemName = "de6_slug_buffer_stems";
+                    break;
+
+                case "LocoDE2":
+                    bufferStemsTransform = root.transform.Find("LocoDE2_Body/BufferStems");
+                    stemName = "BufferStems";
                     break;
 
                 default:
