@@ -1,3 +1,4 @@
+/*
 using System;
 using System.Linq;
 using UnityEngine;
@@ -7,7 +8,6 @@ using Pusher = System.Action<TrainCar, float>;
 
 namespace DvMod.ZCouplers
 {
-    /*
     internal sealed class HeadsUpDisplayBridge
     {
         public static HeadsUpDisplayBridge? instance;
@@ -97,5 +97,5 @@ namespace DvMod.ZCouplers
             return isFrontCoupler ? delta : -delta;
         }
     }
-    */
 }
+*/
