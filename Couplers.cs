@@ -52,7 +52,7 @@ namespace DvMod.ZCouplers
                 
             try
             {
-                Main.DebugLog(() => $"CLEANUP: Destroying all joints between {car1.ID} and {car2.ID}");
+                Main.DebugLog(() => $"CLEANUP: Destroying coupling joints between {car1.ID} and {car2.ID}");
                 
                 // Check all joints on car1 that connect to car2
                 var jointsOnCar1 = car1.GetComponents<Joint>();
@@ -60,8 +60,8 @@ namespace DvMod.ZCouplers
                 {
                     if (joint?.connectedBody != null && joint.connectedBody.gameObject == car2.gameObject)
                     {
-                        Main.DebugLog(() => $"CLEANUP: Destroying {joint.GetType().Name} on {car1.ID} connecting to {car2.ID}");
-                        Component.Destroy(joint);
+                        Main.DebugLog(() => $"CLEANUP: Destroying coupling joint {joint.GetType().Name} on {car1.ID} connecting to {car2.ID}");
+                        UnityEngine.Object.DestroyImmediate(joint);
                     }
                 }
                 
@@ -71,8 +71,8 @@ namespace DvMod.ZCouplers
                 {
                     if (joint?.connectedBody != null && joint.connectedBody.gameObject == car1.gameObject)
                     {
-                        Main.DebugLog(() => $"CLEANUP: Destroying {joint.GetType().Name} on {car2.ID} connecting to {car1.ID}");
-                        Component.Destroy(joint);
+                        Main.DebugLog(() => $"CLEANUP: Destroying coupling joint {joint.GetType().Name} on {car2.ID} connecting to {car1.ID}");
+                        UnityEngine.Object.DestroyImmediate(joint);
                     }
                 }
             }
@@ -153,12 +153,12 @@ namespace DvMod.ZCouplers
                 if (scanner1 != null)
                 {
                     scanner1.enabled = false;
-                    scanner1.StartCoroutine(ReEnableScanner(scanner1, coupler1.train.ID, 3.0f));
+                    scanner1.StartCoroutine(ReEnableScanner(scanner1, coupler1.train.ID, 0.2f));
                 }
                 if (scanner2 != null)
                 {
                     scanner2.enabled = false;
-                    scanner2.StartCoroutine(ReEnableScanner(scanner2, coupler2.train.ID, 3.0f));
+                    scanner2.StartCoroutine(ReEnableScanner(scanner2, coupler2.train.ID, 0.2f));
                 }
             }
             catch (System.Exception ex)
@@ -186,50 +186,80 @@ namespace DvMod.ZCouplers
             try
             {
                 var trainCar = coupler.train;
-                Main.DebugLog(() => $"Destroying all joints on {trainCar.ID}");
+                Main.DebugLog(() => $"Destroying coupling joints on {trainCar.ID})");
                 
-                // Destroy all Unity joints on this car to ensure complete disconnection
+                // Get all buffer joints that should be preserved
+                var preservedBufferJoints = new HashSet<ConfigurableJoint>();
+                foreach (var kvp in bufferJoints)
+                {
+                    if (kvp.Key?.train == trainCar && kvp.Value.joint != null)
+                    {
+                        preservedBufferJoints.Add(kvp.Value.joint);
+                        Main.DebugLog(() => $"Preserving buffer joint for {trainCar.ID}");
+                    }
+                }
+                
+                // Destroy all Unity joints except preserved buffer joints
                 var allJoints = trainCar.GetComponents<ConfigurableJoint>();
                 foreach (var joint in allJoints)
                 {
-                    if (joint != null)
-                        Component.Destroy(joint);
+                    if (joint != null && !preservedBufferJoints.Contains(joint))
+                    {
+                        Main.DebugLog(() => $"Destroying ConfigurableJoint on {trainCar.ID}");
+                        UnityEngine.Object.DestroyImmediate(joint);
+                    }
                 }
                 
                 var fixedJoints = trainCar.GetComponents<FixedJoint>();
                 foreach (var joint in fixedJoints)
                 {
                     if (joint != null)
-                        Component.Destroy(joint);
+                    {
+                        Main.DebugLog(() => $"Destroying FixedJoint on {trainCar.ID}");
+                        UnityEngine.Object.DestroyImmediate(joint);
+                    }
                 }
                 
                 var springJoints = trainCar.GetComponents<SpringJoint>();
                 foreach (var joint in springJoints)
                 {
                     if (joint != null)
-                        Component.Destroy(joint);
+                    {
+                        Main.DebugLog(() => $"Destroying SpringJoint on {trainCar.ID}");
+                        UnityEngine.Object.DestroyImmediate(joint);
+                    }
                 }
                 
                 var hingeJoints = trainCar.GetComponents<HingeJoint>();
                 foreach (var joint in hingeJoints)
                 {
                     if (joint != null)
-                        Component.Destroy(joint);
+                    {
+                        Main.DebugLog(() => $"Destroying HingeJoint on {trainCar.ID}");
+                        UnityEngine.Object.DestroyImmediate(joint);
+                    }
                 }
                 
                 // Clear the rigidCJ and jointCoroRigid from both couplers on this car
+                // but only if they're not buffer joints we want to preserve
                 if (trainCar.frontCoupler != null)
                 {
-                    trainCar.frontCoupler.rigidCJ = null;
+                    if (trainCar.frontCoupler.rigidCJ != null && !preservedBufferJoints.Contains(trainCar.frontCoupler.rigidCJ))
+                    {
+                        trainCar.frontCoupler.rigidCJ = null;
+                    }
                     trainCar.frontCoupler.jointCoroRigid = null;
                 }
                 if (trainCar.rearCoupler != null)
                 {
-                    trainCar.rearCoupler.rigidCJ = null;
+                    if (trainCar.rearCoupler.rigidCJ != null && !preservedBufferJoints.Contains(trainCar.rearCoupler.rigidCJ))
+                    {
+                        trainCar.rearCoupler.rigidCJ = null;
+                    }
                     trainCar.rearCoupler.jointCoroRigid = null;
                 }
                 
-                Main.DebugLog(() => $"Completed joint destruction for {trainCar.ID}");
+                Main.DebugLog(() => $"Completed joint destruction for {trainCar.ID} (preserved {preservedBufferJoints.Count} buffer joints)");
             }
             catch (System.Exception ex)
             {
@@ -349,11 +379,13 @@ namespace DvMod.ZCouplers
                     Main.DebugLog(() => $"Stored partner coupler joints for {__instance.coupledTo.train.ID}");
                 }
 
-                // Destroy all custom joints to ensure clean disconnection
+                // Destroy tension joints to remove coupling connection
                 DestroyTensionJoint(__instance);
-                DestroyCompressionJoint(__instance);
                 
-                // Additional cleanup: destroy any remaining joints between these specific cars
+                // Convert compression joint to buffer-only joint to maintain physics while removing coupling
+                ConvertCompressionJointToBufferOnly(__instance);
+                
+                // Additional cleanup: destroy any remaining coupling joints between these specific cars (but preserve buffer joints)
                 if (__instance.coupledTo?.train != null)
                 {
                     DestroyJointsBetweenCars(__instance.train, __instance.coupledTo.train);
@@ -388,7 +420,7 @@ namespace DvMod.ZCouplers
                     }
                     else
                     {
-                        // Uncoupling succeeded, destroy the stored joint
+                        // Uncoupling succeeded, destroy the stored joint (no need to preserve - using collision system)
                         if (storedJoint != null)
                             Component.Destroy(storedJoint);
                         Main.DebugLog(() => $"Destroyed stored rigidCJ for {__instance.train.ID} - uncoupling succeeded");
@@ -424,6 +456,7 @@ namespace DvMod.ZCouplers
                         }
                         else
                         {
+                            // Uncoupling succeeded, destroy the stored joint (no need to preserve - using collision system)
                             if (partnerStoredJoint != null)
                                 Component.Destroy(partnerStoredJoint);
                             Main.DebugLog(() => $"Destroyed stored partner rigidCJ for {partnerCoupler.train.ID} - uncoupling succeeded");
@@ -474,8 +507,8 @@ namespace DvMod.ZCouplers
             {
                 Main.DebugLog(() => "TrainCar.UncoupleSelf.Postfix");
                 // Remove joints before car is teleported
-                DestroyCompressionJoint(__instance.frontCoupler);
-                DestroyCompressionJoint(__instance.rearCoupler);
+                DestroyCompressionJoint(__instance.frontCoupler, "UncoupleSelf");
+                DestroyCompressionJoint(__instance.rearCoupler, "UncoupleSelf");
                 
                 DestroyTensionJoint(__instance.frontCoupler);
                 DestroyTensionJoint(__instance.rearCoupler);
@@ -516,7 +549,7 @@ namespace DvMod.ZCouplers
                 try
                 {
                     // Clean up coupler components if objects are still valid
-                    DestroyCompressionJoint(coupler);
+                    DestroyCompressionJoint(coupler, "PrepareForDeleting");
                     DestroyTensionJoint(coupler);
                     KillCouplingScanner(coupler);
                 }
@@ -656,7 +689,11 @@ namespace DvMod.ZCouplers
                     if (otherScanner != null)
                     {
                         var otherCar = TrainCar.Resolve(otherScanner.gameObject);
+                        if (otherCar == null)
+                            return;
                         var otherCoupler = otherScanner.transform.localPosition.z > 0 ? otherCar.frontCoupler : otherCar.rearCoupler;
+                        if (otherCoupler == null)
+                            return;
                         
                         // Only create compression joint if both couplers are ready to couple (not parked/unlocked)
                         if (coupler.rigidCJ == null && otherCoupler.rigidCJ == null 
@@ -673,7 +710,9 @@ namespace DvMod.ZCouplers
                     }
                     else
                     {
-                        DestroyCompressionJoint(coupler);
+                        // Don't destroy compression joints when scanners lose contact
+                        // Buffer physics should persist until proper uncoupling or car deletion
+                        Main.DebugLog(() => $"Scanner lost contact - preserving compression joint for {coupler.train.ID} to maintain buffer physics");
                     }
                 };
             }
@@ -690,7 +729,13 @@ namespace DvMod.ZCouplers
 
             private static Coupler GetCoupler(CouplingScanner scanner)
             {
+                if (scanner?.gameObject == null || scanner.transform == null)
+                    return null;
+                    
                 var car = TrainCar.Resolve(scanner.gameObject);
+                if (car == null)
+                    return null;
+                    
                 return scanner.transform.localPosition.z > 0 ? car.frontCoupler : car.rearCoupler;
             }
 
@@ -709,6 +754,13 @@ namespace DvMod.ZCouplers
             {
                 yield return null;
                 var coupler = GetCoupler(__instance);
+                if (coupler == null)
+                {
+                    Main.DebugLog(() => "MasterCoro exiting - coupler is null");
+                    __instance.masterCoro = null;
+                    yield break;
+                }
+                
                 if (coupler.IsCoupled())
                 {
                     Main.DebugLog(() => $"{coupler.train.ID} {coupler.Position()}: MasterCoro exiting immediately");
@@ -720,6 +772,8 @@ namespace DvMod.ZCouplers
                     Main.DebugLog(() =>
                     {
                         var otherCoupler = GetCoupler(__instance.nearbyScanner);
+                        if (otherCoupler == null)
+                            return $"{coupler.train.ID} {coupler.Position()}: MasterCoro started with null nearby coupler";
                         return $"{coupler.train.ID} {coupler.Position()}: MasterCoro started with {otherCoupler.train.ID} {otherCoupler.Position()}";
                     });
                 }
@@ -728,6 +782,14 @@ namespace DvMod.ZCouplers
                 while (true)
                 {
                     yield return wait;
+                    
+                    // Safety check for null references
+                    if (__instance?.transform == null || __instance.nearbyScanner?.transform == null)
+                    {
+                        Main.DebugLog(() => "MasterCoro exiting - scanner or transform is null");
+                        break;
+                    }
+                    
                     var offset = __instance.transform.InverseTransformPoint(__instance.nearbyScanner.transform.position);
                     if (Mathf.Abs(offset.x) > 1.6f || Mathf.Abs(offset.z) > 2f)
                     {
@@ -737,11 +799,13 @@ namespace DvMod.ZCouplers
                     {
                         Main.DebugLog(coupler.train, () => $"{coupler.train.ID}: offset.z = {offset.z}");
                         var compression = StaticOffset - offset.z;
+                        var nearbyNearbyeCoupler = GetCoupler(__instance.nearbyScanner);
                         if (KnuckleCouplers.enabled
                             && __instance.nearbyScanner.isActiveAndEnabled
                             && compression > Main.settings.autoCoupleThreshold * 1e-3f
                             && KnuckleCouplers.IsReadyToCouple(coupler)
-                            && KnuckleCouplers.IsReadyToCouple(GetCoupler(__instance.nearbyScanner)))
+                            && nearbyNearbyeCoupler != null
+                            && KnuckleCouplers.IsReadyToCouple(nearbyNearbyeCoupler))
                         {
                             Main.DebugLog(() => $"{coupler.train.ID} {coupler.Position()}: auto coupling due to compression={compression}");
                             TryCouple(coupler);
@@ -797,14 +861,73 @@ namespace DvMod.ZCouplers
             bufferJoints.Add(b, (a, bufferCj));
         }
 
-        private static void DestroyCompressionJoint(Coupler coupler)
+        private static void ConvertCompressionJointToBufferOnly(Coupler coupler)
+        {
+            if (coupler?.coupledTo == null)
+                return;
+                
+            try
+            {
+                Main.DebugLog(() => $"Converting to use game's collision system between {coupler.train.ID} and {coupler.coupledTo.train.ID}");
+                
+                // Destroy any existing compression joints - we'll use the game's collision system instead
+                if (bufferJoints.TryGetValue(coupler, out var result))
+                {
+                    if (result.joint != null)
+                    {
+                        Component.Destroy(result.joint);
+                        Main.DebugLog(() => $"Destroyed compression joint between {coupler.train.ID} and {coupler.coupledTo.train.ID} - using game collision system");
+                    }
+                    
+                    // Remove from tracking
+                    bufferJoints.Remove(coupler);
+                    bufferJoints.Remove(result.otherCoupler);
+                }
+                else
+                {
+                    Main.DebugLog(() => $"No compression joint found to convert for {coupler.train.ID}");
+                }
+                
+                // Clear the rigidCJ references so the game doesn't think cars are rigidly coupled
+                if (coupler.rigidCJ != null)
+                {
+                    coupler.rigidCJ = null;
+                    Main.DebugLog(() => $"Cleared rigidCJ reference for {coupler.train.ID}");
+                }
+                if (coupler.coupledTo.rigidCJ != null)
+                {
+                    coupler.coupledTo.rigidCJ = null;
+                    Main.DebugLog(() => $"Cleared rigidCJ reference for {coupler.coupledTo.train.ID}");
+                }
+                
+                // Clear coroutines
+                if (coupler.jointCoroRigid != null)
+                {
+                    coupler.StopCoroutine(coupler.jointCoroRigid);
+                    coupler.jointCoroRigid = null;
+                }
+                if (coupler.coupledTo.jointCoroRigid != null)
+                {
+                    coupler.coupledTo.StopCoroutine(coupler.coupledTo.jointCoroRigid);
+                    coupler.coupledTo.jointCoroRigid = null;
+                }
+                
+                Main.DebugLog(() => $"Successfully converted to use game collision system for {coupler.train.ID} <-> {coupler.coupledTo.train.ID}");
+            }
+            catch (System.Exception ex)
+            {
+                Main.DebugLog(() => $"Error converting to collision system: {ex.Message}");
+            }
+        }
+
+        private static void DestroyCompressionJoint(Coupler coupler, string caller = "unknown")
         {
             if (coupler == null || !bufferJoints.TryGetValue(coupler, out var result))
                 return;
 
             try
             {
-                Main.DebugLog(() => $"Destroying compression joint between {TrainCar.Resolve(coupler.gameObject)?.ID} and {TrainCar.Resolve(result.otherCoupler.gameObject)?.ID}");
+                Main.DebugLog(() => $"Destroying compression joint between {TrainCar.Resolve(coupler.gameObject)?.ID} and {TrainCar.Resolve(result.otherCoupler.gameObject)?.ID} - called from: {caller}");
                 
                 // Destroy the joint
                 if (result.joint != null)
