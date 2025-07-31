@@ -967,5 +967,66 @@ namespace DvMod.ZCouplers
         }
 
         public static string Position(this Coupler coupler) => coupler.isFrontCoupler ? "front" : "rear";
+    
+
+        // Simple collision enhancement - just slightly boost the game's natural collision response
+        [HarmonyPatch(typeof(TrainCarCollisions), nameof(TrainCarCollisions.OnCollisionEnter))]
+        public static class TrainCarCollisionsPatch
+        {
+            public static void Postfix(TrainCarCollisions __instance, Collision collision)
+            {
+                // Only apply custom buffer forces if ZCouplers is enabled
+                if (!KnuckleCouplers.enabled)
+                    return;
+                    
+                try
+                {
+                    // Check if this is a collision between two train cars
+                    var thisCar = TrainCar.Resolve(__instance.gameObject);
+                    var otherCar = TrainCar.Resolve(collision.gameObject);
+                    
+                    if (thisCar == null || otherCar == null || thisCar == otherCar)
+                        return;
+                        
+                    // Only apply buffer forces if cars are not coupled (to avoid interfering with coupling physics)
+                    bool areCoupled = (thisCar.frontCoupler?.IsCoupled() == true && thisCar.frontCoupler.coupledTo?.train == otherCar) ||
+                                    (thisCar.rearCoupler?.IsCoupled() == true && thisCar.rearCoupler.coupledTo?.train == otherCar);
+                    
+                    if (areCoupled)
+                        return;
+                        
+                    ApplySimpleBufferResponse(__instance, thisCar, otherCar, collision);
+                }
+                catch (System.Exception ex)
+                {
+                    Main.DebugLog(() => $"Error in collision patch: {ex.Message}");
+                }
+            }
+        
+            private static void ApplySimpleBufferResponse(TrainCarCollisions collisionComponent, TrainCar thisCar, TrainCar otherCar, Collision collision)
+            {
+                var thisRigidbody = thisCar.GetComponent<Rigidbody>();
+                var otherRigidbody = otherCar.GetComponent<Rigidbody>();
+                
+                if (thisRigidbody == null || otherRigidbody == null)
+                    return;
+                    
+                // Get collision info
+                var contact = collision.contacts[0];
+                var collisionNormal = contact.normal;
+                var relativeVelocity = collision.relativeVelocity;
+                var velocityMagnitude = relativeVelocity.magnitude;
+                
+                // Simple approach: just add a small additional repelling force proportional to collision severity
+                // This enhances Unity's natural collision response without overriding it
+                float additionalForce = velocityMagnitude * Main.settings.GetSpringRate() * 0.00001f; // Very small multiplier
+                
+                // Apply the additional force at the collision point
+                Vector3 forceVector = collisionNormal * additionalForce;
+                thisRigidbody.AddForceAtPosition(forceVector, contact.point);
+                
+                Main.DebugLog(() => $"Enhanced collision response between {thisCar.ID} and {otherCar.ID}: added force={additionalForce:F1}, velocity={velocityMagnitude:F2}");
+            }
+        }
     }
 }
