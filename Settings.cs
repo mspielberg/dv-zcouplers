@@ -24,8 +24,11 @@ namespace DvMod.ZCouplers
         [Draw("Auto couple threshold (mm)", Min = 0f)]
         public float autoCoupleThreshold = 20f;
 
-        [Draw("Enable logging")]
+        [Draw("Enable debug logging")]
         public bool enableLogging = false;
+        
+        [Draw("Enable error logging")]
+        public bool enableErrorLogging = true;
         public readonly string? version = Main.mod?.Info.Version;
 
         public override void Save(UnityModManager.ModEntry entry)
