@@ -36,8 +36,7 @@ namespace DvMod.ZCouplers
         public void OnChange()
         {
             Couplers.UpdateAllCompressionJoints();
-            if (KnuckleCouplers.enabled)
-                KnuckleCouplers.ToggleBuffers(showBuffersWithKnuckles);
+            KnuckleCouplers.OnSettingsChanged();
         }
 
         public float GetCouplerStrength()
