@@ -24,7 +24,6 @@
     <Reference Include="0Harmony"/>
     <Reference Include="Assembly-CSharp"/>
     <Reference Include="DV.ThingTypes"/>
-    <Reference Include="Assembly-CSharp-firstpass"/>
     <!-- <Reference Include="DVCustomCarLoader"/> -->
     <Reference Include="DV.BrakeSystem"/>
     <Reference Include="DV.Utils"/>
