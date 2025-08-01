@@ -37,13 +37,22 @@ namespace DvMod.ZCouplers
             modEntry.OnGUI = settings.Draw;
             modEntry.OnSaveGUI = settings.Save;
 
+            // Add global exception handler as safety net
+            AppDomain.CurrentDomain.UnhandledException += (sender, e) =>
+            {
+                if (e.ExceptionObject is Exception ex && ex.StackTrace?.Contains("LateUpdate_Attached") == true)
+                {
+                    modEntry.Logger.Log($"Caught LateUpdate_Attached exception: {ex.Message}");
+                }
+            };
+
             // HeadsUpDisplayBridge.Init();
             Harmony harmony = new Harmony(modEntry.Info.Id);
             harmony.PatchAll();
 
-            // Force static initializer to execute and load asset bundle
-            if (KnuckleCouplers.enabled)
-                mod.Logger.Log($"Loaded {settings.couplerType}");
+            // Initialize KnuckleCouplers system
+            KnuckleCouplers.Initialize();
+            mod.Logger.Log($"Loaded {settings.couplerType}");
 
             // CCLIntegration.Initialize();
 
@@ -60,6 +69,22 @@ namespace DvMod.ZCouplers
         {
             if (settings.enableLogging)
                 mod?.Logger.Log(message());
+        }
+        
+        public static void ErrorLog(Func<string> message)
+        {
+            if (settings.enableErrorLogging)
+                mod?.Logger.Log($"[ERROR] {message()}");
+        }
+        
+        /// <summary>
+        /// Safely get car ID, avoiding the "logicCar not set" error
+        /// </summary>
+        public static string GetSafeCarID(TrainCar car)
+        {
+            if (car?.logicCar == null)
+                return "[uninit]";
+            return car.ID;
         }
     }
 }
