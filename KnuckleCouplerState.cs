@@ -57,6 +57,13 @@ namespace DvMod.ZCouplers
                 
             // Update visual state
             HookManager.UpdateHookVisualState(chainScript, locked: true);
+            
+            // Update the native coupler state to reflect the new ready status
+            if (!coupler.IsCoupled())
+            {
+                coupler.state = ChainCouplerInteraction.State.Dangling;
+                Main.DebugLog(() => $"Updated {coupler.train.ID} {coupler.Position()} to Dangling state after making ready");
+            }
         }
 
         public static void SetCouplerLocked(Coupler coupler, bool locked)
@@ -76,6 +83,12 @@ namespace DvMod.ZCouplers
                 var chainScript = coupler.visualCoupler?.chainAdapter?.chainScript;
                 if (chainScript != null)
                     HookManager.UpdateHookVisualState(chainScript, locked: true);
+                    
+                // Update the native coupler state if uncoupled
+                if (!coupler.IsCoupled())
+                {
+                    coupler.state = ChainCouplerInteraction.State.Dangling;
+                }
             }
             else
             {
@@ -89,6 +102,12 @@ namespace DvMod.ZCouplers
                 var chainScript = coupler.visualCoupler?.chainAdapter?.chainScript;
                 if (chainScript != null)
                     HookManager.UpdateHookVisualState(chainScript, locked: false);
+                    
+                // Update the native coupler state if uncoupled
+                if (!coupler.IsCoupled())
+                {
+                    coupler.state = ChainCouplerInteraction.State.Parked;
+                }
             }
         }
 
