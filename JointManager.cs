@@ -154,7 +154,7 @@ namespace DvMod.ZCouplers
             bufferJoints.Add(a, (b, bufferCj));
             bufferJoints.Add(b, (a, bufferCj));
             
-            // If both couplers are ready (locked) but showing as Parked, update them to Attached_Tight
+            // If both couplers are ready (locked) but showing as Dangling, update them to Attached_Tight
             // This handles the case where compression joints are created after deferred state application
             UpdateCouplerStatesAfterCompressionJoint(a, b);
         }
@@ -164,25 +164,25 @@ namespace DvMod.ZCouplers
         /// </summary>
         private static void UpdateCouplerStatesAfterCompressionJoint(Coupler a, Coupler b)
         {
-            // Only update if both couplers are ready (locked) and in Parked state
+            // Only update if both couplers are ready (locked) and in Dangling state
             if (KnuckleCouplers.IsReadyToCouple(a) && KnuckleCouplers.IsReadyToCouple(b))
             {
-                bool aWasParked = a.state == ChainCouplerInteraction.State.Parked;
-                bool bWasParked = b.state == ChainCouplerInteraction.State.Parked;
+                bool aWasDangling = a.state == ChainCouplerInteraction.State.Dangling;
+                bool bWasDangling = b.state == ChainCouplerInteraction.State.Dangling;
                 
-                if (aWasParked || bWasParked)
+                if (aWasDangling || bWasDangling)
                 {
                     Main.DebugLog(() => $"Updating coupler states after compression joint creation: {a.train.ID} {a.Position()} (was {a.state}) and {b.train.ID} {b.Position()} (was {b.state})");
                     
                     // Update both couplers to Attached_Tight since they're both ready and have compression joints
                     // The actual coupling and tension joint creation will be handled by MasterCoro
-                    if (aWasParked)
+                    if (aWasDangling)
                     {
                         a.state = ChainCouplerInteraction.State.Attached_Tight;
                         // Removed verbose state update log
                     }
                     
-                    if (bWasParked)
+                    if (bWasDangling)
                     {
                         b.state = ChainCouplerInteraction.State.Attached_Tight;
                         // Removed verbose state update log
