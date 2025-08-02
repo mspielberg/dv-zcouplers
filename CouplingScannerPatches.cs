@@ -289,6 +289,63 @@ namespace DvMod.ZCouplers
                             yield break;
                         }
                     }
+                    
+                    // Check for mismatched save loading states: one ready coupler in wrong state, other in attached state
+                    // This handles cases where coupled couplers were saved inconsistently
+                    if (otherCoupler != null && !coupler.IsCoupled() && !otherCoupler.IsCoupled())
+                    {
+                        bool couplerReady = KnuckleCouplers.IsReadyToCouple(coupler);
+                        bool otherReady = KnuckleCouplers.IsReadyToCouple(otherCoupler);
+                        
+                        // If both couplers are ready but have mismatched states, fix them and couple
+                        if (couplerReady && otherReady)
+                        {
+                            bool needsFix = false;
+                            
+                            // Fix scenarios like: one shows Parked/Dangling, other shows Attached_*
+                            if ((coupler.state == ChainCouplerInteraction.State.Parked || coupler.state == ChainCouplerInteraction.State.Dangling) &&
+                                (otherCoupler.state == ChainCouplerInteraction.State.Attached_Tight || otherCoupler.state == ChainCouplerInteraction.State.Attached_Loose))
+                            {
+                                needsFix = true;
+                            }
+                            else if ((otherCoupler.state == ChainCouplerInteraction.State.Parked || otherCoupler.state == ChainCouplerInteraction.State.Dangling) &&
+                                     (coupler.state == ChainCouplerInteraction.State.Attached_Tight || coupler.state == ChainCouplerInteraction.State.Attached_Loose))
+                            {
+                                needsFix = true;
+                            }
+                            
+                            if (needsFix)
+                            {
+                                Main.DebugLog(() => $"Found mismatched save loading states - fixing and coupling {coupler.train.ID} ({coupler.state}) and {otherCoupler.train.ID} ({otherCoupler.state})");
+                                
+                                // Set both to Dangling state first (ready but uncoupled)
+                                coupler.state = ChainCouplerInteraction.State.Dangling;
+                                otherCoupler.state = ChainCouplerInteraction.State.Dangling;
+                                
+                                TryCouple(coupler);
+                                
+                                // After coupling, create tension joints if they don't exist
+                                if (coupler.IsCoupled() && otherCoupler.IsCoupled())
+                                {
+                                    if (!JointManager.HasTensionJoint(coupler))
+                                    {
+                                        Main.DebugLog(() => $"Creating tension joint for {coupler.train.ID} {coupler.Position()} after mismatched state fix");
+                                        JointManager.ForceCreateTensionJoint(coupler);
+                                    }
+                                    
+                                    if (!JointManager.HasTensionJoint(otherCoupler))
+                                    {
+                                        Main.DebugLog(() => $"Creating tension joint for {otherCoupler.train.ID} {otherCoupler.Position()} after mismatched state fix");
+                                        JointManager.ForceCreateTensionJoint(otherCoupler);
+                                    }
+                                    
+                                    // Exit since coupling is complete
+                                    __instance.masterCoro = null;
+                                    yield break;
+                                }
+                            }
+                        }
+                    }
                 }
 
                 var wait = WaitFor.Seconds(0.1f);

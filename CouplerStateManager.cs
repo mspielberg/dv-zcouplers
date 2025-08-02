@@ -24,10 +24,16 @@ namespace DvMod.ZCouplers
             // Update the native coupler state appropriately
             if (coupler.IsCoupled())
             {
-                // For coupled couplers, set appropriate attached state based on knuckle coupler lock state
-                ChainCouplerInteraction.State newState = locked ? 
-                    ChainCouplerInteraction.State.Attached_Tight : 
-                    ChainCouplerInteraction.State.Attached_Loose;
+                // For knuckle couplers: if coupled, both must be ready (locked)
+                if (!locked)
+                {
+                    // Force to locked state - knuckle couplers can't be "not ready" while coupled
+                    KnuckleCouplers.SetCouplerLocked(coupler, true);
+                    Main.DebugLog(() => $"Forced {coupler.train.ID} {coupler.Position()} to ready state (was coupled but not ready)");
+                }
+                
+                // Coupled knuckle couplers are always Attached_Tight
+                ChainCouplerInteraction.State newState = ChainCouplerInteraction.State.Attached_Tight;
                     
                 if (coupler.state != newState)
                 {
@@ -44,13 +50,13 @@ namespace DvMod.ZCouplers
                 ChainCouplerInteraction.State newState;
                 if (locked)
                 {
-                    // Locked but uncoupled = Parked (ready to couple)
-                    newState = ChainCouplerInteraction.State.Parked;
+                    // Locked but uncoupled = Dangling (ready to couple)
+                    newState = ChainCouplerInteraction.State.Dangling;
                 }
                 else
                 {
-                    // Unlocked and uncoupled = Dangling (not ready to couple)
-                    newState = ChainCouplerInteraction.State.Dangling;
+                    // Unlocked and uncoupled = Parked (not ready to couple)
+                    newState = ChainCouplerInteraction.State.Parked;
                 }
                 
                 if (coupler.state != newState)
@@ -58,6 +64,9 @@ namespace DvMod.ZCouplers
                     coupler.state = newState;
                     Main.DebugLog(() => $"Updated native state for uncoupled {coupler.train.ID} {coupler.Position()} to {newState}");
                 }
+                
+                // Force trigger DetermineNextState to ensure state machine is updated correctly
+                TriggerStateUpdate(coupler);
             }
         }
         
@@ -109,17 +118,20 @@ namespace DvMod.ZCouplers
             bool thisLocked = KnuckleCouplers.IsReadyToCouple(coupler);
             bool partnerLocked = KnuckleCouplers.IsReadyToCouple(coupler.coupledTo);
             
-            // Determine the appropriate state based on both couplers' lock states
-            // Only use Attached_* states for actually coupled couplers
-            ChainCouplerInteraction.State desiredState;
-            if (thisLocked && partnerLocked)
+            // For knuckle couplers: if coupled, force both to be ready
+            if (!thisLocked)
             {
-                desiredState = ChainCouplerInteraction.State.Attached_Tight;
+                KnuckleCouplers.SetCouplerLocked(coupler, true);
+                Main.DebugLog(() => $"Forced {coupler.train.ID} {coupler.Position()} to ready state during sync");
             }
-            else
+            if (!partnerLocked)
             {
-                desiredState = ChainCouplerInteraction.State.Attached_Loose;
+                KnuckleCouplers.SetCouplerLocked(coupler.coupledTo, true);
+                Main.DebugLog(() => $"Forced {coupler.coupledTo.train.ID} {coupler.coupledTo.Position()} to ready state during sync");
             }
+            
+            // Coupled knuckle couplers are always Attached_Tight
+            ChainCouplerInteraction.State desiredState = ChainCouplerInteraction.State.Attached_Tight;
             
             bool changed = false;
             
@@ -207,6 +219,33 @@ namespace DvMod.ZCouplers
             catch (System.Exception ex)
             {
                 Main.ErrorLog(() => $"Error creating tension joint for {coupler.train.ID}: {ex.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Trigger a state update for the coupler to ensure the ChainCouplerInteraction state machine is synchronized
+        /// </summary>
+        private static void TriggerStateUpdate(Coupler coupler)
+        {
+            if (coupler?.visualCoupler?.chainAdapter?.chainScript == null)
+                return;
+                
+            try
+            {
+                var chainScript = coupler.visualCoupler.chainAdapter.chainScript;
+                
+                // Force the ChainCouplerInteraction to re-evaluate its state by calling DetermineNextState
+                var newState = chainScript.DetermineNextState();
+                if (coupler.state != newState)
+                {
+                    // Update the coupler state to match the determined state
+                    coupler.state = newState;
+                    Main.DebugLog(() => $"Triggered state update for {coupler.train.ID} {coupler.Position()}: -> {newState}");
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Main.ErrorLog(() => $"Error triggering state update for {coupler.train.ID}: {ex.Message}");
             }
         }
     }
