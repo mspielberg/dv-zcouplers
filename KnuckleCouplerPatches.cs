@@ -264,164 +264,329 @@ namespace DvMod.ZCouplers
         [HarmonyPatch(typeof(ChainCouplerVisibilityOptimizer), nameof(ChainCouplerVisibilityOptimizer.Enable))]
         public static class ChainCouplerVisibilityOptimizerEnablePatch
         {
-            public static void Postfix(ChainCouplerVisibilityOptimizer __instance)
-            {
-                if (!KnuckleCouplers.enabled)
-                    return;
-                    
-                var chainTransform = __instance.chain.transform;
-                for (int i = 0; i < chainTransform.childCount; i++)
-                    chainTransform.GetChild(i).gameObject.SetActive(false);
+        public static void Postfix(ChainCouplerVisibilityOptimizer __instance)
+        {
+            if (!KnuckleCouplers.enabled)
+                return;
                 
-                // Check if this coupler needs a knuckle coupler created
-                var chainScript = __instance.chain.GetComponent<ChainCouplerInteraction>();
-                if (chainScript != null && chainScript.enabled && HookManager.GetPivot(chainScript) == null)
+            var chainTransform = __instance.chain.transform;
+            for (int i = 0; i < chainTransform.childCount; i++)
+                chainTransform.GetChild(i).gameObject.SetActive(false);
+            
+            // Check if this coupler needs a knuckle coupler created
+            var chainScript = __instance.chain.GetComponent<ChainCouplerInteraction>();
+            if (chainScript != null && chainScript.enabled && HookManager.GetPivot(chainScript) == null)
+            {
+                var coupler = chainScript.couplerAdapter?.coupler;
+                if (coupler != null)
                 {
-                    var coupler = chainScript.couplerAdapter?.coupler;
-                    if (coupler != null)
-                    {
-                        // Removed verbose coupler creation log
-                        KnuckleCouplers.CreateHook(chainScript);
-                    }
+                    // Removed verbose coupler creation log
+                    KnuckleCouplers.CreateHook(chainScript);
                 }
             }
         }
+    }
 
-        /// Patch to catch train cars when they're being set up, including teleported trains.
-        [HarmonyPatch(typeof(TrainCar), nameof(TrainCar.Start))]
-        public static class TrainCarStartPatch
+    /// Patch to catch train cars when they're being set up, including teleported trains.
+    [HarmonyPatch(typeof(TrainCar), nameof(TrainCar.Start))]
+    public static class TrainCarStartPatch
+    {
+        public static void Postfix(TrainCar __instance)
         {
-            public static void Postfix(TrainCar __instance)
+            if (!KnuckleCouplers.enabled)
+                return;
+                
+            // Delay the check to ensure the train car is fully initialized
+            __instance.StartCoroutine(HookManager.DelayedKnuckleCouplerCheck(__instance, KnuckleCouplers.GetHookPrefab()));
+            
+            // Also check and fix states for teleported trains that might already be coupled
+            __instance.StartCoroutine(DelayedCoupledStateCheck(__instance));
+        }
+        
+        private static IEnumerator DelayedCoupledStateCheck(TrainCar car)
+        {
+            // Wait for car to be fully initialized
+            yield return new WaitForSeconds(0.3f);
+            
+            // Check both couplers and fix states if they're already coupled
+            if (car.frontCoupler != null && car.frontCoupler.IsCoupled())
             {
-                if (!KnuckleCouplers.enabled)
-                    return;
-                    
-                // Delay the check to ensure the train car is fully initialized
-                __instance.StartCoroutine(HookManager.DelayedKnuckleCouplerCheck(__instance, KnuckleCouplers.GetHookPrefab()));
+                FixCoupledState(car.frontCoupler);
+            }
+            if (car.rearCoupler != null && car.rearCoupler.IsCoupled())
+            {
+                FixCoupledState(car.rearCoupler);
             }
         }
-
-        /// Patch to catch all train spawning, including teleported trains.
-        [HarmonyPatch(typeof(CarSpawner), nameof(CarSpawner.SpawnCar))]
-        public static class CarSpawnerSpawnCarPatch
+        
+        private static void FixCoupledState(Coupler coupler)
         {
-            public static void Postfix(TrainCar __result)
+            var partner = coupler.coupledTo;
+            if (partner == null) return;
+            
+            // Force both couplers to ready state for knuckle couplers
+            if (!KnuckleCouplers.IsReadyToCouple(coupler))
             {
-                if (!KnuckleCouplers.enabled)
-                    return;
-                    
-                if (__result == null)
-                    return;
-                    
-                // Delay the check to ensure the train car is fully set up
-                __result.StartCoroutine(HookManager.DelayedSpawnKnuckleCouplerCheck(__result, KnuckleCouplers.GetHookPrefab()));
+                KnuckleCouplers.SetCouplerLocked(coupler, true);
+                Main.DebugLog(() => $"Fixed teleported train state: {coupler.train.ID} {coupler.Position()} forced to ready");
             }
-        }
-
-        [HarmonyPatch(typeof(ChainCouplerInteraction), nameof(ChainCouplerInteraction.CoupleBrokenExternally))]
-        public static class CoupleBrokenExternallyPatch
-        {
-            public static bool Prefix(ChainCouplerInteraction __instance)
+            if (!KnuckleCouplers.IsReadyToCouple(partner))
             {
-                if (!KnuckleCouplers.enabled)
-                    return true; // Let original method run when knuckle couplers are disabled
-                
-                // When knuckle couplers are enabled, ALL couplers are knuckle couplers
-                __instance.UncoupledExternally();
-                return false;
+                KnuckleCouplers.SetCouplerLocked(partner, true);
+                Main.DebugLog(() => $"Fixed teleported train state: {partner.train.ID} {partner.Position()} forced to ready");
             }
-        }
-
-        [HarmonyPatch(typeof(ChainCouplerCouplerAdapter), nameof(ChainCouplerCouplerAdapter.OnCoupled))]
-        public static class OnCoupledPatch
-        {
-            public static void Postfix(ChainCouplerCouplerAdapter __instance, CoupleEventArgs e)
+            
+            // Ensure both have correct coupled state
+            if (coupler.state != ChainCouplerInteraction.State.Attached_Tight)
             {
-                if (!KnuckleCouplers.enabled)
-                    return;
-                    
-                Main.DebugLog(() => $"Knuckle OnCoupled: {e.thisCoupler.train.ID}<=>{e.otherCoupler.train.ID},viaChain={e.viaChainInteraction}");
+                coupler.state = ChainCouplerInteraction.State.Attached_Tight;
+                Main.DebugLog(() => $"Fixed teleported train state: {coupler.train.ID} {coupler.Position()} set to Attached_Tight");
+            }
+            if (partner.state != ChainCouplerInteraction.State.Attached_Tight)
+            {
+                partner.state = ChainCouplerInteraction.State.Attached_Tight;
+                Main.DebugLog(() => $"Fixed teleported train state: {partner.train.ID} {partner.Position()} set to Attached_Tight");
+            }
+            
+            // Update visual states
+            KnuckleCouplerState.UpdateCouplerVisualState(coupler, locked: true);
+            KnuckleCouplerState.UpdateCouplerVisualState(partner, locked: true);
+        }
+    }
+
+    /// Patch to catch all train spawning, including teleported trains.
+    [HarmonyPatch(typeof(CarSpawner), nameof(CarSpawner.SpawnCar))]
+    public static class CarSpawnerSpawnCarPatch
+    {
+        public static void Postfix(TrainCar __result)
+        {
+            if (!KnuckleCouplers.enabled)
+                return;
                 
-                // Update knuckle coupler visual state to show coupled (locked) without triggering uncoupling
-                KnuckleCouplerState.UpdateCouplerVisualState(e.thisCoupler, locked: true);
-                KnuckleCouplerState.UpdateCouplerVisualState(e.otherCoupler, locked: true);
+            if (__result == null)
+                return;
                 
-                // Ensure both coupler state machines are synchronized for external coupling
-                // During UI coupling, only one OnCoupled event may fire, so we need to ensure 
-                // both couplers have their states properly updated
-                if (!e.viaChainInteraction)
+            // Delay the check to ensure the train car is fully set up
+            __result.StartCoroutine(HookManager.DelayedSpawnKnuckleCouplerCheck(__result, KnuckleCouplers.GetHookPrefab()));
+        }
+    }
+
+    [HarmonyPatch(typeof(ChainCouplerInteraction), nameof(ChainCouplerInteraction.CoupleBrokenExternally))]
+    public static class CoupleBrokenExternallyPatch
+    {
+        public static bool Prefix(ChainCouplerInteraction __instance)
+        {
+            if (!KnuckleCouplers.enabled)
+                return true; // Let original method run when knuckle couplers are disabled
+            
+            // When knuckle couplers are enabled, ALL couplers are knuckle couplers
+            __instance.UncoupledExternally();
+            return false;
+        }
+    }
+
+    [HarmonyPatch(typeof(ChainCouplerCouplerAdapter), nameof(ChainCouplerCouplerAdapter.OnCoupled))]
+    public static class OnCoupledPatch
+    {
+        public static void Postfix(ChainCouplerCouplerAdapter __instance, CoupleEventArgs e)
+        {
+            if (!KnuckleCouplers.enabled)
+                return;
+                
+            Main.DebugLog(() => $"Knuckle OnCoupled: {e.thisCoupler.train.ID}<=>{e.otherCoupler.train.ID},viaChain={e.viaChainInteraction}");
+            
+            // Update knuckle coupler visual state to show coupled (locked) without triggering uncoupling
+            KnuckleCouplerState.UpdateCouplerVisualState(e.thisCoupler, locked: true);
+            KnuckleCouplerState.UpdateCouplerVisualState(e.otherCoupler, locked: true);
+            
+            // Directly update coupler states after coupling
+            var thisChainScript = e.thisCoupler.visualCoupler?.chain?.GetComponent<ChainCouplerInteraction>();
+            var otherChainScript = e.otherCoupler.visualCoupler?.chain?.GetComponent<ChainCouplerInteraction>();
+            
+            // For knuckle couplers: if physically coupled, force both to be ready
+            if (!KnuckleCouplers.IsReadyToCouple(e.thisCoupler))
+            {
+                KnuckleCouplers.SetCouplerLocked(e.thisCoupler, true);
+                Main.DebugLog(() => $"Forced {e.thisCoupler.train.ID} {e.thisCoupler.Position()} to ready state on coupling");
+            }
+            if (!KnuckleCouplers.IsReadyToCouple(e.otherCoupler))
+            {
+                KnuckleCouplers.SetCouplerLocked(e.otherCoupler, true);
+                Main.DebugLog(() => $"Forced {e.otherCoupler.train.ID} {e.otherCoupler.Position()} to ready state on coupling");
+            }
+            
+            // Now both are ready and coupled -> Attached_Tight
+            var newState = ChainCouplerInteraction.State.Attached_Tight;
+            
+            // Update both coupler states directly
+            if (thisChainScript != null && e.thisCoupler.IsCoupled())
+            {
+                e.thisCoupler.state = newState;
+                Main.DebugLog(() => $"Updated coupled state for {e.thisCoupler.train.ID} {e.thisCoupler.Position()} to {newState}");
+            }
+            
+            if (otherChainScript != null && e.otherCoupler.IsCoupled())
+            {
+                e.otherCoupler.state = newState;
+                Main.DebugLog(() => $"Updated coupled state for {e.otherCoupler.train.ID} {e.otherCoupler.Position()} to {newState}");
+            }
+            
+            // Ensure both coupler state machines are synchronized for external coupling
+            // During UI coupling, only one OnCoupled event may fire, so we need to ensure 
+            // both couplers have their states properly updated
+            if (!e.viaChainInteraction)
+            {
+                // Create a unique coupling ID to prevent duplicate synchronization
+                var couplingId = $"{e.thisCoupler.train.ID}-{e.otherCoupler.train.ID}";
+                var reverseCouplingId = $"{e.otherCoupler.train.ID}-{e.thisCoupler.train.ID}";
+                
+                if (!synchronizedCouplings.Contains(couplingId) && !synchronizedCouplings.Contains(reverseCouplingId))
                 {
-                    // Create a unique coupling ID to prevent duplicate synchronization
-                    var couplingId = $"{e.thisCoupler.train.ID}-{e.otherCoupler.train.ID}";
-                    var reverseCouplingId = $"{e.otherCoupler.train.ID}-{e.thisCoupler.train.ID}";
+                    synchronizedCouplings.Add(couplingId);
                     
-                    if (!synchronizedCouplings.Contains(couplingId) && !synchronizedCouplings.Contains(reverseCouplingId))
+                    // Force state machine re-evaluation for both couplers by disabling and re-enabling
+                    var thisChainScriptSync = e.thisCoupler.visualCoupler?.chain?.GetComponent<ChainCouplerInteraction>();
+                    var otherChainScriptSync = e.otherCoupler.visualCoupler?.chain?.GetComponent<ChainCouplerInteraction>();
+                    
+                    if (thisChainScriptSync != null && otherChainScriptSync != null)
                     {
-                        synchronizedCouplings.Add(couplingId);
+                        // Temporarily disable and re-enable to force state refresh
+                        thisChainScriptSync.enabled = false;
+                        otherChainScriptSync.enabled = false;
+                        thisChainScriptSync.enabled = true;
+                        otherChainScriptSync.enabled = true;
                         
-                        // Force state machine re-evaluation for both couplers by disabling and re-enabling
-                        var thisChainScript = e.thisCoupler.visualCoupler?.chain?.GetComponent<ChainCouplerInteraction>();
-                        var otherChainScript = e.otherCoupler.visualCoupler?.chain?.GetComponent<ChainCouplerInteraction>();
-                        
-                        if (thisChainScript != null && otherChainScript != null)
-                        {
-                            // Temporarily disable and re-enable to force state refresh
-                            thisChainScript.enabled = false;
-                            otherChainScript.enabled = false;
-                            thisChainScript.enabled = true;
-                            otherChainScript.enabled = true;
-                            
-                            Main.DebugLog(() => $"Forced state synchronization for external coupling: {e.thisCoupler.train.ID} and {e.otherCoupler.train.ID}");
-                        }
-                        
-                        // Clean up the synchronization record after a short delay
-                        __instance.StartCoroutine(CleanupSynchronizationRecord(couplingId));
+                        Main.DebugLog(() => $"Forced state synchronization for external coupling: {e.thisCoupler.train.ID} and {e.otherCoupler.train.ID}");
                     }
+                    
+                    // Clean up the synchronization record after a short delay
+                    __instance.StartCoroutine(CleanupSynchronizationRecord(couplingId));
                 }
             }
             
-            private static IEnumerator CleanupSynchronizationRecord(string couplingId)
+            // Force a state update check after a short delay to catch any missed state updates
+            __instance.StartCoroutine(DelayedStateUpdateCheck(e.thisCoupler, e.otherCoupler));
+        }
+        
+        private static IEnumerator DelayedStateUpdateCheck(Coupler thisCoupler, Coupler otherCoupler)
+        {
+            yield return new WaitForSeconds(0.1f); // Small delay to allow coupling to complete
+            
+            // Force state update for both couplers if they're still in wrong states or mismatched
+            if (thisCoupler != null && thisCoupler.IsCoupled() && otherCoupler != null && otherCoupler.IsCoupled())
             {
-                yield return new WaitForSeconds(1.0f);
-                synchronizedCouplings.Remove(couplingId);
+                // Check for state mismatches between coupled couplers
+                bool thisCouplerWrongState = thisCoupler.state == ChainCouplerInteraction.State.Parked || thisCoupler.state == ChainCouplerInteraction.State.Dangling;
+                bool otherCouplerWrongState = otherCoupler.state == ChainCouplerInteraction.State.Parked || otherCoupler.state == ChainCouplerInteraction.State.Dangling;
+                bool statesMismatch = thisCoupler.state != otherCoupler.state;
+                
+                if (thisCouplerWrongState || otherCouplerWrongState || statesMismatch)
+                {
+                    // For knuckle couplers: if physically coupled, force both to be ready
+                    if (!KnuckleCouplers.IsReadyToCouple(thisCoupler))
+                    {
+                        KnuckleCouplers.SetCouplerLocked(thisCoupler, true);
+                        Main.DebugLog(() => $"Forced {thisCoupler.train.ID} {thisCoupler.Position()} to ready state (was coupled but not ready)");
+                    }
+                    if (!KnuckleCouplers.IsReadyToCouple(otherCoupler))
+                    {
+                        KnuckleCouplers.SetCouplerLocked(otherCoupler, true);
+                        Main.DebugLog(() => $"Forced {otherCoupler.train.ID} {otherCoupler.Position()} to ready state (was coupled but not ready)");
+                    }
+                    
+                    // Now both are ready and coupled -> Attached_Tight
+                    var correctState = ChainCouplerInteraction.State.Attached_Tight;
+                    
+                    // Update both couplers to the same correct state
+                    if (thisCoupler.state != correctState)
+                    {
+                        thisCoupler.state = correctState;
+                        Main.DebugLog(() => $"Force-corrected state for {thisCoupler.train.ID} {thisCoupler.Position()} to {correctState}");
+                    }
+                    
+                    if (otherCoupler.state != correctState)
+                    {
+                        otherCoupler.state = correctState;
+                        Main.DebugLog(() => $"Force-corrected state for {otherCoupler.train.ID} {otherCoupler.Position()} to {correctState}");
+                    }
+                    
+                    // Also ensure visual states are consistent (both should be locked/ready now)
+                    KnuckleCouplerState.UpdateCouplerVisualState(thisCoupler, locked: true);
+                    KnuckleCouplerState.UpdateCouplerVisualState(otherCoupler, locked: true);
+                }
             }
         }
-
-        [HarmonyPatch(typeof(ChainCouplerInteraction), nameof(ChainCouplerInteraction.DetermineNextState))]
-        public static class DetermineNextStatePatch
+        
+        private static IEnumerator CleanupSynchronizationRecord(string couplingId)
         {
-            public static bool Prefix(ChainCouplerInteraction __instance, ref ChainCouplerInteraction.State __result)
-            {
-                if (!KnuckleCouplers.enabled)
-                    return true; // Let original method run when knuckle couplers are disabled
-                    
-                // When knuckle couplers are enabled, ALL couplers are knuckle couplers
-                // Check if we need to create a knuckle coupler for this chain script
-                if (HookManager.GetPivot(__instance) == null && __instance.couplerAdapter?.coupler != null)
-                {
-                    var coupler = __instance.couplerAdapter.coupler;
-                    // Removed verbose coupler creation log
-                    KnuckleCouplers.CreateHook(__instance);
-                }
+            yield return new WaitForSeconds(1.0f);
+            synchronizedCouplings.Remove(couplingId);
+        }
+    }
 
-                if (__instance.couplerAdapter?.IsCoupled() == true)
+    [HarmonyPatch(typeof(ChainCouplerInteraction), nameof(ChainCouplerInteraction.DetermineNextState))]
+    public static class DetermineNextStatePatch
+    {
+        public static bool Prefix(ChainCouplerInteraction __instance, ref ChainCouplerInteraction.State __result)
+        {
+            if (!KnuckleCouplers.enabled)
+                return true; // Let original method run when knuckle couplers are disabled
+                
+            // When knuckle couplers are enabled, ALL couplers are knuckle couplers
+            // Check if we need to create a knuckle coupler for this chain script
+            if (HookManager.GetPivot(__instance) == null && __instance.couplerAdapter?.coupler != null)
+            {
+                var coupler = __instance.couplerAdapter.coupler;
+                // Removed verbose coupler creation log
+                KnuckleCouplers.CreateHook(__instance);
+            }
+
+            if (__instance.couplerAdapter?.IsCoupled() == true)
+            {
+                var partner = __instance.couplerAdapter.coupler?.coupledTo?.visualCoupler?.chain?.GetComponent<ChainCouplerInteraction>();
+                if (partner == null)
                 {
-                    var partner = __instance.couplerAdapter.coupler?.coupledTo?.visualCoupler?.chain?.GetComponent<ChainCouplerInteraction>();
-                    if (partner == null)
+                    __result = ChainCouplerInteraction.State.Disabled;
+                    return false;
+                }
+                
+                // For knuckle couplers: if physically coupled, both must be ready
+                var coupler = __instance.couplerAdapter.coupler;
+                var partnerCoupler = coupler?.coupledTo;
+                if (coupler != null && partnerCoupler != null)
+                {
+                    // If either coupler is not ready but they are physically coupled,
+                    // force both to be ready (knuckle couplers can't be "not ready" while coupled)
+                    if (!KnuckleCouplers.IsReadyToCouple(coupler))
                     {
-                        __result = ChainCouplerInteraction.State.Disabled;
-                        return false;
+                        KnuckleCouplers.SetCouplerLocked(coupler, true);
+                        Main.DebugLog(() => $"Forced {coupler.train.ID} {coupler.Position()} to ready state (was coupled but not ready)");
                     }
+                    if (!KnuckleCouplers.IsReadyToCouple(partnerCoupler))
+                    {
+                        KnuckleCouplers.SetCouplerLocked(partnerCoupler, true);
+                        Main.DebugLog(() => $"Forced {partnerCoupler.train.ID} {partnerCoupler.Position()} to ready state (was coupled but not ready)");
+                    }
+                    
+                    // Now both are ready and coupled -> Attached_Tight
                     __result = ChainCouplerInteraction.State.Attached_Tight;
                 }
                 else
                 {
-                    __result = ChainCouplerInteraction.State.Parked;
+                    __result = ChainCouplerInteraction.State.Attached_Tight;
                 }
-
-                return false;
             }
+            else
+            {
+                // For uncoupled couplers, determine state based on readiness
+                bool isReady = __instance.couplerAdapter?.coupler != null && 
+                               KnuckleCouplers.IsReadyToCouple(__instance.couplerAdapter.coupler);
+                __result = isReady ? ChainCouplerInteraction.State.Dangling : ChainCouplerInteraction.State.Parked;
+            }
+
+            return false;
         }
+    }
 
         [HarmonyPatch(typeof(ChainCouplerInteraction), nameof(ChainCouplerInteraction.MakeFSM))]
         public static class MakeFSMPatch
@@ -430,7 +595,7 @@ namespace DvMod.ZCouplers
             {
                 if (!KnuckleCouplers.enabled)
                     return true; // Let original method run when knuckle couplers are disabled
-                
+            
                 // When knuckle couplers are enabled, create a simplified state machine
                 try
                 {
@@ -459,7 +624,46 @@ namespace DvMod.ZCouplers
 
                     stateMachine.Configure(ChainCouplerInteraction.State.Parked)
                         .SubstateOf(ChainCouplerInteraction.State.Enabled)
-                        .Permit(ChainCouplerInteraction.Trigger.Coupled_Externally, ChainCouplerInteraction.State.Attached_Tight)
+                        .PermitDynamic(ChainCouplerInteraction.Trigger.Coupled_Externally, () => {
+                            // For knuckle couplers: coupling forces both to ready state
+                            var coupler = __instance.couplerAdapter?.coupler;
+                            var partner = coupler?.coupledTo;
+                            if (coupler != null && partner != null)
+                            {
+                                // Force both couplers to be ready if they're coupled
+                                if (!KnuckleCouplers.IsReadyToCouple(coupler))
+                                    KnuckleCouplers.SetCouplerLocked(coupler, true);
+                                if (!KnuckleCouplers.IsReadyToCouple(partner))
+                                    KnuckleCouplers.SetCouplerLocked(partner, true);
+                                    
+                                return ChainCouplerInteraction.State.Attached_Tight;
+                            }
+                            return ChainCouplerInteraction.State.Attached_Tight;
+                        })
+                        .IgnoreIf(ChainCouplerInteraction.Trigger.Enable, () => true)
+                        .IgnoreIf(ChainCouplerInteraction.Trigger.UpdateVisible, () => true)
+                        .IgnoreIf(ChainCouplerInteraction.Trigger.Picked_Up_By_Player, () => true)
+                        .IgnoreIf(ChainCouplerInteraction.Trigger.Uncoupled_Externally, () => true)
+                        .IgnoreIf(ChainCouplerInteraction.Trigger.Couple_Broken_Externally, () => true);
+
+                    stateMachine.Configure(ChainCouplerInteraction.State.Dangling)
+                        .SubstateOf(ChainCouplerInteraction.State.Enabled)
+                        .PermitDynamic(ChainCouplerInteraction.Trigger.Coupled_Externally, () => {
+                            // For knuckle couplers: coupling forces both to ready state
+                            var coupler = __instance.couplerAdapter?.coupler;
+                            var partner = coupler?.coupledTo;
+                            if (coupler != null && partner != null)
+                            {
+                                // Force both couplers to be ready if they're coupled
+                                if (!KnuckleCouplers.IsReadyToCouple(coupler))
+                                    KnuckleCouplers.SetCouplerLocked(coupler, true);
+                                if (!KnuckleCouplers.IsReadyToCouple(partner))
+                                    KnuckleCouplers.SetCouplerLocked(partner, true);
+                                    
+                                return ChainCouplerInteraction.State.Attached_Tight;
+                            }
+                            return ChainCouplerInteraction.State.Attached_Tight;
+                        })
                         .IgnoreIf(ChainCouplerInteraction.Trigger.Enable, () => true)
                         .IgnoreIf(ChainCouplerInteraction.Trigger.UpdateVisible, () => true)
                         .IgnoreIf(ChainCouplerInteraction.Trigger.Picked_Up_By_Player, () => true)
@@ -468,8 +672,19 @@ namespace DvMod.ZCouplers
 
                     stateMachine.Configure(ChainCouplerInteraction.State.Attached_Tight)
                         .SubstateOf(ChainCouplerInteraction.State.Enabled)
-                        .Permit(ChainCouplerInteraction.Trigger.Uncoupled_Externally, ChainCouplerInteraction.State.Parked)
-                        .Permit(ChainCouplerInteraction.Trigger.Couple_Broken_Externally, ChainCouplerInteraction.State.Parked)
+                        .Permit(ChainCouplerInteraction.Trigger.Uncoupled_Externally, ChainCouplerInteraction.State.Dangling)
+                        .Permit(ChainCouplerInteraction.Trigger.Couple_Broken_Externally, ChainCouplerInteraction.State.Dangling)
+                        .IgnoreIf(ChainCouplerInteraction.Trigger.Enable, () => true)
+                        .IgnoreIf(ChainCouplerInteraction.Trigger.Our_Hook_Freed, () => true)
+                        .IgnoreIf(ChainCouplerInteraction.Trigger.Screw_Used, () => true)
+                        .IgnoreIf(ChainCouplerInteraction.Trigger.LateUpdateVisible, () => true);
+
+                    // Keep Attached_Loose configuration for backwards compatibility with old save files
+                    // Knuckle couplers should not actively use this state - they force both couplers to ready when coupled
+                    stateMachine.Configure(ChainCouplerInteraction.State.Attached_Loose)
+                        .SubstateOf(ChainCouplerInteraction.State.Enabled)
+                        .Permit(ChainCouplerInteraction.Trigger.Uncoupled_Externally, ChainCouplerInteraction.State.Dangling)
+                        .Permit(ChainCouplerInteraction.Trigger.Couple_Broken_Externally, ChainCouplerInteraction.State.Dangling)
                         .IgnoreIf(ChainCouplerInteraction.Trigger.Enable, () => true)
                         .IgnoreIf(ChainCouplerInteraction.Trigger.Our_Hook_Freed, () => true)
                         .IgnoreIf(ChainCouplerInteraction.Trigger.Screw_Used, () => true)
@@ -482,14 +697,14 @@ namespace DvMod.ZCouplers
                             Main.DebugLog(() => $"[KnuckleCoupler] Unhandled trigger '{trigger}' for state '{s}'");
                         }
                     });
-                        
-                    __result = stateMachine;
                     
+                    __result = stateMachine;
+                
                     if (Main.settings?.enableLogging == true)
                     {
                         // Removed verbose FSM creation log
                     }
-                    
+                
                     return false; // Skip original method
                 }
                 catch (System.Exception ex)
@@ -510,7 +725,7 @@ namespace DvMod.ZCouplers
             {
                 if (!KnuckleCouplers.enabled)
                     return true; // Let original method run when knuckle couplers are disabled
-                    
+                
                 // When knuckle couplers are enabled, handle knuckle coupler-specific text
                 if (infoType == HookManager.KnuckleCouplerUnlock)
                 {
