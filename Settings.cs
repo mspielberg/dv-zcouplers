@@ -2,12 +2,6 @@ using UnityModManagerNet;
 
 namespace DvMod.ZCouplers
 {
-    public enum CouplerType
-    {
-        AARKnuckle = 1,
-        SA3Knuckle = 2
-    }
-
     public class Settings : UnityModManager.ModSettings, IDrawable
     {
         [Draw("Coupler type (requires restart)")]
