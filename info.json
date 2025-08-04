@@ -2,7 +2,7 @@
   "Id": "ZCouplers_Updated",
   "DisplayName": "Zeibach's Couplers (Updated)",
   "Author": "Zeibach, rewrite by Fuggschen",
-  "Version": "0.1.3",
+  "Version": "0.1.4",
   "LoadAfter": ["DVCustomCarLoader", "HeadsUpDisplay", "Multiplayer"],
   "AssemblyName": "ZCouplers.dll",
   "EntryMethod": "DvMod.ZCouplers.Main.Load",
