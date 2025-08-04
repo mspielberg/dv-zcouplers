@@ -12,7 +12,7 @@ namespace DvMod.ZCouplers
         [Draw("Knuckle strength (Mn)", Min = 0.1f)]
         public float knuckleStrength = 1.78f;
         [Draw("Tension spring rate (Mn/m)", Min = 0f)]
-        public float drawgearSpringRate = 20f; // 20 MN/m = 2e7 N/m
+        public float drawgearSpringRate = 2f; // 2 MN/m = 2e6 N/m
         [Draw("Compression damper rate (kN*s/m)", Min = 0f)]
         public float drawgearDamperRate = 100f;
         [Draw("Auto couple threshold (mm)", Min = 0f)]
