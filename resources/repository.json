@@ -1,6 +1,7 @@
 {
   "Releases":
   [
+      {"Id": "ZCouplers_Updated", "Version": "0.1.3", "DownloadUrl": "https://github.com/fuggschen/dv-zcouplers/releases/download/v0.1.3/ZCouplers_0.1.3.zip"},
       {"Id": "ZCouplers_Updated", "Version": "0.1.2", "DownloadUrl": "https://github.com/fuggschen/dv-zcouplers/releases/download/v0.1.2/ZCouplers_0.1.2.zip"},
       {"Id": "ZCouplers_Updated", "Version": "0.1.1", "DownloadUrl": "https://github.com/fuggschen/dv-zcouplers/releases/download/v0.1.1/ZCouplers_0.1.1.zip"},
       {"Id": "ZCouplers_Updated", "Version": "0.1.0", "DownloadUrl": "https://github.com/fuggschen/dv-zcouplers/releases/download/v0.1.0/ZCouplers_0.1.0.zip"}
