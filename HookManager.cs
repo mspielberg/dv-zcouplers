@@ -149,22 +149,32 @@ namespace DvMod.ZCouplers
                 
             try
             {
-                if (locked)
+                // Determine the correct interaction text based on coupler state
+                var pivot = GetPivot(chainScript);
+                var hook = pivot?.Find("hook");
+                if (hook?.GetComponent<InfoArea>() is InfoArea infoArea)
                 {
-                    // Coupler should show as locked (ready to unlock)
-                    var pivot = GetPivot(chainScript);
-                    var hook = pivot?.Find("hook");
-                    if (hook?.GetComponent<InfoArea>() is InfoArea infoArea)
-                        infoArea.infoType = KnuckleCouplerUnlock;
+                    // Base the text on the actual coupler state, not just the locked flag
+                    switch (coupler.state)
+                    {
+                        case ChainCouplerInteraction.State.Parked:
+                            // Parked = coupler is unlocked and ready to be made ready
+                            infoArea.infoType = KnuckleCouplerLock; // "Press to ready coupler"
+                            break;
+                            
+                        case ChainCouplerInteraction.State.Dangling:
+                        case ChainCouplerInteraction.State.Being_Dragged:
+                        case ChainCouplerInteraction.State.Attached_Loose:
+                        case ChainCouplerInteraction.State.Attached_Tight:
+                            // All other states = coupler is ready/locked and can be unlocked
+                            infoArea.infoType = KnuckleCouplerUnlock; // "Press to unlock coupler"
+                            break;
+                    }
                 }
-                else
+                
+                // Handle visual disconnection for unlocked couplers
+                if (coupler.state == ChainCouplerInteraction.State.Parked)
                 {
-                    // Coupler should show as unlocked (ready to couple)
-                    var pivot = GetPivot(chainScript);
-                    var hook = pivot?.Find("hook");
-                    if (hook?.GetComponent<InfoArea>() is InfoArea infoArea)
-                        infoArea.infoType = KnuckleCouplerLock;
-                        
                     // Manually trigger visual disconnection for knuckle couplers
                     if (pivot != null && pivot.gameObject != null && coupler.transform != null)
                     {
@@ -193,16 +203,44 @@ namespace DvMod.ZCouplers
             }
         }
 
+        /// <summary>
+        /// Update hook visual state based on current coupler state
+        /// </summary>
+        public static void UpdateHookVisualStateFromCouplerState(Coupler coupler)
+        {
+            if (coupler?.visualCoupler?.chainAdapter?.chainScript == null)
+                return;
+                
+            var chainScript = coupler.visualCoupler.chainAdapter.chainScript;
+            
+            // Use the existing UpdateHookVisualState method, but pass a dummy locked value
+            // since the method now determines the correct state internally
+            UpdateHookVisualState(chainScript, false);
+        }
+
         private static void OnButtonPressed(ChainCouplerInteraction chainScript)
         {
             if (chainScript?.couplerAdapter?.coupler == null)
                 return;
                 
             var coupler = chainScript.couplerAdapter.coupler;
-            if (KnuckleCouplerState.IsUnlocked(coupler))
-                KnuckleCouplerState.ReadyCoupler(coupler);
-            else
-                KnuckleCouplerState.UnlockCoupler(coupler, viaChainInteraction: true);
+            
+            // Use the coupler state to determine the action, consistent with visual text logic
+            switch (coupler.state)
+            {
+                case ChainCouplerInteraction.State.Parked:
+                    // Parked = coupler is unlocked, user wants to ready it
+                    KnuckleCouplerState.ReadyCoupler(coupler);
+                    break;
+                    
+                case ChainCouplerInteraction.State.Dangling:
+                case ChainCouplerInteraction.State.Being_Dragged:
+                case ChainCouplerInteraction.State.Attached_Loose:
+                case ChainCouplerInteraction.State.Attached_Tight:
+                    // All other states = coupler is ready/locked, user wants to unlock it
+                    KnuckleCouplerState.UnlockCoupler(coupler, viaChainInteraction: true);
+                    break;
+            }
         }
 
         /// Ensures a specific train car has knuckle couplers on both ends.
