@@ -586,6 +586,24 @@ namespace DvMod.ZCouplers
 
             return false;
         }
+        
+        public static void Postfix(ChainCouplerInteraction __instance, ref ChainCouplerInteraction.State __result)
+        {
+            if (!KnuckleCouplers.enabled || __instance?.couplerAdapter?.coupler == null)
+                return;
+                
+            // Notify coupling handler of state changes
+            var coupler = __instance.couplerAdapter.coupler;
+            try
+            {
+                // Update visual state based on the new coupler state
+                HookManager.UpdateHookVisualStateFromCouplerState(coupler);
+            }
+            catch (System.Exception ex)
+            {
+                Main.ErrorLog(() => $"Error notifying coupling handler of state change: {ex.Message}");
+            }
+        }
     }
 
         [HarmonyPatch(typeof(ChainCouplerInteraction), nameof(ChainCouplerInteraction.MakeFSM))]
