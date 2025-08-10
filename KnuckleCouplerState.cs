@@ -85,6 +85,8 @@ namespace DvMod.ZCouplers
             if (coupler == null)
                 return;
                 
+            Main.DebugLog(() => $"ZCouplers: SetCouplerLocked called for {coupler.train.ID} {coupler.Position()}: locked={locked}, current state={coupler.state}");
+                
             if (locked)
             {
                 // Remove from unlocked set to make it locked/ready
@@ -102,6 +104,7 @@ namespace DvMod.ZCouplers
                 if (!coupler.IsCoupled())
                 {
                     coupler.state = ChainCouplerInteraction.State.Dangling;
+                    Main.DebugLog(() => $"ZCouplers: Updated {coupler.train.ID} {coupler.Position()} to Dangling state (locked)");
                 }
             }
             else
@@ -121,6 +124,7 @@ namespace DvMod.ZCouplers
                 if (!coupler.IsCoupled())
                 {
                     coupler.state = ChainCouplerInteraction.State.Parked;
+                    Main.DebugLog(() => $"ZCouplers: Updated {coupler.train.ID} {coupler.Position()} to Parked state (unlocked)");
                 }
             }
         }
