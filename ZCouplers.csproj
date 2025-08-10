@@ -1,39 +1,48 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
-    <LangVersion>8.0</LangVersion>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>12.0</LangVersion>
     <Nullable>enable</Nullable>
     <RootNamespace>DvMod.ZCouplers</RootNamespace>
-    <InformationalVersion>1.2.2</InformationalVersion>
+    <InformationalVersion>2.0.0</InformationalVersion>
+    <!-- Prevent copying dependencies to output directory -->
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <PrivateAssets>all</PrivateAssets>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Krafs.Publicizer" Version="2.2.1"/>
+    <PackageReference Include="Krafs.Publicizer" Version="2.2.1" PrivateAssets="all"/>
     <Publicize Include="Assembly-CSharp" IncludeCompilerGeneratedMembers="false"/>
   </ItemGroup>
 
   <ItemGroup>
-    <Reference Include="UnityModManager"/>
-    <Reference Include="UnityEngine.AssetBundleModule"/>
-    <Reference Include="UnityEngine.AudioModule"/>
-    <Reference Include="UnityEngine.CoreModule"/>
-    <Reference Include="UnityEngine.PhysicsModule"/>
+    <Reference Include="UnityModManager" Private="false"/>
+    <Reference Include="UnityEngine.AssetBundleModule" Private="false"/>
+    <Reference Include="UnityEngine.AudioModule" Private="false"/>
+    <Reference Include="UnityEngine.CoreModule" Private="false"/>
+    <Reference Include="UnityEngine.PhysicsModule" Private="false"/>
   </ItemGroup>
 
   <ItemGroup>
-    <Reference Include="0Harmony"/>
-    <Reference Include="Assembly-CSharp"/>
-    <Reference Include="DV.ThingTypes"/>
-    <Reference Include="Assembly-CSharp-firstpass"/>
-    <!-- <Reference Include="DVCustomCarLoader"/> -->
-    <Reference Include="DV.BrakeSystem"/>
-    <Reference Include="DV.Utils"/>
-    <Reference Include="Newtonsoft.Json"/>
-    <Reference Include="RootMotion"/>
-    <Reference Include="Stateless"/>
+    <Reference Include="0Harmony" Private="false"/>
+    <Reference Include="Assembly-CSharp" Private="false"/>
+    <Reference Include="DV.ThingTypes" Private="false"/>
+    <Reference Include="DV.BrakeSystem" Private="false"/>
+    <Reference Include="DV.Utils" Private="false"/>
+    <Reference Include="DV.CabControls.Spec" Private="false"/>
+    <Reference Include="DV.RailTrack" Private="false"/>
+    <Reference Include="Newtonsoft.Json" Private="false"/>
+    <Reference Include="RootMotion" Private="false"/>
+    <Reference Include="Stateless" Private="false"/>
   </ItemGroup>
 
   <ItemGroup>
     <EmbeddedResource Include="ZCouplers.assetbundle"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="References\**" />
+    <EmbeddedResource Remove="References\**" />
+    <None Remove="References\**" />
   </ItemGroup>
 </Project>

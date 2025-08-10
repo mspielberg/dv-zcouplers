@@ -35,6 +35,10 @@ namespace DvMod.ZCouplers
                     coupler.ConnectAirHose(partner, true);
                     coupler.IsCockOpen = true;
                     partner.IsCockOpen = true;
+                    
+                    // Force create joints for remote coupling
+                    Couplers.ForceCreateTensionJoint(coupler);
+                    
                     coupler = partner.GetOppositeCoupler();
                 }
 
