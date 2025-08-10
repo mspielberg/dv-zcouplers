@@ -46,6 +46,11 @@ namespace DvMod.ZCouplers
             if (chainScript != null)
                 chainScript.StartCoroutine(DelayedVisualUpdate(coupler));
         }
+
+        private static System.Collections.IEnumerator DelayedVisualUpdate(Coupler coupler)
+        {
+            // Wait a frame for the uncoupling to complete
+            yield return null;
             
             // Update visual state after uncoupling (state should now be Parked)
             HookManager.UpdateHookVisualStateFromCouplerState(coupler);
