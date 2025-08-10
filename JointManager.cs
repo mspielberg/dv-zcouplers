@@ -114,6 +114,11 @@ namespace DvMod.ZCouplers
         /// </summary>
         public static void CreateCompressionJoint(Coupler a, Coupler b)
         {
+            if (a?.coupledTo != b || b?.coupledTo != a)
+            {
+                Main.DebugLog(() => $"Skipping compression joint creation - couplers not properly coupled: {a?.train?.ID} to {b?.train?.ID}");
+                return;
+            }
             // Only log if debug logging is enabled
             Main.DebugLog(() => $"Creating compression joint between {TrainCar.Resolve(a.gameObject)?.ID} and {TrainCar.Resolve(b.gameObject)?.ID}");
 
