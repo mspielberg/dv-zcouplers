@@ -27,7 +27,6 @@
     <Reference Include="0Harmony" Private="false"/>
     <Reference Include="Assembly-CSharp" Private="false"/>
     <Reference Include="DV.ThingTypes" Private="false"/>
-    <!-- <Reference Include="DVCustomCarLoader"/> -->
     <Reference Include="DV.BrakeSystem" Private="false"/>
     <Reference Include="DV.Utils" Private="false"/>
     <Reference Include="DV.CabControls.Spec" Private="false"/>
