@@ -4,7 +4,7 @@
     <LangVersion>12.0</LangVersion>
     <Nullable>enable</Nullable>
     <RootNamespace>DvMod.ZCouplers</RootNamespace>
-    <InformationalVersion>0.1.4</InformationalVersion>
+    <InformationalVersion>2.0.0</InformationalVersion>
     <!-- Prevent copying dependencies to output directory -->
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
     <PrivateAssets>all</PrivateAssets>
