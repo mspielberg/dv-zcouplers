@@ -82,7 +82,7 @@ public static class BufferVisualManager
 
 	private static bool IsZCouplersObject(Transform transform)
 	{
-		Transform transform2 = transform;
+		Transform? transform2 = transform;
 		while (transform2 != null)
 		{
 			string name = transform2.name;
@@ -97,9 +97,9 @@ public static class BufferVisualManager
 
 	private static void ToggleSpecialLocoBufferStems(GameObject root, TrainCarLivery livery, bool visible)
 	{
-		Transform transform = null;
+		Transform? transform = null;
 		string stemName = "";
-		string id = livery.id;
+		string? id = livery.id;
 		if (id == null)
 		{
 			return;

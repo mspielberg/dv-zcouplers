@@ -19,7 +19,7 @@ namespace DvMod.ZCouplers
         public static InteractionInfoType KnuckleCouplerUnlock = (InteractionInfoType)23000;
         public static InteractionInfoType KnuckleCouplerLock = (InteractionInfoType)23001;
 
-        public static Transform? GetPivot(ChainCouplerInteraction chainScript)
+    public static Transform? GetPivot(ChainCouplerInteraction? chainScript)
         {
             if (chainScript == null)
                 return null;
