@@ -72,13 +72,4 @@ public static class Main
 	{
 		mod?.Logger.Log(message());
 	}
-
-	public static string GetSafeCarID(TrainCar car)
-	{
-		if (car?.logicCar == null)
-		{
-			return "[uninit]";
-		}
-		return car.ID;
-	}
 }

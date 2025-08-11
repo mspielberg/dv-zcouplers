@@ -368,38 +368,6 @@ namespace DvMod.ZCouplers
         }
 
         /// <summary>
-        /// Tighten chain between coupled cars
-        /// </summary>
-        public static void TightenChain(Coupler coupler)
-        {
-            if (!customTensionJoints.TryGetValue(coupler, out var tensionJoint))
-            {
-                Main.DebugLog(() => $"TIGHTEN CHAIN: No tension joint found for {coupler.train.ID} {coupler.Position()}, checking partner");
-                if (coupler.coupledTo != null && customTensionJoints.ContainsKey(coupler.coupledTo))
-                    TightenChain(coupler.coupledTo);
-                return;
-            }
-            
-            var oldLimit = tensionJoint.linearLimit.limit;
-            tensionJoint.linearLimit = new SoftJointLimit { limit = TightChainLength };
-            Main.DebugLog(() => $"TIGHTEN CHAIN: Changed limit for {coupler.train.ID} {coupler.Position()} from {oldLimit} to {TightChainLength}");
-        }
-
-        /// <summary>
-        /// Loosen chain between coupled cars
-        /// </summary>
-        public static void LoosenChain(Coupler coupler)
-        {
-            if (!customTensionJoints.TryGetValue(coupler, out var tensionJoint))
-            {
-                if (coupler.coupledTo != null && customTensionJoints.ContainsKey(coupler.coupledTo))
-                    LoosenChain(coupler.coupledTo);
-                return;
-            }
-            tensionJoint.linearLimit = new SoftJointLimit { limit = LooseChainLength };
-        }
-
-        /// <summary>
         /// Update all compression joints with current settings
         /// </summary>
         public static void UpdateAllCompressionJoints()
@@ -448,23 +416,5 @@ namespace DvMod.ZCouplers
                 lastJointCreationTime[coupler.coupledTo] = currentTime;
         }
 
-        /// <summary>
-        /// Log joint states for debugging
-        /// </summary>
-        public static void LogJointStates(string context)
-        {
-            Main.DebugLog(() => $"JOINT STATES ({context}): Tension joints: {customTensionJoints.Count}");
-            foreach (var kvp in customTensionJoints.ToList())
-            {
-                var coupler = kvp.Key;
-                var joint = kvp.Value;
-                if (coupler?.train != null && joint != null)
-                {
-                    var distance = joint.connectedBody != null ? 
-                        Vector3.Distance(coupler.transform.position, joint.connectedBody.transform.TransformPoint(joint.connectedAnchor)) : 0f;
-                    Main.DebugLog(() => $"  {coupler.train.ID} {coupler.Position()} -> {coupler.coupledTo?.train.ID}, distance: {distance:F2}m, joint valid: {joint != null}");
-                }
-            }
-        }
     }
 }

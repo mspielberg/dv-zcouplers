@@ -19,10 +19,6 @@ namespace DvMod.ZCouplers
         
         // Asset management delegation
         public static GameObject? GetHookPrefab() => AssetManager.GetHookPrefab();
-        public static bool IsLoaded => AssetManager.IsLoaded();
-        
-        // Buffer visual management delegation
-        public static void ToggleBuffers() => BufferVisualManager.ToggleBuffers(Main.settings.showBuffersWithKnuckles);
         
         // Hook management delegation
         public static void CreateHook(ChainCouplerInteraction chainCoupler) => HookManager.CreateHook(chainCoupler, GetHookPrefab());
@@ -33,22 +29,10 @@ namespace DvMod.ZCouplers
         // Coupler state management delegation
         public static bool IsUnlocked(Coupler coupler) => KnuckleCouplerState.IsUnlocked(coupler);
         public static bool IsReadyToCouple(Coupler coupler) => KnuckleCouplerState.IsReadyToCouple(coupler);
-        public static void UnlockCoupler(Coupler coupler) => KnuckleCouplerState.UnlockCoupler(coupler, false);
         public static void UnlockCoupler(Coupler coupler, bool viaChainInteraction) => KnuckleCouplerState.UnlockCoupler(coupler, viaChainInteraction);
         public static void ReadyCoupler(Coupler coupler) => KnuckleCouplerState.ReadyCoupler(coupler);
         public static void SetCouplerLocked(Coupler coupler, bool locked) => KnuckleCouplerState.SetCouplerLocked(coupler, locked);
         public static bool HasUnlockedCoupler(Trainset trainset) => KnuckleCouplerState.HasUnlockedCoupler(trainset);
-        
-        // Methods called by patches and other systems
-        public static void OnCouplerSpawned(ChainCouplerInteraction chainCoupler)
-        {
-            CreateHook(chainCoupler);
-        }
-        
-        public static void OnCarSpawned(TrainCar car)
-        {
-            EnsureKnuckleCouplersForTrain(car);
-        }
         
         public static void OnSettingsChanged()
         {
@@ -68,10 +52,5 @@ namespace DvMod.ZCouplers
             }
         }
         
-        // Cleanup method
-        public static void Cleanup()
-        {
-            Instance = null;
-        }
     }
 }

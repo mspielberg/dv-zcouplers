@@ -45,9 +45,5 @@ namespace DvMod.ZCouplers
             bundle.Unload(false);
         }
 
-        public static bool IsLoaded()
-        {
-            return hookPrefab != null;
-        }
     }
 }

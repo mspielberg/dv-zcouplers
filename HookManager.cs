@@ -279,26 +279,6 @@ namespace DvMod.ZCouplers
             return created;
         }
 
-        /// Ensures all active train cars have knuckle couplers. 
-        public static void EnsureKnuckleCouplersForAllTrains(GameObject? hookPrefab)
-        {
-            if (CarSpawner.Instance == null)
-                return;
-
-            int created = 0;
-            foreach (TrainCar car in CarSpawner.Instance.allCars)
-            {
-                if (car?.gameObject == null)
-                    continue;
-
-                created += EnsureKnuckleCouplersForTrain(car, hookPrefab);
-            }
-
-            if (created > 0)
-            {
-                // Removed routine summary log
-            }
-        }
 
         public static IEnumerator DelayedKnuckleCouplerCheck(TrainCar trainCar, GameObject? hookPrefab)
         {
