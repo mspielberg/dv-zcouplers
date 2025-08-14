@@ -1,4 +1,5 @@
 using System.Linq;
+
 using UnityEngine;
 
 namespace DvMod.ZCouplers
@@ -18,7 +19,7 @@ namespace DvMod.ZCouplers
         private const float PerFrameBreakChance = 0.001f;
         private const float BaseSpringRate = 2e6f; // 2 MN/m baseline spring rate for force normalization
         private const float MinNormalizationFactor = 0.5f; // Don't reduce forces below 50% of original
-        
+
         public void FixedUpdate()
         {
             if (joint == null)
@@ -27,13 +28,13 @@ namespace DvMod.ZCouplers
                 return;
             }
             var scaledForce = Vector3.Scale(joint.currentForce, StressScaler).magnitude;
-            
+
             // Normalize force by spring rate to maintain consistent breaking behavior
             // But don't let forces get too weak to prevent unrealistic behavior
             var currentSpringRate = Main.settings.GetSpringRate();
             var normalizationFactor = Mathf.Max(BaseSpringRate / currentSpringRate, MinNormalizationFactor);
             var normalizedForce = scaledForce * normalizationFactor;
-            
+
             System.Array.Copy(recentStress, 0, recentStress, 1, recentStress.Length - 1);
             recentStress[0] = normalizedForce;
             jointStress = recentStress.Max();

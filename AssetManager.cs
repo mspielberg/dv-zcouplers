@@ -32,7 +32,7 @@ namespace DvMod.ZCouplers
 
             CouplerType couplerType = Main.settings.couplerType;
             hookPrefab = bundle.LoadAsset<GameObject>(couplerType.ToString());
-            
+
             if (hookPrefab == null)
             {
                 Main.DebugLog(() => $"Failed to load hook prefab for coupler type: {couplerType}");

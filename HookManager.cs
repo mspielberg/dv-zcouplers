@@ -1,9 +1,11 @@
+using System.Collections;
+using System.Collections.Generic;
+
 using DV;
 using DV.CabControls;
 using DV.CabControls.Spec;
+
 using UnityEngine;
-using System.Collections.Generic;
-using System.Collections;
 
 namespace DvMod.ZCouplers
 {
@@ -19,14 +21,14 @@ namespace DvMod.ZCouplers
         public static InteractionInfoType KnuckleCouplerUnlock = (InteractionInfoType)23000;
         public static InteractionInfoType KnuckleCouplerLock = (InteractionInfoType)23001;
 
-    public static Transform? GetPivot(ChainCouplerInteraction? chainScript)
+        public static Transform? GetPivot(ChainCouplerInteraction? chainScript)
         {
             if (chainScript == null)
                 return null;
-                
+
             if (!pivots.TryGetValue(chainScript, out var pivot))
                 return null;
-                
+
             // Additional safety check to ensure the pivot transform is still valid
             if (pivot == null || pivot.gameObject == null)
             {
@@ -34,7 +36,7 @@ namespace DvMod.ZCouplers
                 pivots.Remove(chainScript);
                 return null;
             }
-                
+
             return pivot;
         }
 
@@ -42,14 +44,14 @@ namespace DvMod.ZCouplers
         {
             if (chainScript == null)
                 return;
-                
+
             // Check if hook already exists
             if (GetPivot(chainScript) != null)
             {
                 Main.DebugLog(() => $"Knuckle coupler already exists for {chainScript.couplerAdapter?.coupler?.train?.ID}, skipping creation");
                 return;
             }
-            
+
             var coupler = chainScript.couplerAdapter.coupler;
             var pivot = new GameObject(coupler.isFrontCoupler ? "ZCouplers pivot front" : "ZCouplers pivot rear");
             pivot.transform.SetParent(coupler.transform, false);
@@ -95,7 +97,7 @@ namespace DvMod.ZCouplers
         {
             if (chainScript == null)
                 return;
-                
+
             var pivot = GetPivot(chainScript);
             if (pivot != null)
             {
@@ -108,11 +110,11 @@ namespace DvMod.ZCouplers
         {
             if (pivot == null || target == null)
                 return;
-                
+
             // Additional safety check to ensure transforms are still valid
             if (pivot.gameObject == null || target.gameObject == null)
                 return;
-                
+
             try
             {
                 pivot.localEulerAngles = Vector3.zero;
@@ -142,11 +144,11 @@ namespace DvMod.ZCouplers
         {
             if (chainScript == null)
                 return;
-                
+
             var coupler = chainScript.couplerAdapter?.coupler;
             if (coupler == null)
                 return;
-                
+
             try
             {
                 // Determine the correct interaction text based on coupler state
@@ -161,7 +163,7 @@ namespace DvMod.ZCouplers
                             // Parked = coupler is unlocked and ready to be made ready
                             infoArea.infoType = KnuckleCouplerLock; // "Press to ready coupler"
                             break;
-                            
+
                         case ChainCouplerInteraction.State.Dangling:
                         case ChainCouplerInteraction.State.Being_Dragged:
                         case ChainCouplerInteraction.State.Attached_Loose:
@@ -171,7 +173,7 @@ namespace DvMod.ZCouplers
                             break;
                     }
                 }
-                
+
                 // Handle visual disconnection for unlocked couplers
                 if (coupler.state == ChainCouplerInteraction.State.Parked)
                 {
@@ -185,7 +187,7 @@ namespace DvMod.ZCouplers
                             Main.DebugLog(() => $"Reset knuckle coupler hook position for {coupler.train.ID} {coupler.Position()}");
                         }
                     }
-                    
+
                     // Clear the attached reference if it exists
                     if (chainScript.attachedTo != null)
                     {
@@ -210,9 +212,9 @@ namespace DvMod.ZCouplers
         {
             if (coupler?.visualCoupler?.chainAdapter?.chainScript == null)
                 return;
-                
+
             var chainScript = coupler.visualCoupler.chainAdapter.chainScript;
-            
+
             // Use the existing UpdateHookVisualState method, but pass a dummy locked value
             // since the method now determines the correct state internally
             UpdateHookVisualState(chainScript, false);
@@ -222,9 +224,9 @@ namespace DvMod.ZCouplers
         {
             if (chainScript?.couplerAdapter?.coupler == null)
                 return;
-                
+
             var coupler = chainScript.couplerAdapter.coupler;
-            
+
             // Use the coupler state to determine the action, consistent with visual text logic
             switch (coupler.state)
             {
@@ -232,7 +234,7 @@ namespace DvMod.ZCouplers
                     // Parked = coupler is unlocked, user wants to ready it
                     KnuckleCouplerState.ReadyCoupler(coupler);
                     break;
-                    
+
                 case ChainCouplerInteraction.State.Dangling:
                 case ChainCouplerInteraction.State.Being_Dragged:
                 case ChainCouplerInteraction.State.Attached_Loose:
@@ -249,9 +251,9 @@ namespace DvMod.ZCouplers
         {
             if (car?.gameObject == null)
                 return 0;
-                
+
             int created = 0;
-            
+
             // Check front coupler
             if (car.frontCoupler?.visualCoupler?.chainAdapter?.chainScript != null)
             {
@@ -263,7 +265,7 @@ namespace DvMod.ZCouplers
                     created++;
                 }
             }
-            
+
             // Check rear coupler
             if (car.rearCoupler?.visualCoupler?.chainAdapter?.chainScript != null)
             {
@@ -275,7 +277,7 @@ namespace DvMod.ZCouplers
                     created++;
                 }
             }
-            
+
             return created;
         }
 
@@ -284,7 +286,7 @@ namespace DvMod.ZCouplers
         {
             // Wait a frame for the train car to be fully set up
             yield return null;
-            
+
             if (trainCar != null)
             {
                 int created = EnsureKnuckleCouplersForTrain(trainCar, hookPrefab);
@@ -299,7 +301,7 @@ namespace DvMod.ZCouplers
         {
             // Wait a bit longer for spawned cars to be fully initialized
             yield return new WaitForSeconds(0.5f);
-            
+
             if (trainCar != null)
             {
                 int created = EnsureKnuckleCouplersForTrain(trainCar, hookPrefab);

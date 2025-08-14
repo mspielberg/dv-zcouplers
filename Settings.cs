@@ -20,7 +20,7 @@ namespace DvMod.ZCouplers
 
         [Draw("Enable debug logging")]
         public bool enableLogging = false;
-        
+
         [Draw("Enable error logging")]
         public bool enableErrorLogging = true;
         public readonly string? version = Main.mod?.Info.Version;
@@ -38,7 +38,8 @@ namespace DvMod.ZCouplers
 
         public float GetCouplerStrength()
         {
-            return couplerType switch {
+            return couplerType switch
+            {
                 CouplerType.AARKnuckle => knuckleStrength * 1e6f,
                 CouplerType.SA3Knuckle => knuckleStrength * 1e6f,
                 _ => knuckleStrength * 1e6f // Default to knuckle strength
@@ -47,7 +48,8 @@ namespace DvMod.ZCouplers
 
         public float GetSpringRate()
         {
-            return couplerType switch {
+            return couplerType switch
+            {
                 CouplerType.AARKnuckle => drawgearSpringRate * 1e6f, // Convert MN/m to N/m
                 CouplerType.SA3Knuckle => drawgearSpringRate * 1e6f, // Convert MN/m to N/m
                 _ => drawgearSpringRate * 1e6f // Default to drawgear spring rate
@@ -56,7 +58,8 @@ namespace DvMod.ZCouplers
 
         public float GetDamperRate()
         {
-            return couplerType switch {
+            return couplerType switch
+            {
                 CouplerType.AARKnuckle => drawgearDamperRate * 1e3f, // Convert kN*s/m to N*s/m
                 CouplerType.SA3Knuckle => drawgearDamperRate * 1e3f, // Convert kN*s/m to N*s/m
                 _ => drawgearDamperRate * 1e3f // Default to drawgear damper rate

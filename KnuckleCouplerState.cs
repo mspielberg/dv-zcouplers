@@ -1,6 +1,8 @@
-using DV;
-using UnityEngine;
 using System.Collections.Generic;
+
+using DV;
+
+using UnityEngine;
 
 namespace DvMod.ZCouplers
 {
@@ -27,11 +29,11 @@ namespace DvMod.ZCouplers
         {
             if (coupler == null)
                 return;
-                
+
             // Check if the coupler is actually in an unlocked state
             if (coupler.state == ChainCouplerInteraction.State.Parked)
                 return; // Already unlocked
-                
+
             var chainScript = coupler.visualCoupler.chainAdapter.chainScript;
             if (unlockedCouplers.Add(coupler)) // Add to HashSet for consistency
                 chainScript.PlaySound(chainScript.attachSound, chainScript.transform.position);
@@ -51,7 +53,7 @@ namespace DvMod.ZCouplers
         {
             // Wait a frame for the uncoupling to complete
             yield return null;
-            
+
             // Update visual state after uncoupling (state should now be Parked)
             HookManager.UpdateHookVisualStateFromCouplerState(coupler);
         }
@@ -60,22 +62,22 @@ namespace DvMod.ZCouplers
         {
             if (coupler == null)
                 return;
-                
+
             // Check if the coupler is actually in a locked/ready state
             if (coupler.state != ChainCouplerInteraction.State.Parked)
                 return; // Already ready/locked
-                
+
             var chainScript = coupler.visualCoupler.chainAdapter.chainScript;
             if (unlockedCouplers.Remove(coupler)) // Remove from HashSet for consistency
                 chainScript.PlaySound(chainScript.parkSound, chainScript.transform.position);
-                
+
             // Update the native coupler state to reflect the new ready status
             if (!coupler.IsCoupled())
             {
                 coupler.state = ChainCouplerInteraction.State.Dangling;
                 Main.DebugLog(() => $"Updated {coupler.train.ID} {coupler.Position()} to Dangling state after making ready");
             }
-            
+
             // Update visual state after changing the state
             HookManager.UpdateHookVisualStateFromCouplerState(coupler);
         }
@@ -84,9 +86,9 @@ namespace DvMod.ZCouplers
         {
             if (coupler == null)
                 return;
-                
+
             Main.DebugLog(() => $"ZCouplers: SetCouplerLocked called for {coupler.train.ID} {coupler.Position()}: locked={locked}, current state={coupler.state}");
-                
+
             if (locked)
             {
                 // Remove from unlocked set to make it locked/ready
@@ -94,12 +96,12 @@ namespace DvMod.ZCouplers
                 {
                     unlockedCouplers.Remove(coupler);
                 }
-                
+
                 // Update visual state
                 var chainScript = coupler.visualCoupler?.chainAdapter?.chainScript;
                 if (chainScript != null)
                     HookManager.UpdateHookVisualStateFromCouplerState(coupler);
-                    
+
                 // Update the native coupler state if uncoupled
                 if (!coupler.IsCoupled())
                 {
@@ -114,12 +116,12 @@ namespace DvMod.ZCouplers
                 {
                     unlockedCouplers.Add(coupler);
                 }
-                
+
                 // Update visual state
                 var chainScript = coupler.visualCoupler?.chainAdapter?.chainScript;
                 if (chainScript != null)
                     HookManager.UpdateHookVisualStateFromCouplerState(coupler);
-                    
+
                 // Update the native coupler state if uncoupled
                 if (!coupler.IsCoupled())
                 {
@@ -135,7 +137,7 @@ namespace DvMod.ZCouplers
             var chainScript = coupler?.visualCoupler?.chainAdapter?.chainScript;
             if (chainScript == null || coupler == null)
                 return;
-                
+
             // Synchronize the internal tracking with the actual coupler state
             // instead of using the locked parameter
             if (coupler.state == ChainCouplerInteraction.State.Parked)
@@ -149,7 +151,7 @@ namespace DvMod.ZCouplers
                 // All other states = coupler is ready/locked
                 unlockedCouplers.Remove(coupler);
             }
-            
+
             // Use the new state-based visual update method
             HookManager.UpdateHookVisualStateFromCouplerState(coupler);
         }
@@ -158,7 +160,7 @@ namespace DvMod.ZCouplers
         {
             if (trainset?.cars == null)
                 return false;
-                
+
             foreach (var car in trainset.cars)
             {
                 if (unlockedCouplers.Contains(car.frontCoupler) || unlockedCouplers.Contains(car.rearCoupler))

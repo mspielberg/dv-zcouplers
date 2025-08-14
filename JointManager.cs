@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+
 using UnityEngine;
 
 namespace DvMod.ZCouplers
@@ -11,15 +12,15 @@ namespace DvMod.ZCouplers
     {
         // Custom tension joint management
         private static readonly Dictionary<Coupler, ConfigurableJoint> customTensionJoints = new Dictionary<Coupler, ConfigurableJoint>();
-        
+
         // Track when joints were last created to prevent rapid recreation
         private static readonly Dictionary<Coupler, float> lastJointCreationTime = new Dictionary<Coupler, float>();
         private const float MinJointCreationInterval = 2.0f; // Seconds between joint creation attempts
-        
+
         // Buffer joint tracking
         internal static readonly Dictionary<Coupler, (Coupler otherCoupler, ConfigurableJoint joint)> bufferJoints =
             new Dictionary<Coupler, (Coupler otherCoupler, ConfigurableJoint joint)>();
-        
+
         private const float LooseChainLength = 1.1f;
         private const float TightChainLength = 1.0f;
         private const float BufferTravel = 0.25f;
@@ -47,12 +48,12 @@ namespace DvMod.ZCouplers
         {
             if (coupler == null || !coupler.IsCoupled() || coupler.coupledTo == null)
                 return;
-                
+
             if (customTensionJoints.ContainsKey(coupler))
                 return; // Already exists
-                
+
             CreateTensionJoint(coupler);
-            
+
             // Also create compression joint if needed
             if (coupler.rigidCJ == null && coupler.coupledTo.rigidCJ == null)
                 CreateCompressionJoint(coupler, coupler.coupledTo);
@@ -64,11 +65,11 @@ namespace DvMod.ZCouplers
         public static void CreateTensionJoint(Coupler coupler)
         {
             var coupledTo = coupler.coupledTo;
-            
+
             // Calculate actual distance between couplers for debugging
             var actualDistance = Vector3.Distance(coupler.transform.position, coupledTo.transform.position);
             var desiredDistance = TightChainLength;
-            
+
             // Use desired distance for anchor offset - this is what sets the target separation
             var anchorOffset = Vector3.forward * desiredDistance * (coupler.isFrontCoupler ? -1f : 1f);
 
@@ -104,7 +105,7 @@ namespace DvMod.ZCouplers
 
             // Store tension joint
             customTensionJoints[coupler] = cj;
-            
+
             // Set the joint to the desired tight length immediately
             cj.linearLimit = new SoftJointLimit { limit = TightChainLength };
         }
@@ -158,12 +159,12 @@ namespace DvMod.ZCouplers
 
             bufferJoints.Add(a, (b, bufferCj));
             bufferJoints.Add(b, (a, bufferCj));
-            
+
             // If both couplers are ready (locked) but showing as Dangling, update them to Attached_Tight
             // This handles the case where compression joints are created after deferred state application
             UpdateCouplerStatesAfterCompressionJoint(a, b);
         }
-        
+
         /// <summary>
         /// Update coupler states to Attached_Tight when compression joints are created for ready couplers
         /// </summary>
@@ -174,11 +175,11 @@ namespace DvMod.ZCouplers
             {
                 bool aWasDangling = a.state == ChainCouplerInteraction.State.Dangling;
                 bool bWasDangling = b.state == ChainCouplerInteraction.State.Dangling;
-                
+
                 if (aWasDangling || bWasDangling)
                 {
                     Main.DebugLog(() => $"Updating coupler states after compression joint creation: {a.train.ID} {a.Position()} (was {a.state}) and {b.train.ID} {b.Position()} (was {b.state})");
-                    
+
                     // Update both couplers to Attached_Tight since they're both ready and have compression joints
                     // The actual coupling and tension joint creation will be handled by MasterCoro
                     if (aWasDangling)
@@ -186,7 +187,7 @@ namespace DvMod.ZCouplers
                         a.state = ChainCouplerInteraction.State.Attached_Tight;
                         // Removed verbose state update log
                     }
-                    
+
                     if (bWasDangling)
                     {
                         b.state = ChainCouplerInteraction.State.Attached_Tight;
@@ -203,7 +204,7 @@ namespace DvMod.ZCouplers
         {
             if (coupler == null)
                 return;
-                
+
             try
             {
                 // Try to find tension joint on this coupler first
@@ -219,7 +220,7 @@ namespace DvMod.ZCouplers
                     // Removed verbose joint destruction log
                     return;
                 }
-                
+
                 // If not found on this coupler, try to find it on the partner coupler
                 if (coupler.coupledTo != null && customTensionJoints.TryGetValue(coupler.coupledTo, out tensionJoint))
                 {
@@ -233,7 +234,7 @@ namespace DvMod.ZCouplers
                     // Removed verbose partner destruction log
                     return;
                 }
-                
+
                 // Keep important warning about missing joints for debugging
                 Main.DebugLog(() => $"TENSION JOINT: No tension joint found to destroy for {coupler.train.ID} {coupler.Position()} or its partner");
             }
@@ -263,7 +264,7 @@ namespace DvMod.ZCouplers
             {
                 // Only log destruction when debug logging is enabled
                 Main.DebugLog(() => $"Destroying compression joint between {TrainCar.Resolve(coupler.gameObject)?.ID} and {TrainCar.Resolve(result.otherCoupler.gameObject)?.ID} - called from: {caller}");
-                
+
                 // Destroy the joint
                 if (result.joint != null)
                     Component.Destroy(result.joint);
@@ -312,11 +313,11 @@ namespace DvMod.ZCouplers
         {
             if (coupler?.coupledTo == null)
                 return;
-                
+
             try
             {
                 // Removed verbose collision system conversion logs
-                
+
                 // Destroy any existing compression joints - we'll use the game's collision system instead
                 if (bufferJoints.TryGetValue(coupler, out var result))
                 {
@@ -325,7 +326,7 @@ namespace DvMod.ZCouplers
                         Component.Destroy(result.joint);
                         // Removed verbose collision system success log
                     }
-                    
+
                     // Remove from tracking
                     bufferJoints.Remove(coupler);
                     bufferJoints.Remove(result.otherCoupler);
@@ -334,7 +335,7 @@ namespace DvMod.ZCouplers
                 {
                     // Removed verbose conversion failure log
                 }
-                
+
                 // Clear the rigidCJ references so the game doesn't think cars are rigidly coupled
                 if (coupler.rigidCJ != null)
                 {
@@ -346,7 +347,7 @@ namespace DvMod.ZCouplers
                     coupler.coupledTo.rigidCJ = null;
                     // Removed verbose reference cleanup logs
                 }
-                
+
                 // Clear coroutines
                 if (coupler.jointCoroRigid != null)
                 {
@@ -358,7 +359,7 @@ namespace DvMod.ZCouplers
                     coupler.coupledTo.StopCoroutine(coupler.coupledTo.jointCoroRigid);
                     coupler.coupledTo.jointCoroRigid = null;
                 }
-                
+
                 // Removed verbose success log
             }
             catch (System.Exception ex)

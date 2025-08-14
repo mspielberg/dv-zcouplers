@@ -1,5 +1,7 @@
-using HarmonyLib;
 using System.Collections;
+
+using HarmonyLib;
+
 using UnityEngine;
 
 namespace DvMod.ZCouplers
@@ -24,7 +26,7 @@ namespace DvMod.ZCouplers
         {
             if (coupler == null)
                 return;
-                
+
             try
             {
                 var scanner = GetScanner(coupler);
@@ -47,7 +49,7 @@ namespace DvMod.ZCouplers
         {
             if (coupler == null)
                 return;
-                
+
             try
             {
                 var scanner = GetScanner(coupler);
@@ -69,13 +71,13 @@ namespace DvMod.ZCouplers
         {
             if (coupler1?.train?.gameObject == null || coupler2?.train?.gameObject == null)
                 return;
-                
+
             try
             {
                 // Temporarily disable coupling scanners to prevent immediate recoupling
                 var scanner1 = GetScanner(coupler1);
                 var scanner2 = GetScanner(coupler2);
-                
+
                 if (scanner1 != null)
                 {
                     scanner1.enabled = false;
@@ -92,11 +94,11 @@ namespace DvMod.ZCouplers
                 Main.ErrorLog(() => $"Error in uncoupling cleanup: {ex.Message}");
             }
         }
-        
+
         private static IEnumerator ReEnableScanner(CouplingScanner scanner, string trainId, float delay)
         {
             yield return new WaitForSeconds(delay);
-            
+
             if (scanner != null)
             {
                 scanner.enabled = true;
@@ -166,11 +168,11 @@ namespace DvMod.ZCouplers
                         var otherCoupler = otherScanner.transform.localPosition.z > 0 ? otherCar.frontCoupler : otherCar.rearCoupler;
                         if (otherCoupler == null)
                             return;
-                        
+
                         // Only create compression joint if both couplers are ready to couple (not parked/unlocked)
                         // and we're not in the middle of save loading
-                        if (coupler.rigidCJ == null && otherCoupler.rigidCJ == null 
-                            && KnuckleCouplers.IsReadyToCouple(coupler) 
+                        if (coupler.rigidCJ == null && otherCoupler.rigidCJ == null
+                            && KnuckleCouplers.IsReadyToCouple(coupler)
                             && KnuckleCouplers.IsReadyToCouple(otherCoupler)
                             && !SaveManager.IsLoadingFromSave)
                         {
@@ -212,11 +214,11 @@ namespace DvMod.ZCouplers
             {
                 if (scanner?.gameObject == null || scanner.transform == null)
                     return null;
-                    
+
                 var car = TrainCar.Resolve(scanner.gameObject);
                 if (car == null)
                     return null;
-                    
+
                 return scanner.transform.localPosition.z > 0 ? car.frontCoupler : car.rearCoupler;
             }
 
@@ -241,7 +243,7 @@ namespace DvMod.ZCouplers
                     __instance.masterCoro = null;
                     yield break;
                 }
-                
+
                 if (coupler.IsCoupled())
                 {
                     // Removed verbose MasterCoro exit log
@@ -257,17 +259,17 @@ namespace DvMod.ZCouplers
                             return $"{coupler.train.ID} {coupler.Position()}: MasterCoro started with null nearby coupler";
                         return $"{coupler.train.ID} {coupler.Position()}: MasterCoro started with {otherCoupler.train.ID} {otherCoupler.Position()}";
                     });
-                    
+
                     // Check if both couplers are in Attached_Tight state but not actually coupled (save loading case)
                     var otherCoupler = GetCoupler(__instance.nearbyScanner);
-                    if (otherCoupler != null && 
-                        coupler.state == ChainCouplerInteraction.State.Attached_Tight && 
+                    if (otherCoupler != null &&
+                        coupler.state == ChainCouplerInteraction.State.Attached_Tight &&
                         otherCoupler.state == ChainCouplerInteraction.State.Attached_Tight &&
                         !coupler.IsCoupled() && !otherCoupler.IsCoupled())
                     {
                         Main.DebugLog(() => $"Found couplers in Attached_Tight state but not coupled - triggering native coupling between {coupler.train.ID} and {otherCoupler.train.ID}");
                         TryCouple(coupler);
-                        
+
                         // After coupling, create tension joints if they don't exist
                         if (coupler.IsCoupled() && otherCoupler.IsCoupled())
                         {
@@ -276,32 +278,32 @@ namespace DvMod.ZCouplers
                                 Main.DebugLog(() => $"Creating tension joint for {coupler.train.ID} {coupler.Position()} after MasterCoro coupling");
                                 JointManager.ForceCreateTensionJoint(coupler);
                             }
-                            
+
                             if (!JointManager.HasTensionJoint(otherCoupler))
                             {
                                 Main.DebugLog(() => $"Creating tension joint for {otherCoupler.train.ID} {otherCoupler.Position()} after MasterCoro coupling");
                                 JointManager.ForceCreateTensionJoint(otherCoupler);
                             }
-                            
+
                             // Exit since coupling is complete
                             // Removed verbose MasterCoro exit log
                             __instance.masterCoro = null;
                             yield break;
                         }
                     }
-                    
+
                     // Check for mismatched save loading states: one ready coupler in wrong state, other in attached state
                     // This handles cases where coupled couplers were saved inconsistently
                     if (otherCoupler != null && !coupler.IsCoupled() && !otherCoupler.IsCoupled())
                     {
                         bool couplerReady = KnuckleCouplers.IsReadyToCouple(coupler);
                         bool otherReady = KnuckleCouplers.IsReadyToCouple(otherCoupler);
-                        
+
                         // If both couplers are ready but have mismatched states, fix them and couple
                         if (couplerReady && otherReady)
                         {
                             bool needsFix = false;
-                            
+
                             // Fix scenarios like: one shows Parked/Dangling, other shows Attached_*
                             if ((coupler.state == ChainCouplerInteraction.State.Parked || coupler.state == ChainCouplerInteraction.State.Dangling) &&
                                 (otherCoupler.state == ChainCouplerInteraction.State.Attached_Tight || otherCoupler.state == ChainCouplerInteraction.State.Attached_Loose))
@@ -313,17 +315,17 @@ namespace DvMod.ZCouplers
                             {
                                 needsFix = true;
                             }
-                            
+
                             if (needsFix)
                             {
                                 Main.DebugLog(() => $"Found mismatched save loading states - fixing and coupling {coupler.train.ID} ({coupler.state}) and {otherCoupler.train.ID} ({otherCoupler.state})");
-                                
+
                                 // Set both to Dangling state first (ready but uncoupled)
                                 coupler.state = ChainCouplerInteraction.State.Dangling;
                                 otherCoupler.state = ChainCouplerInteraction.State.Dangling;
-                                
+
                                 TryCouple(coupler);
-                                
+
                                 // After coupling, create tension joints if they don't exist
                                 if (coupler.IsCoupled() && otherCoupler.IsCoupled())
                                 {
@@ -332,13 +334,13 @@ namespace DvMod.ZCouplers
                                         Main.DebugLog(() => $"Creating tension joint for {coupler.train.ID} {coupler.Position()} after mismatched state fix");
                                         JointManager.ForceCreateTensionJoint(coupler);
                                     }
-                                    
+
                                     if (!JointManager.HasTensionJoint(otherCoupler))
                                     {
                                         Main.DebugLog(() => $"Creating tension joint for {otherCoupler.train.ID} {otherCoupler.Position()} after mismatched state fix");
                                         JointManager.ForceCreateTensionJoint(otherCoupler);
                                     }
-                                    
+
                                     // Exit since coupling is complete
                                     __instance.masterCoro = null;
                                     yield break;
@@ -352,14 +354,14 @@ namespace DvMod.ZCouplers
                 while (true)
                 {
                     yield return wait;
-                    
+
                     // Safety check for null references
                     if (__instance?.transform == null || __instance.nearbyScanner?.transform == null)
                     {
                         // Removed verbose MasterCoro exit log
                         break;
                     }
-                    
+
                     var offset = __instance.transform.InverseTransformPoint(__instance.nearbyScanner.transform.position);
                     if (Mathf.Abs(offset.x) > 1.6f || Mathf.Abs(offset.z) > 2f)
                     {
