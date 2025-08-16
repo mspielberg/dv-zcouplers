@@ -40,7 +40,7 @@ namespace DvMod.ZCouplers
             return pivot;
         }
 
-        public static void CreateHook(ChainCouplerInteraction chainScript, GameObject? hookPrefab)
+        public static void CreateHook(ChainCouplerInteraction chainScript, GameObject? fallbackHookPrefab = null)
         {
             if (chainScript == null)
                 return;
@@ -52,6 +52,13 @@ namespace DvMod.ZCouplers
                 return;
             }
 
+            // Ensure assets are loaded
+            if (!AssetManager.AreAssetsLoaded())
+            {
+                Main.ErrorLog(() => "Assets not loaded, cannot create knuckle coupler hook");
+                return;
+            }
+
             var coupler = chainScript.couplerAdapter.coupler;
             var pivot = new GameObject(coupler.isFrontCoupler ? "ZCouplers pivot front" : "ZCouplers pivot rear");
             pivot.transform.SetParent(coupler.transform, false);
@@ -59,28 +66,72 @@ namespace DvMod.ZCouplers
             pivot.transform.parent = coupler.train.interior;
             pivots.Add(chainScript, pivot.transform);
 
+            // Determine which hook prefab to use based on coupler type and state
+            var couplerType = Main.settings.couplerType;
+            var isParked = coupler.state == ChainCouplerInteraction.State.Parked;
+            var actualHookPrefab = AssetManager.GetHookPrefabForState(couplerType, isParked) ?? fallbackHookPrefab;
+
+            if (actualHookPrefab == null)
+            {
+                Main.ErrorLog(() => $"Hook prefab is null for coupler type {couplerType}, state parked: {isParked}, cannot create knuckle coupler hook");
+                return;
+            }
+
+            if (!ValidateHookPrefab(actualHookPrefab))
+            {
+                Main.ErrorLog(() => $"Hook prefab validation failed for {actualHookPrefab.name}, cannot create knuckle coupler hook");
+                return;
+            }
+
+            CreateHookInstance(pivot.transform, actualHookPrefab, chainScript, coupler);
+        }
+
+        /// <summary>
+        /// Validates that a hook prefab has the required components
+        /// </summary>
+        private static bool ValidateHookPrefab(GameObject hookPrefab)
+        {
+            if (hookPrefab == null)
+                return false;
+
+            Main.DebugLog(() => $"Hook prefab {hookPrefab.name} validation passed");
+            return true;
+        }
+
+        private static void CreateHookInstance(Transform pivot, GameObject hookPrefab, ChainCouplerInteraction chainScript, Coupler coupler, string desiredName = "hook")
+        {
+            if (pivot == null)
+            {
+                Main.ErrorLog(() => "Pivot is null in CreateHookInstance");
+                return;
+            }
+
             if (hookPrefab == null)
             {
-                Main.ErrorLog(() => "Hook prefab is null, cannot create knuckle coupler hook");
+                Main.ErrorLog(() => "Hook prefab is null in CreateHookInstance");
                 return;
             }
 
             var hook = GameObject.Instantiate(hookPrefab);
+            if (hook == null)
+            {
+                Main.ErrorLog(() => "Failed to instantiate hook from prefab");
+                return;
+            }
+
             hook.SetActive(false); // defer Awake() until all components are added and initialized
-            hook.name = "hook";
+            hook.name = desiredName; // Use the desired name instead of always "hook"
+            Main.DebugLog(() => $"CreateHookInstance: Created hook with name '{hook.name}'");
             hook.layer = LayerMask.NameToLayer("Interactable");
-            hook.transform.SetParent(pivot.transform, false);
+            hook.transform.SetParent(pivot, false);
             hook.transform.localPosition = PivotLength * Vector3.forward;
 
+            // Use the existing colliders from the prefab - NO automatic creation at all
             var interactionCollider = hook.GetComponent<BoxCollider>();
-            interactionCollider.isTrigger = true;
-
-            var colliderHost = new GameObject("walkable");
-            colliderHost.layer = LayerMask.NameToLayer("Train_Walkable");
-            colliderHost.transform.SetParent(hook.transform, worldPositionStays: false);
-            var walkableCollider = colliderHost.AddComponent<BoxCollider>();
-            walkableCollider.center = interactionCollider.center;
-            walkableCollider.size = interactionCollider.size;
+            if (interactionCollider != null)
+            {
+                interactionCollider.isTrigger = true; // Ensure it's set as trigger for interaction
+            }
 
             var buttonSpec = hook.AddComponent<Button>();
             buttonSpec.createRigidbody = false;
@@ -90,7 +141,15 @@ namespace DvMod.ZCouplers
             var infoArea = hook.AddComponent<InfoArea>();
             infoArea.infoType = KnuckleCouplerState.IsUnlocked(coupler) ? KnuckleCouplerLock : KnuckleCouplerUnlock;
             hook.SetActive(true); // this should create an actual Button through excuting
-            hook.GetComponent<ButtonBase>().Used += () => OnButtonPressed(chainScript);
+            
+            var buttonBase = hook.GetComponent<ButtonBase>();
+            if (buttonBase == null)
+            {
+                Main.ErrorLog(() => "Failed to get ButtonBase component after setting hook active");
+                GameObject.Destroy(hook);
+                return;
+            }
+            buttonBase.Used += () => OnButtonPressed(chainScript);
         }
 
         public static void DestroyHook(ChainCouplerInteraction chainScript)
@@ -149,11 +208,21 @@ namespace DvMod.ZCouplers
             if (coupler == null)
                 return;
 
+            Main.DebugLog(() => $"UpdateHookVisualState called for {coupler.train.ID} {coupler.Position()}: State={coupler.state}, CouplerType={Main.settings.couplerType}");
+
             try
             {
+                // Check if we need to swap the hook visual for AAR couplers
+                var couplerType = Main.settings.couplerType;
+                if (couplerType == CouplerType.AARKnuckle)
+                {
+                    Main.DebugLog(() => $"Calling SwapHookVisualIfNeeded for {coupler.train.ID} {coupler.Position()}");
+                    SwapHookVisualIfNeeded(chainScript, coupler);
+                }
+
                 // Determine the correct interaction text based on coupler state
                 var pivot = GetPivot(chainScript);
-                var hook = pivot?.Find("hook");
+                var hook = pivot?.Find("hook") ?? pivot?.Find("hook_open");
                 if (hook?.GetComponent<InfoArea>() is InfoArea infoArea)
                 {
                     // Base the text on the actual coupler state, not just the locked flag
@@ -201,6 +270,103 @@ namespace DvMod.ZCouplers
                 if (Main.settings.enableLogging)
                 {
                     Main.ErrorLog(() => $"Exception in UpdateHookVisualState: {ex.Message}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Swaps the hook visual for AAR couplers between normal and open states based on coupler state
+        /// </summary>
+        private static void SwapHookVisualIfNeeded(ChainCouplerInteraction chainScript, Coupler coupler)
+        {
+            var pivot = GetPivot(chainScript);
+            if (pivot == null) 
+            {
+                Main.DebugLog(() => $"SwapHookVisualIfNeeded: No pivot found for {coupler.train.ID} {coupler.Position()}");
+                return;
+            }
+
+            // Find hook by either name - but prioritize the current state
+            var hookOpen = pivot.Find("hook_open");
+            var hookClosed = pivot.Find("hook");
+            var hook = hookOpen ?? hookClosed;
+            
+            // Debug: show all children in the pivot
+            var childNames = new System.Collections.Generic.List<string>();
+            for (int i = 0; i < pivot.childCount; i++)
+            {
+                var child = pivot.GetChild(i);
+                if (child.name.Contains("hook"))
+                    childNames.Add(child.name);
+            }
+            
+            Main.DebugLog(() => $"SwapHookVisualIfNeeded: Hook search results - hookOpen: {(hookOpen != null ? hookOpen.name : "null")}, hookClosed: {(hookClosed != null ? hookClosed.name : "null")}, selected: {(hook != null ? hook.name : "null")}, all hook children: [{string.Join(", ", childNames)}]");
+            
+            if (hook == null) 
+            {
+                Main.DebugLog(() => $"SwapHookVisualIfNeeded: No hook found for {coupler.train.ID} {coupler.Position()}");
+                return;
+            }
+
+            var isParked = coupler.state == ChainCouplerInteraction.State.Parked;
+            var shouldUseOpenHook = isParked && AssetManager.GetHookOpenPrefab() != null;
+
+            // Check if we need to swap the hook visual
+            var currentHookName = hook.name;
+            var needsSwap = false;
+
+            Main.DebugLog(() => $"SwapHookVisualIfNeeded: {coupler.train.ID} {coupler.Position()} - State: {coupler.state}, CurrentHook: {currentHookName}, ShouldUseOpen: {shouldUseOpenHook}");
+
+            if (shouldUseOpenHook && !currentHookName.Contains("open"))
+            {
+                needsSwap = true;
+                Main.DebugLog(() => $"SwapHookVisualIfNeeded: Need to swap to open hook");
+            }
+            else if (!shouldUseOpenHook && currentHookName.Contains("open"))
+            {
+                needsSwap = true;
+                Main.DebugLog(() => $"SwapHookVisualIfNeeded: Need to swap to closed hook");
+            }
+
+            if (needsSwap)
+            {
+                Main.DebugLog(() => $"Swapping hook visual for {coupler.train.ID} {coupler.Position()} to {(shouldUseOpenHook ? "open" : "closed")} state");
+
+                // Play appropriate sound for the state change
+                if (!shouldUseOpenHook && currentHookName.Contains("open"))
+                {
+                    // Swapping from open to closed - play park sound (coupler becoming ready)
+                    chainScript.PlaySound(chainScript.parkSound, chainScript.transform.position);
+                }
+                else if (shouldUseOpenHook && !currentHookName.Contains("open"))
+                {
+                    // Swapping from closed to open - play attach sound (coupler becoming unlocked)
+                    chainScript.PlaySound(chainScript.attachSound, chainScript.transform.position);
+                }
+
+                // Store current state
+                var buttonSpec = hook.GetComponent<Button>();
+                var infoArea = hook.GetComponent<InfoArea>();
+                var currentPosition = hook.localPosition;
+                var wasActive = hook.gameObject.activeSelf;
+
+                Main.DebugLog(() => $"Before destroying old hook: {hook.name}");
+
+                // Remove old hook immediately to prevent conflicts
+                GameObject.DestroyImmediate(hook.gameObject);
+
+                // Create new hook with appropriate prefab
+                var newHookPrefab = shouldUseOpenHook ? AssetManager.GetHookOpenPrefab() : AssetManager.GetHookPrefab();
+                Main.DebugLog(() => $"Using prefab: {(shouldUseOpenHook ? "hook_open" : "hook")} prefab, prefab is null: {newHookPrefab == null}");
+                
+                if (newHookPrefab != null && pivot != null)
+                {
+                    var targetName = shouldUseOpenHook ? "hook_open" : "hook";
+                    CreateHookInstance(pivot, newHookPrefab, chainScript, coupler, targetName);
+                    
+                    // Verify the hook was created with the correct name
+                    var newHook = pivot.Find(targetName);
+                    Main.DebugLog(() => $"After creation, found hook with target name '{targetName}': {(newHook != null ? newHook.name : "null")}");
                 }
             }
         }

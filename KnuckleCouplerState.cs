@@ -63,9 +63,14 @@ namespace DvMod.ZCouplers
             if (coupler == null)
                 return;
 
+            Main.DebugLog(() => $"ReadyCoupler called for {coupler.train.ID} {coupler.Position()}, current state: {coupler.state}");
+
             // Check if the coupler is actually in a locked/ready state
             if (coupler.state != ChainCouplerInteraction.State.Parked)
+            {
+                Main.DebugLog(() => $"ReadyCoupler: {coupler.train.ID} {coupler.Position()} already ready/locked (state: {coupler.state})");
                 return; // Already ready/locked
+            }
 
             var chainScript = coupler.visualCoupler.chainAdapter.chainScript;
             if (unlockedCouplers.Remove(coupler)) // Remove from HashSet for consistency
@@ -79,6 +84,7 @@ namespace DvMod.ZCouplers
             }
 
             // Update visual state after changing the state
+            Main.DebugLog(() => $"ReadyCoupler: About to call UpdateHookVisualStateFromCouplerState for {coupler.train.ID} {coupler.Position()}");
             HookManager.UpdateHookVisualStateFromCouplerState(coupler);
         }
 
