@@ -16,7 +16,15 @@ namespace DvMod.ZCouplers
         /// </summary>
         public static CouplingScanner? GetScanner(Coupler coupler)
         {
-            return coupler.visualCoupler?.GetComponent<CouplingScanner>();
+            try
+            {
+                return coupler?.visualCoupler?.GetComponent<CouplingScanner>();
+            }
+            catch (System.Exception)
+            {
+                // Return null if any exception occurs during component access
+                return null;
+            }
         }
 
         /// <summary>
@@ -212,14 +220,22 @@ namespace DvMod.ZCouplers
 
             private static Coupler? GetCoupler(CouplingScanner scanner)
             {
-                if (scanner?.gameObject == null || scanner.transform == null)
-                    return null;
+                try
+                {
+                    if (scanner?.gameObject == null || scanner.transform == null)
+                        return null;
 
-                var car = TrainCar.Resolve(scanner.gameObject);
-                if (car == null)
-                    return null;
+                    var car = TrainCar.Resolve(scanner.gameObject);
+                    if (car == null)
+                        return null;
 
-                return scanner.transform.localPosition.z > 0 ? car.frontCoupler : car.rearCoupler;
+                    return scanner.transform.localPosition.z > 0 ? car.frontCoupler : car.rearCoupler;
+                }
+                catch (System.Exception)
+                {
+                    // Return null if any exception occurs
+                    return null;
+                }
             }
 
             private static void TryCouple(Coupler coupler)
@@ -356,7 +372,14 @@ namespace DvMod.ZCouplers
                     yield return wait;
 
                     // Safety check for null references
-                    if (__instance?.transform == null || __instance.nearbyScanner?.transform == null)
+                    if (__instance?.transform == null || __instance.gameObject == null)
+                    {
+                        // Removed verbose MasterCoro exit log
+                        break;
+                    }
+
+                    // Additional safety check for nearby scanner
+                    if (__instance.nearbyScanner?.transform == null || __instance.nearbyScanner.gameObject == null)
                     {
                         // Removed verbose MasterCoro exit log
                         break;
@@ -383,7 +406,26 @@ namespace DvMod.ZCouplers
                         }
                     }
                 }
-                __instance?.Unpair(true);
+                
+                // Safely unpair with additional null checks
+                try
+                {
+                    if (__instance != null && __instance.gameObject != null)
+                    {
+                        __instance.Unpair(true);
+                    }
+                }
+                catch (System.Exception ex)
+                {
+                    Main.ErrorLog(() => $"Error during coupling scanner unpair: {ex.Message}");
+                }
+                finally
+                {
+                    if (__instance != null)
+                    {
+                        __instance.masterCoro = null;
+                    }
+                }
             }
         }
     }
