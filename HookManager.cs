@@ -84,6 +84,13 @@ namespace DvMod.ZCouplers
             }
 
             CreateHookInstance(pivot.transform, actualHookPrefab, chainScript, coupler);
+
+            // Add the visual updater component to ensure rotation works
+            if (chainScript.gameObject.GetComponent<CouplerVisualUpdater>() == null)
+            {
+                chainScript.gameObject.AddComponent<CouplerVisualUpdater>();
+                Main.DebugLog(() => $"Added CouplerVisualUpdater to {coupler.train.ID} {coupler.Position()}");
+            }
         }
 
         /// <summary>
@@ -163,16 +170,30 @@ namespace DvMod.ZCouplers
                 GameObject.Destroy(pivot.gameObject);
                 pivots.Remove(chainScript);
             }
+
+            // Remove the visual updater component if it exists
+            var visualUpdater = chainScript.gameObject.GetComponent<CouplerVisualUpdater>();
+            if (visualUpdater != null)
+            {
+                GameObject.Destroy(visualUpdater);
+                Main.DebugLog(() => $"Removed CouplerVisualUpdater from {chainScript.couplerAdapter?.coupler?.train?.ID}");
+            }
         }
 
         public static void AdjustPivot(Transform pivot, Transform target)
         {
             if (pivot == null || target == null)
+            {
+                Main.DebugLog(() => $"AdjustPivot: null parameters - pivot={pivot}, target={target}");
                 return;
+            }
 
             // Additional safety check to ensure transforms are still valid
             if (pivot.gameObject == null || target.gameObject == null)
+            {
+                Main.DebugLog(() => $"AdjustPivot: null gameObjects - pivot.gameObject={pivot.gameObject}, target.gameObject={target.gameObject}");
                 return;
+            }
 
             try
             {
