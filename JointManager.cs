@@ -21,9 +21,21 @@ namespace DvMod.ZCouplers
         internal static readonly Dictionary<Coupler, (Coupler otherCoupler, ConfigurableJoint joint)> bufferJoints =
             new Dictionary<Coupler, (Coupler otherCoupler, ConfigurableJoint joint)>();
 
-        private const float LooseChainLength = 1.1f;
+        private const float LooseChainLength = 1.0f;
         private const float TightChainLength = 1.0f;
         private const float BufferTravel = 0.25f;
+
+        /// <summary>
+        /// Calculate the actual distance between joint anchors (matches original game's JointDistance method)
+        /// This ensures we use the real measured distance after coupling rather than a hardcoded value,
+        /// which provides better compatibility with different car types and mod configurations.
+        /// </summary>
+        private static float CalculateJointDistance(ConfigurableJoint joint)
+        {
+            Vector3 anchorWorldPos = joint.transform.TransformPoint(joint.anchor);
+            Vector3 connectedAnchorWorldPos = joint.connectedBody.transform.TransformPoint(joint.connectedAnchor);
+            return Vector3.Distance(anchorWorldPos, connectedAnchorWorldPos);
+        }
 
         /// <summary>
         /// Get tension joint for a coupler (used by CouplerBreaker)
@@ -66,18 +78,18 @@ namespace DvMod.ZCouplers
         {
             var coupledTo = coupler.coupledTo;
 
-            // Calculate actual distance between couplers for debugging
-            var actualDistance = Vector3.Distance(coupler.transform.position, coupledTo.transform.position);
-            var desiredDistance = TightChainLength;
-
-            // Use desired distance for anchor offset - this is what sets the target separation
-            var anchorOffset = Vector3.forward * desiredDistance * (coupler.isFrontCoupler ? -1f : 1f);
+            // Calculate the anchor positions to match the original game's approach
+            var anchorOffset = Vector3.forward * TightChainLength * (coupler.isFrontCoupler ? -1f : 1f);
 
             var cj = coupler.train.gameObject.AddComponent<ConfigurableJoint>();
             cj.autoConfigureConnectedAnchor = false;
             cj.anchor = coupler.transform.localPosition + anchorOffset;
             cj.connectedBody = coupler.coupledTo.train.gameObject.GetComponent<Rigidbody>();
             cj.connectedAnchor = coupler.coupledTo.transform.localPosition;
+
+            // Calculate actual joint distance like the original game does
+            var actualJointDistance = CalculateJointDistance(cj);
+            var jointLimit = Mathf.Max(actualJointDistance, LooseChainLength);
 
             // Configure joint motion constraints
             cj.xMotion = ConfigurableJointMotion.Limited;
@@ -97,7 +109,7 @@ namespace DvMod.ZCouplers
             cj.angularXLimitSpring = new SoftJointLimitSpring { spring = Main.settings.GetSpringRate() };
             cj.angularYZLimitSpring = new SoftJointLimitSpring { spring = Main.settings.GetSpringRate() };
 
-            cj.linearLimit = new SoftJointLimit { limit = desiredDistance };
+            cj.linearLimit = new SoftJointLimit { limit = jointLimit };
             cj.linearLimitSpring = new SoftJointLimitSpring { spring = Main.settings.GetSpringRate() };
             cj.enableCollision = false;
             cj.breakForce = float.PositiveInfinity;
@@ -106,8 +118,7 @@ namespace DvMod.ZCouplers
             // Store tension joint
             customTensionJoints[coupler] = cj;
 
-            // Set the joint to the desired tight length immediately
-            cj.linearLimit = new SoftJointLimit { limit = TightChainLength };
+            Main.DebugLog(() => $"Created tension joint with actual distance {actualJointDistance:F3}m, using limit {jointLimit:F3}m for {coupler.train.ID}");
         }
 
         /// <summary>
