@@ -547,13 +547,6 @@ namespace DvMod.ZCouplers
 
                 if (__instance.couplerAdapter?.IsCoupled() == true)
                 {
-                    var partner = __instance.couplerAdapter.coupler?.coupledTo?.visualCoupler?.chain?.GetComponent<ChainCouplerInteraction>();
-                    if (partner == null)
-                    {
-                        __result = ChainCouplerInteraction.State.Disabled;
-                        return false;
-                    }
-
                     // For knuckle couplers: if physically coupled, both must be ready
                     var coupler = __instance.couplerAdapter.coupler;
                     var partnerCoupler = coupler?.coupledTo;
