@@ -1,4 +1,3 @@
-using System.Linq;
 using UnityEngine;
 
 namespace DvMod.ZCouplers
@@ -8,17 +7,29 @@ namespace DvMod.ZCouplers
     /// </summary>
     public static class AssetManager
     {
-        private static GameObject? hookPrefab;
-        private static GameObject? hookOpenPrefab; // For AAR open state
+        private static GameObject? aarClosedPrefab;
+        private static GameObject? aarOpenPrefab; // For AAR open state
+        private static GameObject? sa3ClosedPrefab; // For SA3 closed/ready state
+        private static GameObject? sa3OpenPrefab;   // For SA3 open/parked state
 
-        public static GameObject? GetHookPrefab()
+        public static GameObject? GetAARClosedPrefab()
         {
-            return hookPrefab;
+            return aarClosedPrefab;
         }
 
-        public static GameObject? GetHookOpenPrefab()
+        public static GameObject? GetAAROpenPrefab()
         {
-            return hookOpenPrefab;
+            return aarOpenPrefab;
+        }
+
+        public static GameObject? GetSA3ClosedPrefab()
+        {
+            return sa3ClosedPrefab;
+        }
+
+        public static GameObject? GetSA3OpenPrefab()
+        {
+            return sa3OpenPrefab;
         }
 
         /// <summary>
@@ -26,13 +37,24 @@ namespace DvMod.ZCouplers
         /// </summary>
         public static GameObject? GetHookPrefabForState(CouplerType couplerType, bool isParked)
         {
-            // Use open hook for AAR couplers in parked state
-            if (couplerType == CouplerType.AARKnuckle && isParked && hookOpenPrefab != null)
+            switch (couplerType)
             {
-                return hookOpenPrefab;
+                case CouplerType.AARKnuckle:
+                    // Use open hook for AAR couplers in parked state, closed AAR for ready state
+                    if (isParked && aarOpenPrefab != null)
+                        return aarOpenPrefab;
+                    return aarClosedPrefab;
+                    
+                case CouplerType.SA3Knuckle:
+                    // Use open SA3 for parked state, closed SA3 for ready state
+                    if (isParked && sa3OpenPrefab != null)
+                        return sa3OpenPrefab;
+                    return sa3ClosedPrefab;
+                    
+                    
+                default:
+                    return aarClosedPrefab;
             }
-            
-            return hookPrefab;
         }
 
         /// <summary>
@@ -40,7 +62,17 @@ namespace DvMod.ZCouplers
         /// </summary>
         public static bool AreAssetsLoaded()
         {
-            return hookPrefab != null;
+            CouplerType couplerType = Main.settings.couplerType;
+            
+            switch (couplerType)
+            {
+                case CouplerType.AARKnuckle:
+                    return aarClosedPrefab != null || aarOpenPrefab != null;
+                case CouplerType.SA3Knuckle:
+                    return sa3ClosedPrefab != null || sa3OpenPrefab != null;
+                default:
+                    return aarClosedPrefab != null;
+            }
         }
 
         public static void LoadAssets()
@@ -63,43 +95,60 @@ namespace DvMod.ZCouplers
             {
                 CouplerType couplerType = Main.settings.couplerType;
                 
-                // Use internal asset names instead of enum ToString()
-                string assetName = couplerType switch
+                // Load assets based on coupler type
+                switch (couplerType)
                 {
-                    CouplerType.AARKnuckle => "hook",
-                    CouplerType.SA3Knuckle => "SA3",
-                    _ => couplerType.ToString() // fallback
-                };
-
-                Main.DebugLog(() => $"Loading asset '{assetName}' for coupler type {couplerType}");
-                hookPrefab = bundle.LoadAsset<GameObject>(assetName);
-
-                if (hookPrefab == null)
-                {
-                    Main.ErrorLog(() => $"Failed to load hook prefab for asset name: {assetName} (coupler type: {couplerType})");
-                    
-                    // List available assets for debugging
-                    var allAssets = bundle.GetAllAssetNames();
-                    Main.ErrorLog(() => $"Available assets in bundle: {string.Join(", ", allAssets)}");
-                }
-                else
-                {
-                    Main.DebugLog(() => $"Successfully loaded hook prefab for asset name: {assetName} (coupler type: {couplerType}), components: {string.Join(", ", hookPrefab.GetComponents<UnityEngine.Component>().Select(c => c.GetType().Name))}");
-                }
-
-                // Load the open hook variant for AAR couplers
-                if (couplerType == CouplerType.AARKnuckle)
-                {
-                    Main.DebugLog(() => "Loading 'hook_open' asset for AAR coupler");
-                    hookOpenPrefab = bundle.LoadAsset<GameObject>("hook_open");
-                    if (hookOpenPrefab == null)
-                    {
-                        Main.ErrorLog(() => "Failed to load hook_open prefab for AAR coupler");
-                    }
-                    else
-                    {
-                        Main.DebugLog(() => "Successfully loaded hook_open prefab for AAR coupler");
-                    }
+                    case CouplerType.AARKnuckle:
+                        Main.DebugLog(() => "Loading AAR hook assets");
+                        aarClosedPrefab = bundle.LoadAsset<GameObject>("hook");
+                        aarOpenPrefab = bundle.LoadAsset<GameObject>("hook_open");
+                        
+                        if (aarClosedPrefab == null)
+                            Main.ErrorLog(() => "Failed to load 'hook' prefab for AAR coupler");
+                        else
+                            Main.DebugLog(() => $"Successfully loaded 'hook' prefab for AAR coupler");
+                            
+                        if (aarOpenPrefab == null)
+                            Main.ErrorLog(() => "Failed to load 'hook_open' prefab for AAR coupler");
+                        else
+                            Main.DebugLog(() => "Successfully loaded 'hook_open' prefab for AAR coupler");
+                        break;
+                        
+                    case CouplerType.SA3Knuckle:
+                        Main.DebugLog(() => "Loading SA3 assets");
+                        sa3ClosedPrefab = bundle.LoadAsset<GameObject>("SA3_closed");
+                        sa3OpenPrefab = bundle.LoadAsset<GameObject>("SA3_open");
+                        
+                        if (sa3ClosedPrefab == null)
+                            Main.ErrorLog(() => "Failed to load 'SA3_closed' prefab for SA3 coupler");
+                        else
+                            Main.DebugLog(() => $"Successfully loaded 'SA3_closed' prefab for SA3 coupler");
+                            
+                        if (sa3OpenPrefab == null)
+                            Main.ErrorLog(() => "Failed to load 'SA3_open' prefab for SA3 coupler");
+                        else
+                            Main.DebugLog(() => "Successfully loaded 'SA3_open' prefab for SA3 coupler");
+                        break;
+                        
+                    default:
+                        // Fallback - try to load by enum name
+                        string assetName = couplerType.ToString();
+                        Main.DebugLog(() => $"Loading fallback asset '{assetName}' for coupler type {couplerType}");
+                        aarClosedPrefab = bundle.LoadAsset<GameObject>(assetName);
+                        
+                        if (aarClosedPrefab == null)
+                        {
+                            Main.ErrorLog(() => $"Failed to load hook prefab for asset name: {assetName} (coupler type: {couplerType})");
+                            
+                            // List available assets for debugging
+                            var allAssets = bundle.GetAllAssetNames();
+                            Main.ErrorLog(() => $"Available assets in bundle: {string.Join(", ", allAssets)}");
+                        }
+                        else
+                        {
+                            Main.DebugLog(() => $"Successfully loaded hook prefab for asset name: {assetName} (coupler type: {couplerType})");
+                        }
+                        break;
                 }
             }
             catch (System.Exception ex)

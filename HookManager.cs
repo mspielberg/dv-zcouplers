@@ -204,7 +204,7 @@ namespace DvMod.ZCouplers
 
                 offset.y = 0f;
                 var distance = offset.magnitude;
-                var hook = pivot.Find("hook");
+                var hook = pivot.Find("hook") ?? pivot.Find("hook_open");
                 if (hook != null && hook.gameObject != null)
                 {
                     hook.localPosition = distance / 2 * Vector3.forward;
@@ -233,9 +233,9 @@ namespace DvMod.ZCouplers
 
             try
             {
-                // Check if we need to swap the hook visual for AAR couplers
+                // Check if we need to swap the hook visual for couplers that support multiple states
                 var couplerType = Main.settings.couplerType;
-                if (couplerType == CouplerType.AARKnuckle)
+                if (couplerType == CouplerType.AARKnuckle || couplerType == CouplerType.SA3Knuckle)
                 {
                     Main.DebugLog(() => $"Calling SwapHookVisualIfNeeded for {coupler.train.ID} {coupler.Position()}");
                     SwapHookVisualIfNeeded(chainScript, coupler);
@@ -307,9 +307,9 @@ namespace DvMod.ZCouplers
                 return;
             }
 
-            // Find hook by either name - but prioritize the current state
-            var hookOpen = pivot.Find("hook_open");
-            var hookClosed = pivot.Find("hook");
+            // Find hook by name - check for all possible variations
+            var hookOpen = pivot.Find("hook_open") ?? pivot.Find("SA3_open");
+            var hookClosed = pivot.Find("hook") ?? pivot.Find("SA3_closed");
             var hook = hookOpen ?? hookClosed;
             
             // Debug: show all children in the pivot
@@ -317,7 +317,7 @@ namespace DvMod.ZCouplers
             for (int i = 0; i < pivot.childCount; i++)
             {
                 var child = pivot.GetChild(i);
-                if (child.name.Contains("hook"))
+                if (child.name.Contains("hook") || child.name.Contains("SA3"))
                     childNames.Add(child.name);
             }
             
@@ -330,20 +330,32 @@ namespace DvMod.ZCouplers
             }
 
             var isParked = coupler.state == ChainCouplerInteraction.State.Parked;
-            var shouldUseOpenHook = isParked && AssetManager.GetHookOpenPrefab() != null;
+            var couplerType = Main.settings.couplerType;
+            
+            // Determine if we should use the open variant based on coupler type
+            bool shouldUseOpenHook = false;
+            if (couplerType == CouplerType.AARKnuckle)
+            {
+                shouldUseOpenHook = isParked && AssetManager.GetAAROpenPrefab() != null;
+            }
+            else if (couplerType == CouplerType.SA3Knuckle)
+            {
+                shouldUseOpenHook = isParked && AssetManager.GetSA3OpenPrefab() != null;
+            }
 
             // Check if we need to swap the hook visual
             var currentHookName = hook.name;
             var needsSwap = false;
+            var isCurrentlyOpen = currentHookName.Contains("open");
 
-            Main.DebugLog(() => $"SwapHookVisualIfNeeded: {coupler.train.ID} {coupler.Position()} - State: {coupler.state}, CurrentHook: {currentHookName}, ShouldUseOpen: {shouldUseOpenHook}");
+            Main.DebugLog(() => $"SwapHookVisualIfNeeded: {coupler.train.ID} {coupler.Position()} - State: {coupler.state}, CurrentHook: {currentHookName}, ShouldUseOpen: {shouldUseOpenHook}, IsCurrentlyOpen: {isCurrentlyOpen}");
 
-            if (shouldUseOpenHook && !currentHookName.Contains("open"))
+            if (shouldUseOpenHook && !isCurrentlyOpen)
             {
                 needsSwap = true;
                 Main.DebugLog(() => $"SwapHookVisualIfNeeded: Need to swap to open hook");
             }
-            else if (!shouldUseOpenHook && currentHookName.Contains("open"))
+            else if (!shouldUseOpenHook && isCurrentlyOpen)
             {
                 needsSwap = true;
                 Main.DebugLog(() => $"SwapHookVisualIfNeeded: Need to swap to closed hook");
@@ -354,12 +366,12 @@ namespace DvMod.ZCouplers
                 Main.DebugLog(() => $"Swapping hook visual for {coupler.train.ID} {coupler.Position()} to {(shouldUseOpenHook ? "open" : "closed")} state");
 
                 // Play appropriate sound for the state change
-                if (!shouldUseOpenHook && currentHookName.Contains("open"))
+                if (!shouldUseOpenHook && isCurrentlyOpen)
                 {
                     // Swapping from open to closed - play park sound (coupler becoming ready)
                     chainScript.PlaySound(chainScript.parkSound, chainScript.transform.position);
                 }
-                else if (shouldUseOpenHook && !currentHookName.Contains("open"))
+                else if (shouldUseOpenHook && !isCurrentlyOpen)
                 {
                     // Swapping from closed to open - play attach sound (coupler becoming unlocked)
                     chainScript.PlaySound(chainScript.attachSound, chainScript.transform.position);
@@ -377,17 +389,29 @@ namespace DvMod.ZCouplers
                 GameObject.DestroyImmediate(hook.gameObject);
 
                 // Create new hook with appropriate prefab
-                var newHookPrefab = shouldUseOpenHook ? AssetManager.GetHookOpenPrefab() : AssetManager.GetHookPrefab();
-                Main.DebugLog(() => $"Using prefab: {(shouldUseOpenHook ? "hook_open" : "hook")} prefab, prefab is null: {newHookPrefab == null}");
+                GameObject? newHookPrefab = null;
+                string desiredName = "";
+                
+                if (couplerType == CouplerType.AARKnuckle)
+                {
+                    newHookPrefab = shouldUseOpenHook ? AssetManager.GetAAROpenPrefab() : AssetManager.GetAARClosedPrefab();
+                    desiredName = shouldUseOpenHook ? "hook_open" : "hook";
+                }
+                else if (couplerType == CouplerType.SA3Knuckle)
+                {
+                    newHookPrefab = shouldUseOpenHook ? AssetManager.GetSA3OpenPrefab() : AssetManager.GetSA3ClosedPrefab();
+                    desiredName = shouldUseOpenHook ? "SA3_open" : "SA3_closed";
+                }
+                
+                Main.DebugLog(() => $"Using prefab: {desiredName}, prefab is null: {newHookPrefab == null}");
                 
                 if (newHookPrefab != null && pivot != null)
                 {
-                    var targetName = shouldUseOpenHook ? "hook_open" : "hook";
-                    CreateHookInstance(pivot, newHookPrefab, chainScript, coupler, targetName);
+                    CreateHookInstance(pivot, newHookPrefab, chainScript, coupler, desiredName);
                     
                     // Verify the hook was created with the correct name
-                    var newHook = pivot.Find(targetName);
-                    Main.DebugLog(() => $"After creation, found hook with target name '{targetName}': {(newHook != null ? newHook.name : "null")}");
+                    var newHook = pivot.Find(desiredName);
+                    Main.DebugLog(() => $"After creation, found hook with target name '{desiredName}': {(newHook != null ? newHook.name : "null")}");
                 }
             }
         }
