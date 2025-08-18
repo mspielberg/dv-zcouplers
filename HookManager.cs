@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 
@@ -20,6 +21,267 @@ namespace DvMod.ZCouplers
 
         public static InteractionInfoType KnuckleCouplerUnlock = (InteractionInfoType)23000;
         public static InteractionInfoType KnuckleCouplerLock = (InteractionInfoType)23001;
+
+        /// <summary>
+        /// Check if the given coupler is the front coupler of a LocoS282A (LocoSteamHeavy).
+        /// </summary>
+        private static bool IsFrontCouplerOnLocoS282A(Coupler coupler)
+        {
+            if (coupler?.train?.carLivery?.id != "LocoS282A")
+                return false;
+
+            return coupler.isFrontCoupler;
+        }
+
+        /// <summary>
+        /// Check if the coupler should be disabled based on settings and locomotive type.
+        /// </summary>
+        public static bool ShouldDisableCoupler(Coupler coupler)
+        {
+            if (!Main.settings.disableFrontCouplersOnSteamLocos)
+                return false;
+
+            if (!coupler.isFrontCoupler)
+                return false;
+
+            var liveryId = coupler?.train?.carLivery?.id;
+            return liveryId == "LocoS282A" || liveryId == "LocoS060";
+        }
+
+        /// <summary>
+        /// Check whether a locomotive is a steam locomotive type.
+        /// </summary>
+        private static bool IsSteamLocomotive(Coupler? coupler)
+        {
+            var liveryId = coupler?.train?.carLivery?.id;
+            return liveryId == "LocoS282A" || liveryId == "LocoS060";
+        }
+
+        /// <summary>
+        /// Toggle air hoses and coupler mounting hardware for disabled couplers.
+        /// Also toggles the coupler component functionality.
+        /// </summary>
+        public static void ToggleCouplerHardware(Coupler coupler, bool visible)
+        {
+            if (coupler?.train?.gameObject == null)
+                return;
+
+            var trainGameObject = coupler.train.gameObject;
+            var liveryId = coupler.train.carLivery?.id;
+
+            // Toggle the actual coupler component functionality
+            ToggleCouplerComponent(coupler, visible);
+
+            // Toggle air hose
+            ToggleAirHose(coupler, visible);
+
+            // Toggle mounting hardware based on locomotive type
+            if (liveryId == "LocoS060")
+            {
+                ToggleHookPlate(trainGameObject, visible);
+            }
+
+            // Summary debug
+            Main.DebugLog(() => $"Coupler hardware toggled for {coupler.train.ID} {coupler.Position()}: visible={visible}");
+        }
+
+        /// <summary>
+        /// Toggle the coupler component enabled state to enable or disable coupling functionality.
+        /// </summary>
+        private static void ToggleCouplerComponent(Coupler coupler, bool enabled)
+        {
+            if (coupler?.gameObject == null)
+                return;
+
+            // Find the coupler component and toggle it
+            var couplerComponent = coupler.gameObject.GetComponent<Coupler>();
+            if (couplerComponent != null)
+            {
+                couplerComponent.enabled = enabled;
+                Main.DebugLog(() => $"Coupler component set to {enabled} for {coupler.train.ID} {coupler.Position()}");
+            }
+
+            // Also toggle the ChainCouplerInteraction component if it exists
+            var chainCouplerInteraction = coupler.visualCoupler?.chainAdapter?.chainScript;
+            if (chainCouplerInteraction != null)
+            {
+                chainCouplerInteraction.enabled = enabled;
+                Main.DebugLog(() => $"ChainCouplerInteraction set to {enabled} for {coupler.train.ID} {coupler.Position()}");
+            }
+        }
+
+        /// <summary>
+        /// Toggle air hose visibility for a specific coupler.
+        /// </summary>
+        private static void ToggleAirHose(Coupler coupler, bool visible)
+        {
+            if (coupler?.train?.gameObject == null)
+                return;
+
+            // Only process steam locomotives when the disable setting is enabled
+            if (!Main.settings.disableFrontCouplersOnSteamLocos)
+                return;
+
+            // Only process steam locomotives (S282A and S060)
+            if (!IsSteamLocomotive(coupler))
+                return;
+
+            // Only process front couplers (rear couplers on steam locomotives keep their air hoses)
+            if (!coupler.isFrontCoupler)
+                return;
+
+            // Reduce verbosity for routine toggles
+
+            // Find air hose objects in the train hierarchy
+            var trainGameObject = coupler.train.gameObject;
+            var trainName = trainGameObject.name;
+
+            // For steam locomotives, look for their interior objects
+            var interiorName = $"{trainName} [interior]";
+
+            // Omit interior search debug
+
+            // Find all matching interior objects, not just the first one
+            var allGameObjects = UnityEngine.Object.FindObjectsOfType<GameObject>();
+            var matchingInteriors = new List<GameObject>();
+
+            foreach (var obj in allGameObjects)
+            {
+                if (obj.name == interiorName)
+                {
+                    matchingInteriors.Add(obj);
+                }
+            }
+
+            // Omit counts to reduce noise
+
+            if (matchingInteriors.Count == 0)
+            {
+                // Silent if no interior found; fall back to hierarchy search
+                return;
+            }
+
+            // Process all matching interior objects
+            foreach (var interiorGameObject in matchingInteriors)
+            {
+                var hosesTransform = interiorGameObject.transform.Find("hoses");
+                if (hosesTransform != null)
+                {
+                    hosesTransform.gameObject.SetActive(visible);
+                }
+                // else: not found; continue fallbacks
+            }
+
+            // Fallback 1: try to find the coupler hierarchy (original logic)
+            var couplerHierarchy = coupler.isFrontCoupler ? "[coupler_front]" : "[coupler_rear]";
+            var couplerTransform = trainGameObject.transform.Find(couplerHierarchy);
+            if (couplerTransform != null)
+            {
+                // Look for "hoseAndCock" specifically in the coupler hierarchy
+                var hoseAndCockTransform = FindTransformRecursive(couplerTransform, "hoseAndCock");
+                if (hoseAndCockTransform != null)
+                {
+                    var renderers = hoseAndCockTransform.GetComponentsInChildren<MeshRenderer>();
+                    foreach (var renderer in renderers)
+                    {
+                        renderer.enabled = visible;
+                    }
+                    return; // Found and processed
+                }
+            }
+
+            // Fallback 2: search for air hose related objects in the entire train hierarchy
+            var airHoseObjects = new string[]
+            {
+                "hoseAndCock",
+                $"hoseAndCock_{(coupler.isFrontCoupler ? "front" : "rear")}",
+                "AirHose",
+                "Hose",
+                $"{(coupler.isFrontCoupler ? "Front" : "Rear")}AirHose",
+                $"AirHose{(coupler.isFrontCoupler ? "Front" : "Rear")}"
+            };
+
+            foreach (var hoseObjectName in airHoseObjects)
+            {
+                var airHoseTransform = FindTransformRecursive(trainGameObject.transform, hoseObjectName);
+                if (airHoseTransform != null)
+                {
+                    var renderers = airHoseTransform.GetComponentsInChildren<MeshRenderer>();
+                    foreach (var renderer in renderers)
+                    {
+                        renderer.enabled = visible;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Recursively find a transform by name.
+        /// </summary>
+        private static Transform? FindTransformRecursive(Transform parent, string name)
+        {
+            if (parent.name.Equals(name, StringComparison.OrdinalIgnoreCase))
+                return parent;
+
+            for (int i = 0; i < parent.childCount; i++)
+            {
+                var result = FindTransformRecursive(parent.GetChild(i), name);
+                if (result != null)
+                    return result;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Toggle HookPlate_F visibility for S060 locomotive.
+        /// </summary>
+        private static void ToggleHookPlate(GameObject trainGameObject, bool visible)
+        {
+            // Look for HookPlate_F in the [buffers] hierarchy
+            var buffersTransform = trainGameObject.transform.Find("[buffers]");
+            if (buffersTransform != null)
+            {
+                var hookPlate = FindHookPlateRecursive(buffersTransform);
+                if (hookPlate != null)
+                {
+                    var renderer = hookPlate.GetComponent<MeshRenderer>();
+                    if (renderer != null)
+                    {
+                        renderer.enabled = visible;
+                    }
+                }
+            }
+
+            // Also check in the main hierarchy as backup
+            var mainHookPlate = FindHookPlateRecursive(trainGameObject.transform);
+            if (mainHookPlate != null)
+            {
+                var renderer = mainHookPlate.GetComponent<MeshRenderer>();
+                if (renderer != null)
+                {
+                    renderer.enabled = visible;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Recursively find HookPlate_F transform.
+        /// </summary>
+        private static Transform? FindHookPlateRecursive(Transform parent)
+        {
+            if (parent.name == "HookPlate_F")
+                return parent;
+
+            for (int i = 0; i < parent.childCount; i++)
+            {
+                var result = FindHookPlateRecursive(parent.GetChild(i));
+                if (result != null)
+                    return result;
+            }
+
+            return null;
+        }
 
         public static Transform? GetPivot(ChainCouplerInteraction? chainScript)
         {
@@ -44,6 +306,14 @@ namespace DvMod.ZCouplers
         {
             if (chainScript == null)
                 return;
+
+            // Check if this coupler should be disabled based on settings
+            if (ShouldDisableCoupler(chainScript.couplerAdapter.coupler))
+            {
+                // Hide coupler hardware (air hose, mounting brackets) for disabled couplers
+                ToggleCouplerHardware(chainScript.couplerAdapter.coupler, false);
+                return;
+            }
 
             // Check if hook already exists
             if (GetPivot(chainScript) != null)
@@ -89,6 +359,9 @@ namespace DvMod.ZCouplers
             {
                 chainScript.gameObject.AddComponent<CouplerVisualUpdater>();
             }
+
+            // Ensure coupler hardware is visible for enabled couplers
+            ToggleCouplerHardware(coupler, true);
         }
 
         /// <summary>
@@ -171,7 +444,12 @@ namespace DvMod.ZCouplers
             if (visualUpdater != null)
             {
                 GameObject.Destroy(visualUpdater);
-                Main.DebugLog(() => $"Removed CouplerVisualUpdater from {chainScript.couplerAdapter?.coupler?.train?.ID}");
+            }
+
+            // If this coupler should be disabled, hide its hardware
+            if (chainScript.couplerAdapter?.coupler != null && ShouldDisableCoupler(chainScript.couplerAdapter.coupler))
+            {
+                ToggleCouplerHardware(chainScript.couplerAdapter.coupler, false);
             }
         }
 
@@ -440,9 +718,13 @@ namespace DvMod.ZCouplers
                 var frontChainScript = car.frontCoupler.visualCoupler.chainAdapter.chainScript;
                 if (GetPivot(frontChainScript) == null && frontChainScript.enabled)
                 {
-                    // Removed routine coupler creation log
-                    CreateHook(frontChainScript, hookPrefab);
-                    created++;
+                    // Check if this coupler should be disabled
+                    if (!ShouldDisableCoupler(car.frontCoupler))
+                    {
+                        // Removed routine coupler creation log
+                        CreateHook(frontChainScript, hookPrefab);
+                        created++;
+                    }
                 }
             }
 

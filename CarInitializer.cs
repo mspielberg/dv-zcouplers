@@ -56,6 +56,21 @@ namespace DvMod.ZCouplers
                 }
             }
 
+            /// <summary>
+            /// Re-apply hardware hiding for steam locomotives after spawn/initialization
+            /// </summary>
+            private static IEnumerator DelayedHardwareToggle(TrainCar car)
+            {
+                // Wait longer than visual updates to ensure game initialization is complete
+                yield return new WaitForSeconds(0.5f);
+
+                if (car?.frontCoupler != null && HookManager.ShouldDisableCoupler(car.frontCoupler))
+                {
+                    Main.DebugLog(() => $"Re-applying hardware hiding for steam locomotive {car.ID} front coupler");
+                    HookManager.ToggleCouplerHardware(car.frontCoupler, false);
+                }
+            }
+
             private static IEnumerator InitializeNewCar(TrainCar car)
             {
                 // Wait a frame for the car to be fully initialized
@@ -83,6 +98,17 @@ namespace DvMod.ZCouplers
                     if (!car.rearCoupler.IsCoupled())
                     {
                         car.rearCoupler.state = ChainCouplerInteraction.State.Dangling;
+                    }
+
+                    // For steam locomotives, re-apply hardware hiding after initialization
+                    // because the game may have re-enabled air hoses during initialization
+                    if (Main.settings.disableFrontCouplersOnSteamLocos)
+                    {
+                        if (HookManager.ShouldDisableCoupler(car.frontCoupler))
+                        {
+                            // Wait a bit longer to ensure the game has finished initializing everything
+                            car.StartCoroutine(DelayedHardwareToggle(car));
+                        }
                     }
 
                     // Update visual states after a small delay to ensure hooks are created
