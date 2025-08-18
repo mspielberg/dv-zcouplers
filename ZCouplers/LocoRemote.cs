@@ -33,9 +33,21 @@ namespace DvMod.ZCouplers
 
                 while (coupler.coupledTo is Coupler partner)
                 {
-                    coupler.ConnectAirHose(partner, true);
+                    try
+                    {
+                        coupler.ConnectAirHose(partner, true);
+                        Main.DebugLog(() => $"Invoked Coupler.ConnectAirHose(Coupler, bool) for Air via Remote -> {coupler.train.ID} <-> {partner.train.ID}");
+                    }
+                    catch (System.Exception ex)
+                    {
+                        Main.ErrorLog(() => $"Remote ConnectAirHose error: {ex.Message}");
+                    }
                     coupler.IsCockOpen = true;
                     partner.IsCockOpen = true;
+
+                    // Auto-connect MU cables in automatic mode
+                    if (Main.settings.EffectiveFullAutomaticMode)
+                        AirSystemAutomation.TryAutoConnectMU(coupler, partner);
 
                     // Force create joints for remote coupling
                     Couplers.ForceCreateTensionJoint(coupler);

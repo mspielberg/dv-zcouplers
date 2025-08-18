@@ -7,7 +7,7 @@ namespace DvMod.ZCouplers
     /// </summary>
     public static class CouplerProfiles
     {
-    private static readonly Dictionary<CouplerType, ICouplerProfile> registry = new Dictionary<CouplerType, ICouplerProfile>();
+        private static readonly Dictionary<CouplerType, ICouplerProfile> registry = new Dictionary<CouplerType, ICouplerProfile>();
 
         public static void Register(ICouplerProfile profile)
         {

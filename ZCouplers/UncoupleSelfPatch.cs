@@ -14,9 +14,15 @@ public static class UncoupleSelfPatch
             var fc = __instance.frontCoupler;
             var rc = __instance.rearCoupler;
             if (fc?.coupledTo != null)
+            {
                 AirSystemAutomation.TryAutoDisconnect(fc, fc.coupledTo);
+                AirSystemAutomation.TryAutoDisconnectMU(fc, fc.coupledTo);
+            }
             if (rc?.coupledTo != null)
+            {
                 AirSystemAutomation.TryAutoDisconnect(rc, rc.coupledTo);
+                AirSystemAutomation.TryAutoDisconnectMU(rc, rc.coupledTo);
+            }
         }
         catch { }
 

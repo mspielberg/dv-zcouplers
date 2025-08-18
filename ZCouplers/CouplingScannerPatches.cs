@@ -248,6 +248,7 @@ namespace DvMod.ZCouplers
                 if (Main.settings.EffectiveFullAutomaticMode && coupler.IsCoupled() && otherCoupler.IsCoupled())
                 {
                     TryConnectAirSystemsAutomatically(coupler, otherCoupler);
+                    AirSystemAutomation.TryAutoConnectMU(coupler, otherCoupler);
                 }
             }
 
@@ -277,9 +278,22 @@ namespace DvMod.ZCouplers
                         // Connect air hoses if not already connected.
                         if (!hoseAndCock1.IsHoseConnected && !hoseAndCock2.IsHoseConnected)
                         {
-                            // Use the game's native connection system.
-                            coupler.ConnectAirHose(otherCoupler, playAudio: true);
-                            Main.DebugLog(() => $"Auto-connected air hoses between {coupler.train.ID} and {otherCoupler.train.ID}");
+                            // Use the game's native connection system and log the method used
+                            try
+                            {
+                                coupler.ConnectAirHose(otherCoupler, playAudio: true);
+                                Main.DebugLog(() => $"Invoked Coupler.ConnectAirHose(Coupler, bool) for Air -> {coupler.train.ID} <-> {otherCoupler.train.ID}");
+                            }
+                            catch (System.MissingMethodException)
+                            {
+                                // Fallback signature without named arg
+                                coupler.ConnectAirHose(otherCoupler, true);
+                                Main.DebugLog(() => $"Invoked Coupler.ConnectAirHose(Coupler, bool) [fallback] for Air -> {coupler.train.ID} <-> {otherCoupler.train.ID}");
+                            }
+                            catch (System.Exception ex)
+                            {
+                                Main.ErrorLog(() => $"Error calling ConnectAirHose: {ex.Message}");
+                            }
                         }
                     }
                 }
@@ -340,6 +354,7 @@ namespace DvMod.ZCouplers
                             if (Main.settings.EffectiveFullAutomaticMode)
                             {
                                 TryConnectAirSystemsAutomatically(coupler, otherCoupler);
+                                AirSystemAutomation.TryAutoConnectMU(coupler, otherCoupler);
                             }
 
                             // Coupling complete; stop the coroutine.
@@ -400,6 +415,7 @@ namespace DvMod.ZCouplers
                                     if (Main.settings.EffectiveFullAutomaticMode)
                                     {
                                         TryConnectAirSystemsAutomatically(coupler, otherCoupler);
+                                        AirSystemAutomation.TryAutoConnectMU(coupler, otherCoupler);
                                     }
 
                                     // Exit since coupling is complete

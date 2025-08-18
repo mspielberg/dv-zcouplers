@@ -76,7 +76,7 @@ namespace DvMod.ZCouplers
             // Profile-driven hose policy (e.g., Schaku hides hoses regardless of visible)
             var profile = CouplerProfiles.Current;
             bool shouldShowAirHose = visible && (profile?.Options.AlwaysHideAirHoses != true);
-            
+
             // Toggle air hose
             ToggleAirHose(coupler, shouldShowAirHose);
 
@@ -126,7 +126,7 @@ namespace DvMod.ZCouplers
                 return;
 
             var trainGameObject = coupler.train.gameObject;
-            
+
             // For profiles that always hide air hoses (e.g., Schaku), enforce it
             if (CouplerProfiles.Current?.Options.AlwaysHideAirHoses == true)
             {
@@ -613,17 +613,17 @@ namespace DvMod.ZCouplers
             {
                 pivot.localEulerAngles = Vector3.zero;
                 var offset = pivot.InverseTransformPoint(target.position);
-                
+
                 // Calculate horizontal rotation (yaw)
                 var horizontalAngle = Mathf.Atan2(offset.x, offset.z) * Mathf.Rad2Deg;
-                
+
                 // Vertical articulation is profile-driven
                 if (CouplerProfiles.Current?.Options.SupportsVerticalArticulation == true)
                 {
                     // Calculate vertical rotation (pitch) for Schafenberg couplers
                     var horizontalDistance = Mathf.Sqrt(offset.x * offset.x + offset.z * offset.z);
                     var verticalAngle = -Mathf.Atan2(offset.y, horizontalDistance) * Mathf.Rad2Deg;
-                    
+
                     // Apply both horizontal and vertical rotations
                     pivot.localEulerAngles = new Vector3(verticalAngle, horizontalAngle, 0);
                 }

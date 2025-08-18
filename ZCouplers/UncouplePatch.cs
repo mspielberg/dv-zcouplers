@@ -67,6 +67,7 @@ public static class UncouplePatch
             if (partnerCouplers.TryGetValue(__instance, out Coupler partner) && partner != null)
             {
                 AirSystemAutomation.TryAutoDisconnect(__instance, partner);
+                AirSystemAutomation.TryAutoDisconnectMU(__instance, partner);
             }
         }
         catch { }
