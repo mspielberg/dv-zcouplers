@@ -1,0 +1,48 @@
+# ZCouplers - .gitignore
+
+# Build output
+/bin/
+/obj/
+/ModPackage/
+*.dll
+*.exe
+*.pdb
+
+# Unity asset bundles
+*.assetbundle
+
+# User-specific files
+*.user
+*.suo
+*.userprefs
+
+# Visual Studio Code
+.vscode/
+
+# Rider
+.idea/
+
+# Unity generated files
+Library/
+Temp/
+Logs/
+Build/
+Builds/
+UserSettings/
+MemoryCaptures/
+
+# DV references (do not commit game binaries)
+References/DV Source Code/
+
+# UMM plugin cache
+*.mm.dll
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Crash logs
+*.log
+
+# Ignore copilot instructions
+.github/copilot-instructions.md

@@ -7,3 +7,4 @@ Directory.Build.targets
 References/
 ModPackage/
 .github/
+.editorconfig
