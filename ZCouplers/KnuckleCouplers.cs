@@ -1,5 +1,5 @@
 using DV.CabControls;
-
+using System;
 using UnityEngine;
 
 namespace DvMod.ZCouplers
@@ -19,7 +19,13 @@ namespace DvMod.ZCouplers
         }
 
         // Asset management delegation
-        public static GameObject? GetHookPrefab() => AssetManager.GetAARClosedPrefab();
+        public static GameObject? GetHookPrefab() => Main.settings.couplerType switch
+        {
+            CouplerType.AARKnuckle => AssetManager.GetAARClosedPrefab(),
+            CouplerType.SA3Knuckle => AssetManager.GetSA3ClosedPrefab(),
+            CouplerType.Schafenberg => AssetManager.GetSchakuClosedPrefab(),
+            _ => AssetManager.GetAARClosedPrefab()
+        };
 
         // Hook management delegation
         public static void CreateHook(ChainCouplerInteraction chainCoupler) => HookManager.CreateHook(chainCoupler, GetHookPrefab());

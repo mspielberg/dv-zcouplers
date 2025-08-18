@@ -139,8 +139,6 @@ namespace DvMod.ZCouplers
             // For steam locomotives, look for their interior objects
             var interiorName = $"{trainName} [interior]";
 
-            // Omit interior search debug
-
             // Find all matching interior objects, not just the first one
             var allGameObjects = UnityEngine.Object.FindObjectsOfType<GameObject>();
             var matchingInteriors = new List<GameObject>();
@@ -152,8 +150,6 @@ namespace DvMod.ZCouplers
                     matchingInteriors.Add(obj);
                 }
             }
-
-            // Omit counts to reduce noise
 
             if (matchingInteriors.Count == 0)
             {
@@ -411,6 +407,13 @@ namespace DvMod.ZCouplers
                 finalPosition += new Vector3(-0.035f, 0f, 0f);
             }
 
+            // Apply Schafenberg-specific offsets if needed (placeholder for future customization)
+            if (Main.settings.couplerType == CouplerType.Schafenberg)
+            {
+                // Add any Schafenberg-specific positioning offsets here if needed
+                // finalPosition += new Vector3(0f, 0f, 0f);
+            }
+
             // Apply height offset for LocoS282A front coupler
             if (IsFrontCouplerOnLocoS282A(coupler))
             {
@@ -515,12 +518,29 @@ namespace DvMod.ZCouplers
             {
                 pivot.localEulerAngles = Vector3.zero;
                 var offset = pivot.InverseTransformPoint(target.position);
-                var angle = Mathf.Atan2(offset.x, offset.z) * Mathf.Rad2Deg;
-                pivot.localEulerAngles = new Vector3(0, angle, 0);
+                
+                // Calculate horizontal rotation (yaw)
+                var horizontalAngle = Mathf.Atan2(offset.x, offset.z) * Mathf.Rad2Deg;
+                
+                // Only Schafenberg couplers have vertical movement
+                if (Main.settings.couplerType == CouplerType.Schafenberg)
+                {
+                    // Calculate vertical rotation (pitch) for Schafenberg couplers
+                    var horizontalDistance = Mathf.Sqrt(offset.x * offset.x + offset.z * offset.z);
+                    var verticalAngle = -Mathf.Atan2(offset.y, horizontalDistance) * Mathf.Rad2Deg;
+                    
+                    // Apply both horizontal and vertical rotations
+                    pivot.localEulerAngles = new Vector3(verticalAngle, horizontalAngle, 0);
+                }
+                else
+                {
+                    // Other coupler types only rotate horizontally
+                    pivot.localEulerAngles = new Vector3(0, horizontalAngle, 0);
+                }
 
-                offset.y = 0f;
+                // Keep the Y component for distance calculation but don't zero it out for positioning
                 var distance = offset.magnitude;
-                var hook = pivot.Find("hook") ?? pivot.Find("hook_open") ?? pivot.Find("SA3_closed") ?? pivot.Find("SA3_open");
+                var hook = pivot.Find("hook") ?? pivot.Find("hook_open") ?? pivot.Find("SA3_closed") ?? pivot.Find("SA3_open") ?? pivot.Find("Schaku_closed") ?? pivot.Find("Schaku_open");
                 if (hook != null && hook.gameObject != null)
                 {
                     // Base position at half distance
@@ -534,6 +554,13 @@ namespace DvMod.ZCouplers
                     {
                         // Move SA3 coupler head 0.035 units to the left (negative X in local space)
                         finalPosition += new Vector3(-0.035f, 0f, 0f);
+                    }
+
+                    // Apply Schafenberg-specific offsets if needed (placeholder for future customization)
+                    if (Main.settings.couplerType == CouplerType.Schafenberg)
+                    {
+                        // Add any Schafenberg-specific positioning offsets here if needed
+                        // finalPosition += new Vector3(0f, 0f, 0f);
                     }
 
                     // Apply height offset for LocoS282A front coupler
@@ -570,14 +597,14 @@ namespace DvMod.ZCouplers
             {
                 // Check if we need to swap the hook visual for couplers that support multiple states
                 var couplerType = Main.settings.couplerType;
-                if (couplerType == CouplerType.AARKnuckle || couplerType == CouplerType.SA3Knuckle)
+                if (couplerType == CouplerType.AARKnuckle || couplerType == CouplerType.SA3Knuckle || couplerType == CouplerType.Schafenberg)
                 {
                     SwapHookVisualIfNeeded(chainScript, coupler);
                 }
 
                 // Determine the correct interaction text based on coupler state
                 var pivot = GetPivot(chainScript);
-                var hook = pivot?.Find("hook") ?? pivot?.Find("hook_open");
+                var hook = pivot?.Find("hook") ?? pivot?.Find("hook_open") ?? pivot?.Find("SA3_closed") ?? pivot?.Find("SA3_open") ?? pivot?.Find("Schaku_closed") ?? pivot?.Find("Schaku_open");
                 if (hook?.GetComponent<InfoArea>() is InfoArea infoArea)
                 {
                     // Base the text on the actual coupler state, not just the locked flag
@@ -620,6 +647,13 @@ namespace DvMod.ZCouplers
                                 finalPosition += new Vector3(-0.035f, 0f, 0f);
                             }
 
+                            // Apply Schafenberg-specific offsets when parked (placeholder for future customization)
+                            if (Main.settings.couplerType == CouplerType.Schafenberg)
+                            {
+                                // Add any Schafenberg-specific positioning offsets here if needed
+                                // finalPosition += new Vector3(0f, 0f, 0f);
+                            }
+
                             // Apply height offset for LocoS282A front coupler
                             if (IsFrontCouplerOnLocoS282A(coupler))
                             {
@@ -660,8 +694,8 @@ namespace DvMod.ZCouplers
             }
 
             // Find hook by name - check for all possible variations
-            var hookOpen = pivot.Find("hook_open") ?? pivot.Find("SA3_open");
-            var hookClosed = pivot.Find("hook") ?? pivot.Find("SA3_closed");
+            var hookOpen = pivot.Find("hook_open") ?? pivot.Find("SA3_open") ?? pivot.Find("Schaku_open");
+            var hookClosed = pivot.Find("hook") ?? pivot.Find("SA3_closed") ?? pivot.Find("Schaku_closed");
             var hook = hookOpen ?? hookClosed;
 
             // Collect child names for potential diagnostics
@@ -669,7 +703,7 @@ namespace DvMod.ZCouplers
             for (int i = 0; i < pivot.childCount; i++)
             {
                 var child = pivot.GetChild(i);
-                if (child.name.Contains("hook") || child.name.Contains("SA3"))
+                if (child.name.Contains("hook") || child.name.Contains("SA3") || child.name.Contains("Schaku"))
                     childNames.Add(child.name);
             }
 
@@ -690,6 +724,10 @@ namespace DvMod.ZCouplers
             else if (couplerType == CouplerType.SA3Knuckle)
             {
                 shouldUseOpenHook = isParked && AssetManager.GetSA3OpenPrefab() != null;
+            }
+            else if (couplerType == CouplerType.Schafenberg)
+            {
+                shouldUseOpenHook = isParked && AssetManager.GetSchakuOpenPrefab() != null;
             }
 
             // Check if we need to swap the hook visual
@@ -744,6 +782,11 @@ namespace DvMod.ZCouplers
                 {
                     newHookPrefab = shouldUseOpenHook ? AssetManager.GetSA3OpenPrefab() : AssetManager.GetSA3ClosedPrefab();
                     desiredName = shouldUseOpenHook ? "SA3_open" : "SA3_closed";
+                }
+                else if (couplerType == CouplerType.Schafenberg)
+                {
+                    newHookPrefab = shouldUseOpenHook ? AssetManager.GetSchakuOpenPrefab() : AssetManager.GetSchakuClosedPrefab();
+                    desiredName = shouldUseOpenHook ? "Schaku_open" : "Schaku_closed";
                 }
 
                 if (newHookPrefab != null && pivot != null)
