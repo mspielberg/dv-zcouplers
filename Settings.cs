@@ -18,6 +18,9 @@ namespace DvMod.ZCouplers
         [Draw("Auto couple threshold (mm)", Min = 0f)]
         public float autoCoupleThreshold = 20f;
 
+        [Draw("Full Automatic Mode", Tooltip = "Automatically connect air hoses and open brake valves when coupling")]
+        public bool fullAutomaticMode = false;
+
         [Draw("Disable Front Couplers on Steam Locos", Tooltip = "Disable knuckle couplers on the front of S282A and S060 locomotives")]
         public bool disableFrontCouplersOnSteamLocos = false;
 

@@ -243,6 +243,50 @@ namespace DvMod.ZCouplers
                 if (otherCoupler == null || otherCoupler.train.derailed)
                     return;
                 coupler.CoupleTo(otherCoupler, viaChainInteraction: true);
+
+                // Full Automatic Mode: connect air hoses and open brake valves.
+                if (Main.settings.fullAutomaticMode && coupler.IsCoupled() && otherCoupler.IsCoupled())
+                {
+                    TryConnectAirSystemsAutomatically(coupler, otherCoupler);
+                }
+            }
+
+            private static void TryConnectAirSystemsAutomatically(Coupler coupler, Coupler otherCoupler)
+            {
+                try
+                {
+                    // Connect air hoses if both have them and they're not already connected.
+                    var hoseAndCock1 = coupler.hoseAndCock;
+                    var hoseAndCock2 = otherCoupler.hoseAndCock;
+
+                    if (hoseAndCock1 != null && hoseAndCock2 != null)
+                    {
+                        // Open brake valves (angle cocks) on both sides first.
+                        if (!coupler.IsCockOpen)
+                        {
+                            coupler.IsCockOpen = true;
+                            Main.DebugLog(() => $"Auto-opened brake valve on {coupler.train.ID} {(coupler.isFrontCoupler ? "front" : "rear")}");
+                        }
+
+                        if (!otherCoupler.IsCockOpen)
+                        {
+                            otherCoupler.IsCockOpen = true;
+                            Main.DebugLog(() => $"Auto-opened brake valve on {otherCoupler.train.ID} {(otherCoupler.isFrontCoupler ? "front" : "rear")}");
+                        }
+
+                        // Connect air hoses if not already connected.
+                        if (!hoseAndCock1.IsHoseConnected && !hoseAndCock2.IsHoseConnected)
+                        {
+                            // Use the game's native connection system.
+                            coupler.ConnectAirHose(otherCoupler, playAudio: true);
+                            Main.DebugLog(() => $"Auto-connected air hoses between {coupler.train.ID} and {otherCoupler.train.ID}");
+                        }
+                    }
+                }
+                catch (System.Exception ex)
+                {
+                    Main.ErrorLog(() => $"Error in automatic air system connection: {ex.Message}");
+                }
             }
 
             private const float StaticOffset = 0.5f;
@@ -292,8 +336,13 @@ namespace DvMod.ZCouplers
                                 JointManager.ForceCreateTensionJoint(otherCoupler);
                             }
 
-                            // Exit since coupling is complete
-                            // Removed verbose MasterCoro exit log
+                            // Handle Full Automatic Mode for already coupled cars during save loading
+                            if (Main.settings.fullAutomaticMode)
+                            {
+                                TryConnectAirSystemsAutomatically(coupler, otherCoupler);
+                            }
+
+                            // Coupling complete; stop the coroutine.
                             __instance.masterCoro = null;
                             yield break;
                         }
@@ -345,6 +394,12 @@ namespace DvMod.ZCouplers
                                     {
                                         Main.DebugLog(() => $"Creating tension joint after save-state fix: {otherCoupler.train.ID} {otherCoupler.Position()}");
                                         JointManager.ForceCreateTensionJoint(otherCoupler);
+                                    }
+
+                                    // Handle Full Automatic Mode for couplers fixed from mismatched states
+                                    if (Main.settings.fullAutomaticMode)
+                                    {
+                                        TryConnectAirSystemsAutomatically(coupler, otherCoupler);
                                     }
 
                                     // Exit since coupling is complete
