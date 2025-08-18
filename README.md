@@ -44,7 +44,8 @@ Open Unity Mod Manager (Ctrl+F10 by default) → ZCouplers to access settings:
 
 - Author: Zeibach/mspielberg
 - Maintainer: Fuggschen
-- Additional Coupler Visuals (open/closed state): Rajaneesh R
+- Additional Coupler Visuals (open/closed state) for AAR/SA3: Rajaneesh R
+- Schafenberg Coupler: Micha77
 
 Licensed under the MIT License. See `LICENSE`.
 
