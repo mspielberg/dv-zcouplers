@@ -207,10 +207,30 @@ namespace DvMod.ZCouplers
                         if (coupler.transform != null)
                         {
                             pivot.localEulerAngles = coupler.transform.localEulerAngles;
-                            var hook = pivot.Find("hook");
+                            var hook = pivot.Find("hook") ?? pivot.Find("SA3_closed") ?? pivot.Find("SA3_open");
                             if (hook != null && hook.gameObject != null)
                             {
-                                hook.localPosition = 1.0f * Vector3.forward; // PivotLength constant
+                                // Base position when disconnecting
+                                var basePosition = 1.0f * Vector3.forward; // PivotLength constant
+
+                                // Start with base position
+                                var finalPosition = basePosition;
+
+                                // Apply SA3-specific offset if using SA3 couplers
+                                if (Main.settings.couplerType == CouplerType.SA3Knuckle)
+                                {
+                                    // Move SA3 coupler head 0.035 units to the left
+                                    finalPosition += new Vector3(-0.035f, 0f, 0f);
+                                }
+
+                                // Apply height offset for LocoS282A front coupler
+                                if (coupler?.train?.carLivery?.id == "LocoS282A" && coupler.isFrontCoupler)
+                                {
+                                    // Move front coupler on LocoS282A down by 0.05 units
+                                    finalPosition += new Vector3(0f, -0.05f, 0f);
+                                }
+
+                                hook.localPosition = finalPosition;
                             }
                         }
                     }

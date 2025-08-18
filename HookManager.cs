@@ -399,13 +399,62 @@ namespace DvMod.ZCouplers
             hook.name = desiredName; // Use the desired name instead of always "hook"
             hook.layer = LayerMask.NameToLayer("Interactable");
             hook.transform.SetParent(pivot, false);
-            hook.transform.localPosition = PivotLength * Vector3.forward;
 
-            // Use the existing colliders from the prefab - NO automatic creation at all
+            // Set initial position with offsets
+            var basePosition = PivotLength * Vector3.forward;
+            var finalPosition = basePosition;
+
+            // Apply SA3-specific left offset if using SA3 couplers
+            if (Main.settings.couplerType == CouplerType.SA3Knuckle)
+            {
+                // Move SA3 coupler head 0.035 units to the left
+                finalPosition += new Vector3(-0.035f, 0f, 0f);
+            }
+
+            // Apply height offset for LocoS282A front coupler
+            if (IsFrontCouplerOnLocoS282A(coupler))
+            {
+                // Move front coupler on LocoS282A down by 0.05 units
+                finalPosition += new Vector3(0f, -0.05f, 0f);
+            }
+
+            hook.transform.localPosition = finalPosition;
+
+            // Use the existing colliders from the prefab; no automatic creation
             var interactionCollider = hook.GetComponent<BoxCollider>();
             if (interactionCollider != null)
             {
-                interactionCollider.isTrigger = true; // Ensure it's set as trigger for interaction
+                interactionCollider.isTrigger = true; // Ensure it's a trigger for interaction
+
+                // Restore solid walkable collider like v1.2.2: create a child with a non-trigger BoxCollider
+                // so the coupler head has physical collision for players while keeping interaction as trigger.
+                var existingWalkable = hook.transform.Find("walkable");
+                if (existingWalkable == null)
+                {
+                    var colliderHost = new GameObject("walkable");
+                    colliderHost.layer = LayerMask.NameToLayer("Train_Walkable");
+                    colliderHost.transform.SetParent(hook.transform, worldPositionStays: false);
+
+                    var walkableCollider = colliderHost.AddComponent<BoxCollider>();
+                    walkableCollider.center = interactionCollider.center;
+                    walkableCollider.size = interactionCollider.size;
+                    walkableCollider.isTrigger = false;
+                }
+                else
+                {
+                    // Ensure any existing walkable collider is configured properly
+                    existingWalkable.gameObject.layer = LayerMask.NameToLayer("Train_Walkable");
+                    if (existingWalkable.GetComponent<BoxCollider>() is BoxCollider wc)
+                    {
+                        wc.isTrigger = false;
+                        wc.center = interactionCollider.center;
+                        wc.size = interactionCollider.size;
+                    }
+                }
+            }
+            else
+            {
+                // Prefab has no BoxCollider; skip walkable collider creation
             }
 
             var buttonSpec = hook.AddComponent<Button>();
@@ -471,10 +520,33 @@ namespace DvMod.ZCouplers
 
                 offset.y = 0f;
                 var distance = offset.magnitude;
-                var hook = pivot.Find("hook") ?? pivot.Find("hook_open");
+                var hook = pivot.Find("hook") ?? pivot.Find("hook_open") ?? pivot.Find("SA3_closed") ?? pivot.Find("SA3_open");
                 if (hook != null && hook.gameObject != null)
                 {
-                    hook.localPosition = distance / 2 * Vector3.forward;
+                    // Base position at half distance
+                    var basePosition = distance / 2 * Vector3.forward;
+
+                    // Start with base position
+                    var finalPosition = basePosition;
+
+                    // Apply SA3-specific left offset if using SA3 couplers
+                    if (Main.settings.couplerType == CouplerType.SA3Knuckle)
+                    {
+                        // Move SA3 coupler head 0.035 units to the left (negative X in local space)
+                        finalPosition += new Vector3(-0.035f, 0f, 0f);
+                    }
+
+                    // Apply height offset for LocoS282A front coupler
+                    var coupler = pivot.GetComponentInParent<Coupler>();
+                    if (IsFrontCouplerOnLocoS282A(coupler))
+                    {
+                        // Move front coupler on LocoS282A down by 0.05 units
+                        finalPosition += new Vector3(0f, -0.05f, 0f);
+                    }
+
+                    hook.localPosition = finalPosition;
+
+                    // Intentionally not logging per-frame positioning
                 }
             }
             catch (System.Exception ex)
@@ -535,8 +607,27 @@ namespace DvMod.ZCouplers
                         pivot.localEulerAngles = coupler.transform.localEulerAngles;
                         if (hook != null && hook.gameObject != null)
                         {
-                            hook.localPosition = PivotLength * Vector3.forward;
-                            Main.DebugLog(() => $"Reset knuckle coupler hook position for {coupler.train.ID} {coupler.Position()}");
+                            // Base position when parked/disconnected
+                            var basePosition = PivotLength * Vector3.forward;
+
+                            // Start with base position
+                            var finalPosition = basePosition;
+
+                            // Apply SA3-specific left offset if using SA3 couplers
+                            if (Main.settings.couplerType == CouplerType.SA3Knuckle)
+                            {
+                                // Move SA3 coupler head 0.035 units to the left when parked
+                                finalPosition += new Vector3(-0.035f, 0f, 0f);
+                            }
+
+                            // Apply height offset for LocoS282A front coupler
+                            if (IsFrontCouplerOnLocoS282A(coupler))
+                            {
+                                // Move front coupler on LocoS282A down by 0.05 units
+                                finalPosition += new Vector3(0f, -0.05f, 0f);
+                            }
+
+                            hook.localPosition = finalPosition;
                         }
                     }
 

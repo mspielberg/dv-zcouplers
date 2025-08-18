@@ -19,7 +19,7 @@ namespace DvMod.ZCouplers
         }
 
         // Asset management delegation
-        public static GameObject? GetHookPrefab() => AssetManager.GetHookPrefab();
+        public static GameObject? GetHookPrefab() => AssetManager.GetAARClosedPrefab();
 
         // Hook management delegation
         public static void CreateHook(ChainCouplerInteraction chainCoupler) => HookManager.CreateHook(chainCoupler, GetHookPrefab());
