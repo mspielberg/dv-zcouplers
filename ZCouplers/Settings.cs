@@ -21,6 +21,12 @@ namespace DvMod.ZCouplers
         [Draw("Full Automatic Mode", Tooltip = "Automatically connect air hoses and open brake valves when coupling")]
         public bool fullAutomaticMode = false;
 
+        /// <summary>
+        /// Gets the effective Full Automatic Mode setting, considering Schafenberg coupler requirements.
+        /// Schafenberg couplers automatically force Full Automatic Mode to be active.
+        /// </summary>
+        public bool EffectiveFullAutomaticMode => fullAutomaticMode || couplerType == CouplerType.Schafenberg;
+
         [Draw("Disable Front Couplers on Steam Locos", Tooltip = "Disable knuckle couplers on the front of S282A and S060 locomotives")]
         public bool disableFrontCouplersOnSteamLocos = false;
 

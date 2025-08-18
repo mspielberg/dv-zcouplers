@@ -60,6 +60,7 @@ namespace DvMod.ZCouplers
         /// <summary>
         /// Toggle air hoses and coupler mounting hardware for disabled couplers.
         /// Also toggles the coupler component functionality.
+        /// For Schafenberg couplers, air hoses are always deactivated.
         /// </summary>
         public static void ToggleCouplerHardware(Coupler coupler, bool visible)
         {
@@ -72,8 +73,12 @@ namespace DvMod.ZCouplers
             // Toggle the actual coupler component functionality
             ToggleCouplerComponent(coupler, visible);
 
+            // Profile-driven hose policy (e.g., Schaku hides hoses regardless of visible)
+            var profile = CouplerProfiles.Current;
+            bool shouldShowAirHose = visible && (profile?.Options.AlwaysHideAirHoses != true);
+            
             // Toggle air hose
-            ToggleAirHose(coupler, visible);
+            ToggleAirHose(coupler, shouldShowAirHose);
 
             // Toggle mounting hardware based on locomotive type
             if (liveryId == "LocoS060")
@@ -82,7 +87,7 @@ namespace DvMod.ZCouplers
             }
 
             // Summary debug
-            Main.DebugLog(() => $"Coupler hardware toggled for {coupler.train.ID} {coupler.Position()}: visible={visible}");
+            Main.DebugLog(() => $"Coupler hardware toggled for {coupler.train.ID} {coupler.Position()}: visible={visible}, airHose={shouldShowAirHose}");
         }
 
         /// <summary>
@@ -112,13 +117,24 @@ namespace DvMod.ZCouplers
 
         /// <summary>
         /// Toggle air hose visibility for a specific coupler.
+        /// For Schafenberg couplers, air hoses are always hidden on all trains.
+        /// For steam locomotives, air hoses are hidden only on front couplers when the disable setting is enabled.
         /// </summary>
-        private static void ToggleAirHose(Coupler coupler, bool visible)
+        public static void ToggleAirHose(Coupler coupler, bool visible)
         {
             if (coupler?.train?.gameObject == null)
                 return;
 
-            // Only process steam locomotives when the disable setting is enabled
+            var trainGameObject = coupler.train.gameObject;
+            
+            // For profiles that always hide air hoses (e.g., Schaku), enforce it
+            if (CouplerProfiles.Current?.Options.AlwaysHideAirHoses == true)
+            {
+                ToggleAirHoseOnAllTrainTypes(trainGameObject, coupler, false);
+                return;
+            }
+
+            // Original logic for steam locomotives when the disable setting is enabled
             if (!Main.settings.disableFrontCouplersOnSteamLocos)
                 return;
 
@@ -130,10 +146,36 @@ namespace DvMod.ZCouplers
             if (!coupler.isFrontCoupler)
                 return;
 
-            // Reduce verbosity for routine toggles
+            ToggleAirHoseOnSteamLocomotive(trainGameObject, coupler, visible);
+        }
 
-            // Find air hose objects in the train hierarchy
-            var trainGameObject = coupler.train.gameObject;
+        /// <summary>
+        /// Toggle air hose visibility on all train types (for Schafenberg couplers).
+        /// Uses the same proven approach as steam locomotive air hose handling.
+        /// </summary>
+        private static void ToggleAirHoseOnAllTrainTypes(GameObject trainGameObject, Coupler coupler, bool visible)
+        {
+            // Deterministic: only disable/enable both direct "hoses" children under the interior
+            var interior = coupler.train?.interior;
+            if (interior == null)
+                return;
+
+            for (int i = 0; i < interior.childCount; i++)
+            {
+                var child = interior.GetChild(i);
+                if (child != null && child.name == "hoses")
+                {
+                    child.gameObject.SetActive(visible);
+                    if (!visible) HoseHider.Attach(child);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Toggle air hose visibility on steam locomotives (original logic).
+        /// </summary>
+        private static void ToggleAirHoseOnSteamLocomotive(GameObject trainGameObject, Coupler coupler, bool visible)
+        {
             var trainName = trainGameObject.name;
 
             // For steam locomotives, look for their interior objects
@@ -160,12 +202,15 @@ namespace DvMod.ZCouplers
             // Process all matching interior objects
             foreach (var interiorGameObject in matchingInteriors)
             {
-                var hosesTransform = interiorGameObject.transform.Find("hoses");
-                if (hosesTransform != null)
+                // Toggle all direct hose children (there are usually two)
+                SetActiveForChildrenNamed(interiorGameObject.transform, "hoses", visible, recursive: false);
+                // and recursive as a safety net
+                SetActiveForChildrenNamed(interiorGameObject.transform, "hoses", visible, recursive: true);
+                if (!visible)
                 {
-                    hosesTransform.gameObject.SetActive(visible);
+                    foreach (var t in FindAllTransformsByName(interiorGameObject.transform, "hoses", recursive: true))
+                        HoseHider.Attach(t);
                 }
-                // else: not found; continue fallbacks
             }
 
             // Fallback 1: try to find the coupler hierarchy (original logic)
@@ -173,16 +218,12 @@ namespace DvMod.ZCouplers
             var couplerTransform = trainGameObject.transform.Find(couplerHierarchy);
             if (couplerTransform != null)
             {
-                // Look for "hoseAndCock" specifically in the coupler hierarchy
-                var hoseAndCockTransform = FindTransformRecursive(couplerTransform, "hoseAndCock");
-                if (hoseAndCockTransform != null)
+                foreach (var t in FindAllTransformsByName(couplerTransform, "hoseAndCock"))
                 {
-                    var renderers = hoseAndCockTransform.GetComponentsInChildren<MeshRenderer>();
+                    var renderers = t.GetComponentsInChildren<MeshRenderer>(true);
                     foreach (var renderer in renderers)
-                    {
                         renderer.enabled = visible;
-                    }
-                    return; // Found and processed
+                    if (!visible) HoseHider.Attach(t);
                 }
             }
 
@@ -198,17 +239,13 @@ namespace DvMod.ZCouplers
             };
 
             foreach (var hoseObjectName in airHoseObjects)
-            {
-                var airHoseTransform = FindTransformRecursive(trainGameObject.transform, hoseObjectName);
-                if (airHoseTransform != null)
+                foreach (var t in FindAllTransformsByName(trainGameObject.transform, hoseObjectName))
                 {
-                    var renderers = airHoseTransform.GetComponentsInChildren<MeshRenderer>();
+                    var renderers = t.GetComponentsInChildren<MeshRenderer>(true);
                     foreach (var renderer in renderers)
-                    {
                         renderer.enabled = visible;
-                    }
+                    if (!visible) HoseHider.Attach(t);
                 }
-            }
         }
 
         /// <summary>
@@ -227,6 +264,73 @@ namespace DvMod.ZCouplers
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Find all child transforms (optionally recursive) whose name equals the provided name (case-insensitive).
+        /// </summary>
+        private static IEnumerable<Transform> FindAllTransformsByName(Transform root, string name, bool recursive = true)
+        {
+            if (root == null)
+                yield break;
+
+            var comparison = StringComparison.OrdinalIgnoreCase;
+
+            if (!recursive)
+            {
+                for (int i = 0; i < root.childCount; i++)
+                {
+                    var child = root.GetChild(i);
+                    if (child.name.Equals(name, comparison))
+                        yield return child;
+                }
+                yield break;
+            }
+
+            // Recursive traversal
+            var stack = new Stack<Transform>();
+            stack.Push(root);
+            while (stack.Count > 0)
+            {
+                var current = stack.Pop();
+                for (int i = 0; i < current.childCount; i++)
+                {
+                    var child = current.GetChild(i);
+                    if (child.name.Equals(name, comparison))
+                        yield return child;
+                    stack.Push(child);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Toggle GameObject active for all children with the given name. Returns how many were toggled.
+        /// </summary>
+        private static int SetActiveForChildrenNamed(Transform parent, string name, bool active, bool recursive)
+        {
+            int count = 0;
+            foreach (var t in FindAllTransformsByName(parent, name, recursive))
+            {
+                if (t != null && t.gameObject != null)
+                {
+                    t.gameObject.SetActive(active);
+                    count++;
+                }
+            }
+            return count;
+        }
+
+        /// <summary>
+        /// Helper to enable/disable all renderers under a transform and set its GameObject active.
+        /// </summary>
+        private static void SetRenderersAndObjectActive(Transform t, bool visible)
+        {
+            if (t == null)
+                return;
+            var renderers = t.GetComponentsInChildren<MeshRenderer>(true);
+            foreach (var r in renderers)
+                r.enabled = visible;
+            t.gameObject.SetActive(visible);
         }
 
         /// <summary>
@@ -400,19 +504,10 @@ namespace DvMod.ZCouplers
             var basePosition = PivotLength * Vector3.forward;
             var finalPosition = basePosition;
 
-            // Apply SA3-specific left offset if using SA3 couplers
-            if (Main.settings.couplerType == CouplerType.SA3Knuckle)
-            {
-                // Move SA3 coupler head 0.035 units to the left
-                finalPosition += new Vector3(-0.035f, 0f, 0f);
-            }
-
-            // Apply Schafenberg-specific offsets if needed (placeholder for future customization)
-            if (Main.settings.couplerType == CouplerType.Schafenberg)
-            {
-                // Add any Schafenberg-specific positioning offsets here if needed
-                // finalPosition += new Vector3(0f, 0f, 0f);
-            }
+            // Apply profile-specified offsets
+            var options = CouplerProfiles.Current?.Options;
+            if (options != null)
+                finalPosition += new Vector3(options.HookLateralOffsetX, 0f, 0f) + options.HookAdditionalOffset;
 
             // Apply height offset for LocoS282A front coupler
             if (IsFrontCouplerOnLocoS282A(coupler))
@@ -522,8 +617,8 @@ namespace DvMod.ZCouplers
                 // Calculate horizontal rotation (yaw)
                 var horizontalAngle = Mathf.Atan2(offset.x, offset.z) * Mathf.Rad2Deg;
                 
-                // Only Schafenberg couplers have vertical movement
-                if (Main.settings.couplerType == CouplerType.Schafenberg)
+                // Vertical articulation is profile-driven
+                if (CouplerProfiles.Current?.Options.SupportsVerticalArticulation == true)
                 {
                     // Calculate vertical rotation (pitch) for Schafenberg couplers
                     var horizontalDistance = Mathf.Sqrt(offset.x * offset.x + offset.z * offset.z);
@@ -548,20 +643,9 @@ namespace DvMod.ZCouplers
 
                     // Start with base position
                     var finalPosition = basePosition;
-
-                    // Apply SA3-specific left offset if using SA3 couplers
-                    if (Main.settings.couplerType == CouplerType.SA3Knuckle)
-                    {
-                        // Move SA3 coupler head 0.035 units to the left (negative X in local space)
-                        finalPosition += new Vector3(-0.035f, 0f, 0f);
-                    }
-
-                    // Apply Schafenberg-specific offsets if needed (placeholder for future customization)
-                    if (Main.settings.couplerType == CouplerType.Schafenberg)
-                    {
-                        // Add any Schafenberg-specific positioning offsets here if needed
-                        // finalPosition += new Vector3(0f, 0f, 0f);
-                    }
+                    var options = CouplerProfiles.Current?.Options;
+                    if (options != null)
+                        finalPosition += new Vector3(options.HookLateralOffsetX, 0f, 0f) + options.HookAdditionalOffset;
 
                     // Apply height offset for LocoS282A front coupler
                     var coupler = pivot.GetComponentInParent<Coupler>();
@@ -637,22 +721,11 @@ namespace DvMod.ZCouplers
                             // Base position when parked/disconnected
                             var basePosition = PivotLength * Vector3.forward;
 
-                            // Start with base position
+                            // Start with base position and apply profile offsets
                             var finalPosition = basePosition;
-
-                            // Apply SA3-specific left offset if using SA3 couplers
-                            if (Main.settings.couplerType == CouplerType.SA3Knuckle)
-                            {
-                                // Move SA3 coupler head 0.035 units to the left when parked
-                                finalPosition += new Vector3(-0.035f, 0f, 0f);
-                            }
-
-                            // Apply Schafenberg-specific offsets when parked (placeholder for future customization)
-                            if (Main.settings.couplerType == CouplerType.Schafenberg)
-                            {
-                                // Add any Schafenberg-specific positioning offsets here if needed
-                                // finalPosition += new Vector3(0f, 0f, 0f);
-                            }
+                            var options = CouplerProfiles.Current?.Options;
+                            if (options != null)
+                                finalPosition += new Vector3(options.HookLateralOffsetX, 0f, 0f) + options.HookAdditionalOffset;
 
                             // Apply height offset for LocoS282A front coupler
                             if (IsFrontCouplerOnLocoS282A(coupler))
@@ -693,9 +766,12 @@ namespace DvMod.ZCouplers
                 return;
             }
 
-            // Find hook by name - check for all possible variations
-            var hookOpen = pivot.Find("hook_open") ?? pivot.Find("SA3_open") ?? pivot.Find("Schaku_open");
-            var hookClosed = pivot.Find("hook") ?? pivot.Find("SA3_closed") ?? pivot.Find("Schaku_closed");
+            // Find hook by name - use profile names with fallbacks
+            var options = CouplerProfiles.Current?.Options;
+            var openName = options?.HookOpenChildName ?? "hook_open";
+            var closedName = options?.HookClosedChildName ?? "hook";
+            var hookOpen = pivot.Find(openName) ?? pivot.Find("hook_open") ?? pivot.Find("SA3_open") ?? pivot.Find("Schaku_open");
+            var hookClosed = pivot.Find(closedName) ?? pivot.Find("hook") ?? pivot.Find("SA3_closed") ?? pivot.Find("Schaku_closed");
             var hook = hookOpen ?? hookClosed;
 
             // Collect child names for potential diagnostics
@@ -713,22 +789,8 @@ namespace DvMod.ZCouplers
             }
 
             var isParked = coupler.state == ChainCouplerInteraction.State.Parked;
-            var couplerType = Main.settings.couplerType;
-
-            // Determine whether to use the open variant based on coupler type
-            bool shouldUseOpenHook = false;
-            if (couplerType == CouplerType.AARKnuckle)
-            {
-                shouldUseOpenHook = isParked && AssetManager.GetAAROpenPrefab() != null;
-            }
-            else if (couplerType == CouplerType.SA3Knuckle)
-            {
-                shouldUseOpenHook = isParked && AssetManager.GetSA3OpenPrefab() != null;
-            }
-            else if (couplerType == CouplerType.Schafenberg)
-            {
-                shouldUseOpenHook = isParked && AssetManager.GetSchakuOpenPrefab() != null;
-            }
+            var profile = CouplerProfiles.Current;
+            bool shouldUseOpenHook = profile?.Options.HasOpenVariant == true && isParked && profile.GetOpenPrefab() != null;
 
             // Check if we need to swap the hook visual
             var currentHookName = hook.name;
@@ -773,20 +835,10 @@ namespace DvMod.ZCouplers
                 GameObject? newHookPrefab = null;
                 string desiredName = "";
 
-                if (couplerType == CouplerType.AARKnuckle)
+                if (profile != null)
                 {
-                    newHookPrefab = shouldUseOpenHook ? AssetManager.GetAAROpenPrefab() : AssetManager.GetAARClosedPrefab();
-                    desiredName = shouldUseOpenHook ? "hook_open" : "hook";
-                }
-                else if (couplerType == CouplerType.SA3Knuckle)
-                {
-                    newHookPrefab = shouldUseOpenHook ? AssetManager.GetSA3OpenPrefab() : AssetManager.GetSA3ClosedPrefab();
-                    desiredName = shouldUseOpenHook ? "SA3_open" : "SA3_closed";
-                }
-                else if (couplerType == CouplerType.Schafenberg)
-                {
-                    newHookPrefab = shouldUseOpenHook ? AssetManager.GetSchakuOpenPrefab() : AssetManager.GetSchakuClosedPrefab();
-                    desiredName = shouldUseOpenHook ? "Schaku_open" : "Schaku_closed";
+                    newHookPrefab = shouldUseOpenHook ? profile.GetOpenPrefab() : profile.GetClosedPrefab();
+                    desiredName = shouldUseOpenHook ? (options?.HookOpenChildName ?? "hook_open") : (options?.HookClosedChildName ?? "hook");
                 }
 
                 if (newHookPrefab != null && pivot != null)

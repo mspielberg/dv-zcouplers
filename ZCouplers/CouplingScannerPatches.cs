@@ -245,7 +245,7 @@ namespace DvMod.ZCouplers
                 coupler.CoupleTo(otherCoupler, viaChainInteraction: true);
 
                 // Full Automatic Mode: connect air hoses and open brake valves.
-                if (Main.settings.fullAutomaticMode && coupler.IsCoupled() && otherCoupler.IsCoupled())
+                if (Main.settings.EffectiveFullAutomaticMode && coupler.IsCoupled() && otherCoupler.IsCoupled())
                 {
                     TryConnectAirSystemsAutomatically(coupler, otherCoupler);
                 }
@@ -337,7 +337,7 @@ namespace DvMod.ZCouplers
                             }
 
                             // Handle Full Automatic Mode for already coupled cars during save loading
-                            if (Main.settings.fullAutomaticMode)
+                            if (Main.settings.EffectiveFullAutomaticMode)
                             {
                                 TryConnectAirSystemsAutomatically(coupler, otherCoupler);
                             }
@@ -397,7 +397,7 @@ namespace DvMod.ZCouplers
                                     }
 
                                     // Handle Full Automatic Mode for couplers fixed from mismatched states
-                                    if (Main.settings.fullAutomaticMode)
+                                    if (Main.settings.EffectiveFullAutomaticMode)
                                     {
                                         TryConnectAirSystemsAutomatically(coupler, otherCoupler);
                                     }

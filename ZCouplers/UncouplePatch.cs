@@ -61,6 +61,16 @@ public static class UncouplePatch
 
     public static void Postfix(Coupler __instance)
     {
+        // Auto air-hose disconnection for Full Automatic Mode (Schaku forces this on)
+        try
+        {
+            if (partnerCouplers.TryGetValue(__instance, out Coupler partner) && partner != null)
+            {
+                AirSystemAutomation.TryAutoDisconnect(__instance, partner);
+            }
+        }
+        catch { }
+
         if (compressionJoints.TryGetValue(__instance, out ConfigurableJoint value))
         {
             if (__instance.IsCoupled())

@@ -19,13 +19,13 @@ namespace DvMod.ZCouplers
         }
 
         // Asset management delegation
-        public static GameObject? GetHookPrefab() => Main.settings.couplerType switch
+        public static GameObject? GetHookPrefab()
         {
-            CouplerType.AARKnuckle => AssetManager.GetAARClosedPrefab(),
-            CouplerType.SA3Knuckle => AssetManager.GetSA3ClosedPrefab(),
-            CouplerType.Schafenberg => AssetManager.GetSchakuClosedPrefab(),
-            _ => AssetManager.GetAARClosedPrefab()
-        };
+            var profile = CouplerProfiles.Current;
+            if (profile == null)
+                return AssetManager.GetAARClosedPrefab();
+            return profile.GetClosedPrefab();
+        }
 
         // Hook management delegation
         public static void CreateHook(ChainCouplerInteraction chainCoupler) => HookManager.CreateHook(chainCoupler, GetHookPrefab());
@@ -48,6 +48,10 @@ namespace DvMod.ZCouplers
                 new KnuckleCouplers();
             }
             BufferVisualManager.ToggleBuffers(Main.settings.showBuffersWithKnuckles);
+
+            // Air hose handling may be profile-driven
+            if (CouplerProfiles.Current?.Options.AlwaysHideAirHoses == true)
+                DeactivateAllAirHoses();
 
             // Recreate all couplers to apply disable settings
             RecreateAllCouplers();
@@ -123,6 +127,68 @@ namespace DvMod.ZCouplers
             }
         }
 
+        /// <summary>
+        /// Deactivate all air hoses on all trains when using Schafenberg couplers.
+        /// </summary>
+        private static void DeactivateAllAirHoses()
+        {
+            if (CarSpawner.Instance?.allCars == null)
+                return;
+
+            Main.DebugLog(() => "Deactivating all air hoses for Schafenberg couplers");
+
+            foreach (var car in CarSpawner.Instance.allCars)
+            {
+                if (car == null) continue;
+
+                Main.DebugLog(() => $"Processing air hoses for car: {car.ID}");
+
+                // Deactivate air hoses on front coupler
+                if (car.frontCoupler != null)
+                {
+                    DeactivateAirHoseForCoupler(car.frontCoupler);
+                }
+
+                // Deactivate air hoses on rear coupler
+                if (car.rearCoupler != null)
+                {
+                    DeactivateAirHoseForCoupler(car.rearCoupler);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Directly deactivate air hoses for a specific coupler, bypassing the conditional logic in HookManager.
+        /// Uses the same proven approach as the steam locomotive air hose deactivation.
+        /// </summary>
+        public static void DeactivateAirHoseForCoupler(Coupler coupler)
+        {
+            if (coupler?.train?.gameObject == null)
+                return;
+
+            Main.DebugLog(() => $"Deactivating air hose for {coupler.train.ID} {(coupler.isFrontCoupler ? "front" : "rear")}");
+
+            // Deterministic: only disable both direct "hoses" children under the interior
+            var interior = coupler.train.interior;
+            if (interior == null)
+                return;
+
+            for (int i = 0; i < interior.childCount; i++)
+            {
+                var child = interior.GetChild(i);
+                if (child != null && child.name == "hoses")
+                {
+                    child.gameObject.SetActive(false);
+                    HoseHider.Attach(child);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Recursively find a transform by name.
+        /// </summary>
+    // No longer used: deterministic interior/hoses-only
+
         // Called from Main.Load()
         public static void Initialize()
         {
@@ -130,6 +196,19 @@ namespace DvMod.ZCouplers
             {
                 new KnuckleCouplers();
             }
+
+            // If the current profile requires always hiding air hoses, do it after a small delay
+            if (CouplerProfiles.Current?.Options.AlwaysHideAirHoses == true)
+                UnityEngine.Object.FindObjectOfType<CarSpawner>()?.StartCoroutine(DelayedAirHoseDeactivation());
+        }
+
+        /// <summary>
+        /// Coroutine to deactivate air hoses with a small delay to ensure cars are loaded.
+        /// </summary>
+        private static System.Collections.IEnumerator DelayedAirHoseDeactivation()
+        {
+            yield return new UnityEngine.WaitForSeconds(1.0f);
+            DeactivateAllAirHoses();
         }
 
     }

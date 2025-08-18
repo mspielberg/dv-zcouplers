@@ -49,7 +49,12 @@ public static class Main
             }
         };
         new Harmony(modEntry.Info.Id).PatchAll();
-        KnuckleCouplers.Initialize();
+    // Register coupler profiles (modular per-coupler files)
+    CouplerProfiles.Register(new AARKnuckleProfile());
+    CouplerProfiles.Register(new SA3Profile());
+    CouplerProfiles.Register(new SchakuProfile());
+
+    KnuckleCouplers.Initialize();
         mod.Logger.Log($"Loaded {Main.settings.couplerType}");
         return true;
     }
