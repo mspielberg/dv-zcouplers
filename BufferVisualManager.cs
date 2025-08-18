@@ -39,7 +39,7 @@ public static class BufferVisualManager
         }
         else
         {
-            Main.DebugLog(() => "Using fallback buffer method for " + livery.id + " (no [buffers] hierarchy found)");
+            Main.DebugLog(() => "No [buffers] hierarchy for " + livery.id + "; applying fallback");
             MeshRenderer[] componentsInChildren = root.GetComponentsInChildren<MeshRenderer>();
             int num = 0;
             MeshRenderer[] array = componentsInChildren;
@@ -50,7 +50,6 @@ public static class BufferVisualManager
                     renderer.enabled = visible;
                     ForceRendererUpdate(renderer);
                     num++;
-                    Main.DebugLog(() => "Fallback toggled: " + renderer.name + " on " + livery.id);
                 }
             }
             if (num == 0)
@@ -73,7 +72,6 @@ public static class BufferVisualManager
                 ForceRendererUpdate(renderer);
                 int num = toggledVisuals;
                 toggledVisuals = num + 1;
-                Main.DebugLog(() => "Toggled buffer visual: " + renderer.name + " on " + livery.id);
             }
         }
         if (toggledVisuals > 0)
@@ -137,7 +135,6 @@ public static class BufferVisualManager
                                 {
                                     component.enabled = visible;
                                     ForceRendererUpdate(component);
-                                    Main.DebugLog(() => $"Toggled s282_tender_buffer_stems_LOD1 on {livery.id} to {visible}");
                                 }
                             }
                             Transform transform3 = root.transform.Find("[colliders]/LocoS282B_Body/LOD0/s282_tender_buffer_stems");
@@ -145,20 +142,17 @@ public static class BufferVisualManager
                             SkinnedMeshRenderer[] array2;
                             if (transform3 != null)
                             {
-                                Main.DebugLog(() => "Found s282_tender_buffer_stems in colliders hierarchy on " + livery.id);
                                 MeshRenderer component2 = transform3.GetComponent<MeshRenderer>();
                                 if (component2 != null)
                                 {
                                     component2.enabled = visible;
                                     ForceRendererUpdate(component2);
-                                    Main.DebugLog(() => $"Toggled s282_tender_buffer_stems MeshRenderer in colliders on {livery.id} to {visible}");
                                 }
                                 SkinnedMeshRenderer component3 = transform3.GetComponent<SkinnedMeshRenderer>();
                                 if (component3 != null)
                                 {
                                     component3.enabled = visible;
                                     ForceRendererUpdate(component3);
-                                    Main.DebugLog(() => $"Toggled s282_tender_buffer_stems SkinnedMeshRenderer in colliders on {livery.id} to {visible}");
                                 }
                                 MeshRenderer[] componentsInChildren = transform3.GetComponentsInChildren<MeshRenderer>();
                                 SkinnedMeshRenderer[] componentsInChildren2 = transform3.GetComponentsInChildren<SkinnedMeshRenderer>();
@@ -169,7 +163,6 @@ public static class BufferVisualManager
                                     {
                                         childRenderer.enabled = visible;
                                         ForceRendererUpdate(childRenderer);
-                                        Main.DebugLog(() => $"Toggled child MeshRenderer {childRenderer.name} of s282_tender_buffer_stems in colliders on {livery.id} to {visible}");
                                     }
                                 }
                                 array2 = componentsInChildren2;
@@ -179,7 +172,6 @@ public static class BufferVisualManager
                                     {
                                         childRenderer2.enabled = visible;
                                         ForceRendererUpdate(childRenderer2);
-                                        Main.DebugLog(() => $"Toggled child SkinnedMeshRenderer {childRenderer2.name} of s282_tender_buffer_stems in colliders on {livery.id} to {visible}");
                                     }
                                 }
                             }
@@ -193,14 +185,12 @@ public static class BufferVisualManager
                             {
                                 component4.enabled = visible;
                                 ForceRendererUpdate(component4);
-                                Main.DebugLog(() => $"Toggled s282_tender_buffer_stems_LOD1 in colliders on {livery.id} to {visible}");
                             }
                             SkinnedMeshRenderer component5 = transform4.GetComponent<SkinnedMeshRenderer>();
                             if (component5 != null)
                             {
                                 component5.enabled = visible;
                                 ForceRendererUpdate(component5);
-                                Main.DebugLog(() => $"Toggled s282_tender_buffer_stems_LOD1 SkinnedMeshRenderer in colliders on {livery.id} to {visible}");
                             }
                             MeshRenderer[] componentsInChildren3 = transform4.GetComponentsInChildren<MeshRenderer>();
                             SkinnedMeshRenderer[] componentsInChildren4 = transform4.GetComponentsInChildren<SkinnedMeshRenderer>();
@@ -211,7 +201,6 @@ public static class BufferVisualManager
                                 {
                                     childRenderer3.enabled = visible;
                                     ForceRendererUpdate(childRenderer3);
-                                    Main.DebugLog(() => $"Toggled child MeshRenderer {childRenderer3.name} of s282_tender_buffer_stems_LOD1 in colliders on {livery.id} to {visible}");
                                 }
                             }
                             array2 = componentsInChildren4;
@@ -221,7 +210,6 @@ public static class BufferVisualManager
                                 {
                                     childRenderer4.enabled = visible;
                                     ForceRendererUpdate(childRenderer4);
-                                    Main.DebugLog(() => $"Toggled child SkinnedMeshRenderer {childRenderer4.name} of s282_tender_buffer_stems_LOD1 in colliders on {livery.id} to {visible}");
                                 }
                             }
                             break;
@@ -313,20 +301,17 @@ public static class BufferVisualManager
         }
         if (transform != null)
         {
-            Main.DebugLog(() => "Found " + stemName + " transform on " + livery.id);
             MeshRenderer component6 = transform.GetComponent<MeshRenderer>();
             if (component6 != null)
             {
                 component6.enabled = visible;
                 ForceRendererUpdate(component6);
-                Main.DebugLog(() => $"Toggled {stemName} MeshRenderer on {livery.id} to {visible}");
             }
             SkinnedMeshRenderer component7 = transform.GetComponent<SkinnedMeshRenderer>();
             if (component7 != null)
             {
                 component7.enabled = visible;
                 ForceRendererUpdate(component7);
-                Main.DebugLog(() => $"Toggled {stemName} SkinnedMeshRenderer on {livery.id} to {visible}");
             }
             MeshRenderer[] componentsInChildren5 = transform.GetComponentsInChildren<MeshRenderer>();
             SkinnedMeshRenderer[] componentsInChildren6 = transform.GetComponentsInChildren<SkinnedMeshRenderer>();
@@ -337,7 +322,6 @@ public static class BufferVisualManager
                 {
                     childRenderer5.enabled = visible;
                     ForceRendererUpdate(childRenderer5);
-                    Main.DebugLog(() => $"Toggled child MeshRenderer {childRenderer5.name} of {stemName} on {livery.id} to {visible}");
                 }
             }
             SkinnedMeshRenderer[] array2 = componentsInChildren6;
@@ -347,19 +331,12 @@ public static class BufferVisualManager
                 {
                     childRenderer6.enabled = visible;
                     ForceRendererUpdate(childRenderer6);
-                    Main.DebugLog(() => $"Toggled child SkinnedMeshRenderer {childRenderer6.name} of {stemName} on {livery.id} to {visible}");
                 }
-            }
-            Component[] allComponents = transform.GetComponents<Component>();
-            Main.DebugLog(() => "Components on " + stemName + ": " + string.Join(", ", allComponents.Select((Component c) => c.GetType().Name)));
-            if (component6 == null && component7 == null && componentsInChildren5.Length == 0 && componentsInChildren6.Length == 0)
-            {
-                Main.DebugLog(() => "No renderers found on " + stemName + " for " + livery.id);
             }
         }
         else
         {
-            Main.DebugLog(() => "Could not find " + stemName + " buffer stems on " + livery.id);
+            Main.DebugLog(() => "Special buffer stems not found: " + stemName + " on " + livery.id);
         }
     }
 
@@ -380,7 +357,7 @@ public static class BufferVisualManager
         {
             Exception ex2 = ex;
             Exception ex3 = ex2;
-            Main.DebugLog(() => "Error in ForceRendererUpdate: " + ex3.Message);
+            Main.ErrorLog(() => "Error in ForceRendererUpdate: " + ex3.Message);
         }
     }
 
@@ -399,7 +376,7 @@ public static class BufferVisualManager
         {
             Exception ex2 = ex;
             Exception ex3 = ex2;
-            Main.DebugLog(() => "Error in ForceGlobalRenderingUpdate: " + ex3.Message);
+            Main.ErrorLog(() => "Error in ForceGlobalRenderingUpdate: " + ex3.Message);
         }
     }
 }

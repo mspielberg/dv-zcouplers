@@ -9,7 +9,7 @@ namespace DvMod.ZCouplers
     public class CouplerVisualUpdater : MonoBehaviour
     {
         private ChainCouplerInteraction? chainScript;
-        
+
         private void Start()
         {
             chainScript = GetComponent<ChainCouplerInteraction>();
@@ -27,12 +27,6 @@ namespace DvMod.ZCouplers
 
             // Check if this coupler is physically coupled but state doesn't reflect it
             bool isCoupled = chainScript.couplerAdapter?.IsCoupled() == true;
-            
-            // Debug: Log the current state periodically
-            if (Time.frameCount % 60 == 0) // Every 60 frames (~1 second at 60fps)
-            {
-                Main.DebugLog(() => $"CouplerVisualUpdater: {chainScript.couplerAdapter?.coupler?.train?.ID} state: {chainScript.state}, IsCoupled: {isCoupled}, attachedTo: {chainScript.attachedTo?.couplerAdapter?.coupler?.train?.ID}");
-            }
 
             // Use physical coupling state instead of relying on chainScript.state
             // since the state might not be updated yet due to timing issues
@@ -43,11 +37,11 @@ namespace DvMod.ZCouplers
                     // Get our pivot and the other coupler's pivot
                     var pivot = HookManager.GetPivot(chainScript);
                     var partnerCoupler = chainScript.couplerAdapter?.coupler?.coupledTo;
-                    
+
                     if (pivot != null && partnerCoupler?.visualCoupler?.chain != null)
                     {
                         var otherPivot = HookManager.GetPivot(partnerCoupler.visualCoupler.chain.GetComponent<ChainCouplerInteraction>());
-                        
+
                         if (otherPivot != null)
                         {
                             // Directly call AdjustPivot to rotate our visual toward the other coupler

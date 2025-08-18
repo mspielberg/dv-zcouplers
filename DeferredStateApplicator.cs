@@ -19,7 +19,7 @@ namespace DvMod.ZCouplers
         {
             if (statesToApply.Count > 0)
             {
-                Main.DebugLog(() => $"Starting deferred application of {statesToApply.Count} coupler states");
+                Main.DebugLog(() => $"Deferred application for {statesToApply.Count} coupler states");
 
                 // Try multiple GameObject names to find a suitable host
                 GameObject? host = null;
@@ -30,7 +30,7 @@ namespace DvMod.ZCouplers
                     host = GameObject.Find(hostName);
                     if (host != null)
                     {
-                        Main.DebugLog(() => $"Found host GameObject: {hostName}");
+                        Main.DebugLog(() => $"Using host GameObject: {hostName}");
                         break;
                     }
                 }
@@ -40,7 +40,7 @@ namespace DvMod.ZCouplers
                 {
                     host = new GameObject("ZCouplers_DeferredApplier");
                     UnityEngine.Object.DontDestroyOnLoad(host);
-                    Main.DebugLog(() => "Created dedicated host GameObject for deferred application");
+                    Main.DebugLog(() => "Created host GameObject for deferred application");
                 }
 
                 if (host != null)
@@ -50,7 +50,7 @@ namespace DvMod.ZCouplers
                 }
                 else
                 {
-                    Main.DebugLog(() => "Could not create host for deferred application - applying immediately");
+                    Main.DebugLog(() => "No host for deferred application; applying immediately");
                     // Fallback: apply immediately if we can't create a host
                     ApplyStatesImmediately(statesToApply);
                 }
@@ -62,7 +62,7 @@ namespace DvMod.ZCouplers
         /// </summary>
         private static void ApplyStatesImmediately(Dictionary<TrainCar, (bool frontLocked, bool rearLocked)> statesToApply)
         {
-            Main.DebugLog(() => "Applying pending coupler states immediately as fallback");
+            Main.DebugLog(() => "Applying coupler states immediately (fallback)");
 
             foreach (var kvp in statesToApply)
             {

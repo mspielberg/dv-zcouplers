@@ -10,7 +10,7 @@ using UnityEngine;
 namespace DvMod.ZCouplers
 {
     /// <summary>
-    /// Manages the creation and lifecycle of knuckle coupler hook visuals
+    /// Manages creation and lifecycle of knuckle coupler hook visuals.
     /// </summary>
     public static class HookManager
     {
@@ -29,7 +29,7 @@ namespace DvMod.ZCouplers
             if (!pivots.TryGetValue(chainScript, out var pivot))
                 return null;
 
-            // Additional safety check to ensure the pivot transform is still valid
+            // Safety check to ensure the pivot transform is still valid
             if (pivot == null || pivot.gameObject == null)
             {
                 // Clean up the stale reference
@@ -48,7 +48,6 @@ namespace DvMod.ZCouplers
             // Check if hook already exists
             if (GetPivot(chainScript) != null)
             {
-                Main.DebugLog(() => $"Knuckle coupler already exists for {chainScript.couplerAdapter?.coupler?.train?.ID}, skipping creation");
                 return;
             }
 
@@ -89,19 +88,16 @@ namespace DvMod.ZCouplers
             if (chainScript.gameObject.GetComponent<CouplerVisualUpdater>() == null)
             {
                 chainScript.gameObject.AddComponent<CouplerVisualUpdater>();
-                Main.DebugLog(() => $"Added CouplerVisualUpdater to {coupler.train.ID} {coupler.Position()}");
             }
         }
 
         /// <summary>
-        /// Validates that a hook prefab has the required components
+        /// Validate that a hook prefab has the required components.
         /// </summary>
         private static bool ValidateHookPrefab(GameObject hookPrefab)
         {
             if (hookPrefab == null)
                 return false;
-
-            Main.DebugLog(() => $"Hook prefab {hookPrefab.name} validation passed");
             return true;
         }
 
@@ -126,9 +122,8 @@ namespace DvMod.ZCouplers
                 return;
             }
 
-            hook.SetActive(false); // defer Awake() until all components are added and initialized
+            hook.SetActive(false); // Defer Awake() until all components are added and initialized
             hook.name = desiredName; // Use the desired name instead of always "hook"
-            Main.DebugLog(() => $"CreateHookInstance: Created hook with name '{hook.name}'");
             hook.layer = LayerMask.NameToLayer("Interactable");
             hook.transform.SetParent(pivot, false);
             hook.transform.localPosition = PivotLength * Vector3.forward;
@@ -147,8 +142,8 @@ namespace DvMod.ZCouplers
 
             var infoArea = hook.AddComponent<InfoArea>();
             infoArea.infoType = KnuckleCouplerState.IsUnlocked(coupler) ? KnuckleCouplerLock : KnuckleCouplerUnlock;
-            hook.SetActive(true); // this should create an actual Button through excuting
-            
+            hook.SetActive(true); // Activate after initialization completes
+
             var buttonBase = hook.GetComponent<ButtonBase>();
             if (buttonBase == null)
             {
@@ -183,17 +178,11 @@ namespace DvMod.ZCouplers
         public static void AdjustPivot(Transform pivot, Transform target)
         {
             if (pivot == null || target == null)
-            {
-                Main.DebugLog(() => $"AdjustPivot: null parameters - pivot={pivot}, target={target}");
                 return;
-            }
 
             // Additional safety check to ensure transforms are still valid
             if (pivot.gameObject == null || target.gameObject == null)
-            {
-                Main.DebugLog(() => $"AdjustPivot: null gameObjects - pivot.gameObject={pivot.gameObject}, target.gameObject={target.gameObject}");
                 return;
-            }
 
             try
             {
@@ -212,11 +201,9 @@ namespace DvMod.ZCouplers
             }
             catch (System.Exception ex)
             {
-                // Silently handle any transform access exceptions that might occur during destruction
+                // Log only when logging is enabled
                 if (Main.settings.enableLogging)
-                {
                     Main.ErrorLog(() => $"Exception in AdjustPivot: {ex.Message}");
-                }
             }
         }
 
@@ -229,15 +216,12 @@ namespace DvMod.ZCouplers
             if (coupler == null)
                 return;
 
-            Main.DebugLog(() => $"UpdateHookVisualState called for {coupler.train.ID} {coupler.Position()}: State={coupler.state}, CouplerType={Main.settings.couplerType}");
-
             try
             {
                 // Check if we need to swap the hook visual for couplers that support multiple states
                 var couplerType = Main.settings.couplerType;
                 if (couplerType == CouplerType.AARKnuckle || couplerType == CouplerType.SA3Knuckle)
                 {
-                    Main.DebugLog(() => $"Calling SwapHookVisualIfNeeded for {coupler.train.ID} {coupler.Position()}");
                     SwapHookVisualIfNeeded(chainScript, coupler);
                 }
 
@@ -296,14 +280,13 @@ namespace DvMod.ZCouplers
         }
 
         /// <summary>
-        /// Swaps the hook visual for AAR couplers between normal and open states based on coupler state
+        /// Swap the hook visual for AAR couplers between normal and open states based on coupler state.
         /// </summary>
         private static void SwapHookVisualIfNeeded(ChainCouplerInteraction chainScript, Coupler coupler)
         {
             var pivot = GetPivot(chainScript);
-            if (pivot == null) 
+            if (pivot == null)
             {
-                Main.DebugLog(() => $"SwapHookVisualIfNeeded: No pivot found for {coupler.train.ID} {coupler.Position()}");
                 return;
             }
 
@@ -311,8 +294,8 @@ namespace DvMod.ZCouplers
             var hookOpen = pivot.Find("hook_open") ?? pivot.Find("SA3_open");
             var hookClosed = pivot.Find("hook") ?? pivot.Find("SA3_closed");
             var hook = hookOpen ?? hookClosed;
-            
-            // Debug: show all children in the pivot
+
+            // Collect child names for potential diagnostics
             var childNames = new System.Collections.Generic.List<string>();
             for (int i = 0; i < pivot.childCount; i++)
             {
@@ -320,19 +303,16 @@ namespace DvMod.ZCouplers
                 if (child.name.Contains("hook") || child.name.Contains("SA3"))
                     childNames.Add(child.name);
             }
-            
-            Main.DebugLog(() => $"SwapHookVisualIfNeeded: Hook search results - hookOpen: {(hookOpen != null ? hookOpen.name : "null")}, hookClosed: {(hookClosed != null ? hookClosed.name : "null")}, selected: {(hook != null ? hook.name : "null")}, all hook children: [{string.Join(", ", childNames)}]");
-            
-            if (hook == null) 
+
+            if (hook == null)
             {
-                Main.DebugLog(() => $"SwapHookVisualIfNeeded: No hook found for {coupler.train.ID} {coupler.Position()}");
                 return;
             }
 
             var isParked = coupler.state == ChainCouplerInteraction.State.Parked;
             var couplerType = Main.settings.couplerType;
-            
-            // Determine if we should use the open variant based on coupler type
+
+            // Determine whether to use the open variant based on coupler type
             bool shouldUseOpenHook = false;
             if (couplerType == CouplerType.AARKnuckle)
             {
@@ -348,22 +328,18 @@ namespace DvMod.ZCouplers
             var needsSwap = false;
             var isCurrentlyOpen = currentHookName.Contains("open");
 
-            Main.DebugLog(() => $"SwapHookVisualIfNeeded: {coupler.train.ID} {coupler.Position()} - State: {coupler.state}, CurrentHook: {currentHookName}, ShouldUseOpen: {shouldUseOpenHook}, IsCurrentlyOpen: {isCurrentlyOpen}");
-
             if (shouldUseOpenHook && !isCurrentlyOpen)
             {
                 needsSwap = true;
-                Main.DebugLog(() => $"SwapHookVisualIfNeeded: Need to swap to open hook");
             }
             else if (!shouldUseOpenHook && isCurrentlyOpen)
             {
                 needsSwap = true;
-                Main.DebugLog(() => $"SwapHookVisualIfNeeded: Need to swap to closed hook");
             }
 
             if (needsSwap)
             {
-                Main.DebugLog(() => $"Swapping hook visual for {coupler.train.ID} {coupler.Position()} to {(shouldUseOpenHook ? "open" : "closed")} state");
+                Main.DebugLog(() => $"Hook visual swapped for {coupler.train.ID} {coupler.Position()} -> {(shouldUseOpenHook ? "open" : "closed")} state");
 
                 // Play appropriate sound for the state change
                 if (!shouldUseOpenHook && isCurrentlyOpen)
@@ -383,15 +359,13 @@ namespace DvMod.ZCouplers
                 var currentPosition = hook.localPosition;
                 var wasActive = hook.gameObject.activeSelf;
 
-                Main.DebugLog(() => $"Before destroying old hook: {hook.name}");
-
                 // Remove old hook immediately to prevent conflicts
                 GameObject.DestroyImmediate(hook.gameObject);
 
                 // Create new hook with appropriate prefab
                 GameObject? newHookPrefab = null;
                 string desiredName = "";
-                
+
                 if (couplerType == CouplerType.AARKnuckle)
                 {
                     newHookPrefab = shouldUseOpenHook ? AssetManager.GetAAROpenPrefab() : AssetManager.GetAARClosedPrefab();
@@ -402,22 +376,17 @@ namespace DvMod.ZCouplers
                     newHookPrefab = shouldUseOpenHook ? AssetManager.GetSA3OpenPrefab() : AssetManager.GetSA3ClosedPrefab();
                     desiredName = shouldUseOpenHook ? "SA3_open" : "SA3_closed";
                 }
-                
-                Main.DebugLog(() => $"Using prefab: {desiredName}, prefab is null: {newHookPrefab == null}");
-                
+
                 if (newHookPrefab != null && pivot != null)
                 {
                     CreateHookInstance(pivot, newHookPrefab, chainScript, coupler, desiredName);
-                    
-                    // Verify the hook was created with the correct name
-                    var newHook = pivot.Find(desiredName);
-                    Main.DebugLog(() => $"After creation, found hook with target name '{desiredName}': {(newHook != null ? newHook.name : "null")}");
+                    // Optionally verify creation by name if needed during debugging
                 }
             }
         }
 
         /// <summary>
-        /// Update hook visual state based on current coupler state
+        /// Update hook visual state based on current coupler state.
         /// </summary>
         public static void UpdateHookVisualStateFromCouplerState(Coupler coupler)
         {
@@ -442,7 +411,7 @@ namespace DvMod.ZCouplers
             switch (coupler.state)
             {
                 case ChainCouplerInteraction.State.Parked:
-                    // Parked = coupler is unlocked, user wants to ready it
+                    // Parked = coupler is unlocked; user wants to ready it
                     KnuckleCouplerState.ReadyCoupler(coupler);
                     break;
 
@@ -450,7 +419,7 @@ namespace DvMod.ZCouplers
                 case ChainCouplerInteraction.State.Being_Dragged:
                 case ChainCouplerInteraction.State.Attached_Loose:
                 case ChainCouplerInteraction.State.Attached_Tight:
-                    // All other states = coupler is ready/locked, user wants to unlock it
+                    // All other states = coupler is ready/locked; user wants to unlock it
                     KnuckleCouplerState.UnlockCoupler(coupler, viaChainInteraction: true);
                     break;
             }

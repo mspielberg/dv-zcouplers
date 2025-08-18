@@ -41,7 +41,7 @@ namespace DvMod.ZCouplers
             var couplerStrength = Main.settings.GetCouplerStrength();
             if (couplerStrength > 0f && recentStress.All(s => s > couplerStrength) && Random.value < PerFrameBreakChance)
             {
-                Main.DebugLog(() => $"Breaking coupler: scaledForce={scaledForce},normalizedForce={normalizedForce},springRate={currentSpringRate},normalizationFactor={normalizationFactor},recentStress={string.Join(",", recentStress)}");
+                Main.DebugLog(() => $"Breaking coupler: normForce={normalizedForce:F1}, spring={currentSpringRate:E2}");
                 joint!.gameObject.SendMessage("OnJointBreak", jointStress);
                 Component.Destroy(joint);
             }

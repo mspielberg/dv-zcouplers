@@ -29,14 +29,14 @@ namespace DvMod.ZCouplers
                 // Prevent joint creation during save loading to avoid physics instability
                 if (SaveManager.IsLoadingFromSave)
                 {
-                    Main.DebugLog(() => $"Skipping joint creation during save loading: {__instance.train.ID}");
+                    Main.DebugLog(() => $"Skip joint creation during save loading: {__instance.train.ID}");
                     return true;
                 }
 
                 // Safety checks to prevent joint creation in unstable conditions
                 if (__instance.train.derailed || __instance.coupledTo?.train.derailed == true)
                 {
-                    Main.DebugLog(() => $"Skipping joint creation - train derailed: {__instance.train.ID}");
+                    Main.DebugLog(() => $"Skip joint creation - train derailed: {__instance.train.ID}");
                     return true;
                 }
 
@@ -44,32 +44,32 @@ namespace DvMod.ZCouplers
                 var velocity2 = __instance.coupledTo?.train.GetComponent<Rigidbody>()?.velocity.magnitude ?? 0f;
                 if (velocity1 > 5f || velocity2 > 5f)
                 {
-                    Main.DebugLog(() => $"Skipping joint creation - cars moving too fast: {__instance.train.ID} ({velocity1:F1} m/s) to {__instance.coupledTo?.train.ID} ({velocity2:F1} m/s)");
+                    Main.DebugLog(() => $"Skip joint creation - cars moving too fast: {__instance.train.ID} ({velocity1:F1} m/s) to {__instance.coupledTo?.train.ID} ({velocity2:F1} m/s)");
                     return true;
                 }
 
                 // Prevent rapid joint recreation
                 if (!JointManager.CanCreateJoint(__instance))
                 {
-                    Main.DebugLog(() => $"Skipping joint creation - too soon after last creation: {__instance.train.ID}");
+                    Main.DebugLog(() => $"Skip joint creation - too soon after last creation: {__instance.train.ID}");
                     return true;
                 }
 
                 // Prevent duplicate joint creation
                 if (JointManager.HasTensionJoint(__instance) || (__instance.coupledTo != null && JointManager.HasTensionJoint(__instance.coupledTo)))
                 {
-                    Main.DebugLog(() => $"Skipping joint creation - joints already exist: {__instance.train.ID}");
+                    Main.DebugLog(() => $"Skip joint creation - joints already exist: {__instance.train.ID}");
                     return false;
                 }
 
                 // Ensure we have a valid coupled partner
                 if (__instance.coupledTo == null)
                 {
-                    Main.DebugLog(() => $"Skipping joint creation - no coupled partner: {__instance.train.ID}");
+                    Main.DebugLog(() => $"Skip joint creation - no coupled partner: {__instance.train.ID}");
                     return true;
                 }
 
-                Main.DebugLog(() => $"Creating tension joint between {__instance.train.ID} and {__instance.coupledTo.train.ID}");
+                Main.DebugLog(() => $"Create tension joint: {__instance.train.ID} <-> {__instance.coupledTo.train.ID}");
 
                 // Record the time of joint creation
                 JointManager.RecordJointCreation(__instance);

@@ -33,7 +33,7 @@ namespace DvMod.ZCouplers
                 }
                 catch (System.Exception ex)
                 {
-                    Main.DebugLog(() => $"Error in TrainCar Awake patch: {ex.Message}");
+                    Main.ErrorLog(() => $"Error in TrainCar Awake patch: {ex.Message}");
                 }
             }
 
@@ -49,12 +49,10 @@ namespace DvMod.ZCouplers
                 if (car?.frontCoupler != null && !car.frontCoupler.IsCoupled())
                 {
                     KnuckleCouplerState.UpdateCouplerVisualState(car.frontCoupler, locked: true);
-                    Main.DebugLog(() => $"Updated visual state for {car.ID} front coupler");
                 }
                 if (car?.rearCoupler != null && !car.rearCoupler.IsCoupled())
                 {
                     KnuckleCouplerState.UpdateCouplerVisualState(car.rearCoupler, locked: true);
-                    Main.DebugLog(() => $"Updated visual state for {car.ID} rear coupler");
                 }
             }
 
@@ -94,7 +92,7 @@ namespace DvMod.ZCouplers
                 }
                 else
                 {
-                    Main.DebugLog(() => $"Failed to initialize coupler states - car not ready after {attempts} attempts");
+                    Main.DebugLog(() => $"Coupler initialization skipped - car not ready after {attempts} attempts");
                 }
             }
         }

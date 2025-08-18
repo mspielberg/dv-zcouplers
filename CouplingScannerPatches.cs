@@ -7,12 +7,12 @@ using UnityEngine;
 namespace DvMod.ZCouplers
 {
     /// <summary>
-    /// Handles coupling scanner functionality and patches
+    /// Handles coupling scanner functionality and Harmony patches.
     /// </summary>
     public static class CouplingScannerPatches
     {
         /// <summary>
-        /// Get the coupling scanner component from a coupler
+        /// Get the coupling scanner component from a coupler.
         /// </summary>
         public static CouplingScanner? GetScanner(Coupler coupler)
         {
@@ -28,7 +28,7 @@ namespace DvMod.ZCouplers
         }
 
         /// <summary>
-        /// Stop and kill a coupling scanner safely
+        /// Stop and kill a coupling scanner safely.
         /// </summary>
         public static void KillCouplingScanner(Coupler coupler)
         {
@@ -51,7 +51,7 @@ namespace DvMod.ZCouplers
         }
 
         /// <summary>
-        /// Restart a coupling scanner safely
+        /// Restart a coupling scanner safely.
         /// </summary>
         public static void RestartCouplingScanner(Coupler coupler)
         {
@@ -73,7 +73,7 @@ namespace DvMod.ZCouplers
         }
 
         /// <summary>
-        /// Separate cars after uncoupling with temporary scanner disable
+        /// Separate cars after uncoupling with temporary scanner disable.
         /// </summary>
         public static void SeparateCarsAfterUncoupling(Coupler coupler1, Coupler coupler2)
         {
@@ -110,12 +110,11 @@ namespace DvMod.ZCouplers
             if (scanner != null)
             {
                 scanner.enabled = true;
-                // Removed verbose scanner restart log
             }
         }
 
         /// <summary>
-        /// Patches for coupling scanner behavior
+        /// Patches for coupling scanner behavior.
         /// </summary>
         [HarmonyPatch(typeof(Coupler), nameof(Coupler.AutoCouple))]
         public static class AutoCouplePatch
@@ -133,7 +132,7 @@ namespace DvMod.ZCouplers
         }
 
         /// <summary>
-        /// Ensure CouplingScanners stay active when not in view
+        /// Ensure CouplingScanners stay active when not in view.
         /// </summary>
         [HarmonyPatch(typeof(ChainCouplerVisibilityOptimizer), nameof(ChainCouplerVisibilityOptimizer.Disable))]
         public static class ChainCouplerVisibilityOptimizerDisablePatch
@@ -149,7 +148,7 @@ namespace DvMod.ZCouplers
         }
 
         /// <summary>
-        /// Handle coupling scanner initialization
+        /// Handle coupling scanner initialization.
         /// </summary>
         [HarmonyPatch(typeof(CouplingScanner), nameof(CouplingScanner.Start))]
         public static class CouplingScannerStartPatch
@@ -177,8 +176,7 @@ namespace DvMod.ZCouplers
                         if (otherCoupler == null)
                             return;
 
-                        // Only create compression joint if both couplers are ready to couple (not parked/unlocked)
-                        // and we're not in the middle of save loading
+                        // Create a compression joint only if both couplers are ready and not during save loading.
                         if (coupler.rigidCJ == null && otherCoupler.rigidCJ == null
                             && KnuckleCouplers.IsReadyToCouple(coupler)
                             && KnuckleCouplers.IsReadyToCouple(otherCoupler)
@@ -198,8 +196,7 @@ namespace DvMod.ZCouplers
                     }
                     else
                     {
-                        // Don't destroy compression joints when scanners lose contact
-                        // Buffer physics should persist until proper uncoupling or car deletion
+                        // Preserve compression joints when scanners lose contact; buffer physics should persist until proper uncoupling or car deletion.
                         Main.DebugLog(() => $"Scanner lost contact - preserving compression joint for {coupler.train.ID} to maintain buffer physics");
                     }
                 };
@@ -207,7 +204,7 @@ namespace DvMod.ZCouplers
         }
 
         /// <summary>
-        /// Custom coupling scanner master coroutine
+        /// Custom coupling scanner master coroutine.
         /// </summary>
         [HarmonyPatch(typeof(CouplingScanner), nameof(CouplingScanner.MasterCoro))]
         public static class CouplerScannerMasterCoroPatch
@@ -255,26 +252,20 @@ namespace DvMod.ZCouplers
                 var coupler = GetCoupler(__instance);
                 if (coupler == null)
                 {
-                    // Removed verbose MasterCoro exit log
+                    // Exit early if no coupler is available.
                     __instance.masterCoro = null;
                     yield break;
                 }
 
                 if (coupler.IsCoupled())
                 {
-                    // Removed verbose MasterCoro exit log
+                    // Already coupled; stop the coroutine.
                     __instance.masterCoro = null;
                     yield break;
                 }
                 else
                 {
-                    Main.DebugLog(() =>
-                    {
-                        var otherCoupler = GetCoupler(__instance.nearbyScanner);
-                        if (otherCoupler == null)
-                            return $"{coupler.train.ID} {coupler.Position()}: MasterCoro started with null nearby coupler";
-                        return $"{coupler.train.ID} {coupler.Position()}: MasterCoro started with {otherCoupler.train.ID} {otherCoupler.Position()}";
-                    });
+                    // Omit routine start logs
 
                     // Check if both couplers are in Attached_Tight state but not actually coupled (save loading case)
                     var otherCoupler = GetCoupler(__instance.nearbyScanner);
@@ -283,7 +274,7 @@ namespace DvMod.ZCouplers
                         otherCoupler.state == ChainCouplerInteraction.State.Attached_Tight &&
                         !coupler.IsCoupled() && !otherCoupler.IsCoupled())
                     {
-                        Main.DebugLog(() => $"Found couplers in Attached_Tight state but not coupled - triggering native coupling between {coupler.train.ID} and {otherCoupler.train.ID}");
+                        Main.DebugLog(() => $"Attached_Tight but not coupled -> triggering native coupling between {coupler.train.ID} and {otherCoupler.train.ID}");
                         TryCouple(coupler);
 
                         // After coupling, create tension joints if they don't exist
@@ -291,13 +282,13 @@ namespace DvMod.ZCouplers
                         {
                             if (!JointManager.HasTensionJoint(coupler))
                             {
-                                Main.DebugLog(() => $"Creating tension joint for {coupler.train.ID} {coupler.Position()} after MasterCoro coupling");
+                                Main.DebugLog(() => $"Creating tension joint after MasterCoro coupling: {coupler.train.ID} {coupler.Position()}");
                                 JointManager.ForceCreateTensionJoint(coupler);
                             }
 
                             if (!JointManager.HasTensionJoint(otherCoupler))
                             {
-                                Main.DebugLog(() => $"Creating tension joint for {otherCoupler.train.ID} {otherCoupler.Position()} after MasterCoro coupling");
+                                Main.DebugLog(() => $"Creating tension joint after MasterCoro coupling: {otherCoupler.train.ID} {otherCoupler.Position()}");
                                 JointManager.ForceCreateTensionJoint(otherCoupler);
                             }
 
@@ -308,8 +299,7 @@ namespace DvMod.ZCouplers
                         }
                     }
 
-                    // Check for mismatched save loading states: one ready coupler in wrong state, other in attached state
-                    // This handles cases where coupled couplers were saved inconsistently
+                    // Fix mismatched save-loading states where both are ready but states differ.
                     if (otherCoupler != null && !coupler.IsCoupled() && !otherCoupler.IsCoupled())
                     {
                         bool couplerReady = KnuckleCouplers.IsReadyToCouple(coupler);
@@ -334,7 +324,7 @@ namespace DvMod.ZCouplers
 
                             if (needsFix)
                             {
-                                Main.DebugLog(() => $"Found mismatched save loading states - fixing and coupling {coupler.train.ID} ({coupler.state}) and {otherCoupler.train.ID} ({otherCoupler.state})");
+                                Main.DebugLog(() => $"Fixing mismatched save states and coupling {coupler.train.ID} ({coupler.state}) <-> {otherCoupler.train.ID} ({otherCoupler.state})");
 
                                 // Set both to Dangling state first (ready but uncoupled)
                                 coupler.state = ChainCouplerInteraction.State.Dangling;
@@ -347,13 +337,13 @@ namespace DvMod.ZCouplers
                                 {
                                     if (!JointManager.HasTensionJoint(coupler))
                                     {
-                                        Main.DebugLog(() => $"Creating tension joint for {coupler.train.ID} {coupler.Position()} after mismatched state fix");
+                                        Main.DebugLog(() => $"Creating tension joint after save-state fix: {coupler.train.ID} {coupler.Position()}");
                                         JointManager.ForceCreateTensionJoint(coupler);
                                     }
 
                                     if (!JointManager.HasTensionJoint(otherCoupler))
                                     {
-                                        Main.DebugLog(() => $"Creating tension joint for {otherCoupler.train.ID} {otherCoupler.Position()} after mismatched state fix");
+                                        Main.DebugLog(() => $"Creating tension joint after save-state fix: {otherCoupler.train.ID} {otherCoupler.Position()}");
                                         JointManager.ForceCreateTensionJoint(otherCoupler);
                                     }
 
@@ -374,14 +364,14 @@ namespace DvMod.ZCouplers
                     // Safety check for null references
                     if (__instance?.transform == null || __instance.gameObject == null)
                     {
-                        // Removed verbose MasterCoro exit log
+                        // Exit if instance is invalid
                         break;
                     }
 
                     // Additional safety check for nearby scanner
                     if (__instance.nearbyScanner?.transform == null || __instance.nearbyScanner.gameObject == null)
                     {
-                        // Removed verbose MasterCoro exit log
+                        // Exit if nearby scanner is invalid
                         break;
                     }
 
@@ -392,7 +382,7 @@ namespace DvMod.ZCouplers
                     }
                     else
                     {
-                        Main.DebugLog(coupler.train, () => $"{coupler.train.ID}: offset.z = {offset.z}");
+                        // Omit continuous offset logging
                         var compression = StaticOffset - offset.z;
                         var nearbyNearbyeCoupler = GetCoupler(__instance.nearbyScanner);
                         if (__instance.nearbyScanner.isActiveAndEnabled
@@ -401,12 +391,12 @@ namespace DvMod.ZCouplers
                             && nearbyNearbyeCoupler != null
                             && KnuckleCouplers.IsReadyToCouple(nearbyNearbyeCoupler))
                         {
-                            Main.DebugLog(() => $"{coupler.train.ID} {coupler.Position()}: auto coupling due to compression={compression}");
+                            Main.DebugLog(() => $"{coupler.train.ID} {coupler.Position()}: auto-coupling due to compression={compression:F3}");
                             TryCouple(coupler);
                         }
                     }
                 }
-                
+
                 // Safely unpair with additional null checks
                 try
                 {

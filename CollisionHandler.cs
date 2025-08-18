@@ -19,7 +19,7 @@ namespace DvMod.ZCouplers
 
             try
             {
-                Main.DebugLog(() => $"CLEANUP: Destroying coupling joints between {car1.ID} and {car2.ID}");
+                Main.DebugLog(() => $"Destroying coupling joints between {car1.ID} and {car2.ID}");
 
                 // Check all joints on car1 that connect to car2
                 var jointsOnCar1 = car1.GetComponents<Joint>();
@@ -27,7 +27,7 @@ namespace DvMod.ZCouplers
                 {
                     if (joint?.connectedBody != null && joint.connectedBody.gameObject == car2.gameObject)
                     {
-                        Main.DebugLog(() => $"CLEANUP: Destroying coupling joint {joint.GetType().Name} on {car1.ID} connecting to {car2.ID}");
+                        Main.DebugLog(() => $"Destroying {joint.GetType().Name} on {car1.ID} connecting to {car2.ID}");
                         UnityEngine.Object.DestroyImmediate(joint);
                     }
                 }
@@ -38,14 +38,14 @@ namespace DvMod.ZCouplers
                 {
                     if (joint?.connectedBody != null && joint.connectedBody.gameObject == car1.gameObject)
                     {
-                        Main.DebugLog(() => $"CLEANUP: Destroying coupling joint {joint.GetType().Name} on {car2.ID} connecting to {car1.ID}");
+                        Main.DebugLog(() => $"Destroying {joint.GetType().Name} on {car2.ID} connecting to {car1.ID}");
                         UnityEngine.Object.DestroyImmediate(joint);
                     }
                 }
             }
             catch (System.Exception ex)
             {
-                Main.DebugLog(() => $"Error destroying joints between {car1.ID} and {car2.ID}: {ex.Message}");
+                Main.ErrorLog(() => $"Error destroying joints between {car1.ID} and {car2.ID}: {ex.Message}");
             }
         }
 
@@ -64,14 +64,14 @@ namespace DvMod.ZCouplers
                 var springJoints = car.GetComponents<SpringJoint>();
                 var hingeJoints = car.GetComponents<HingeJoint>();
 
-                Main.DebugLog(() => $"JOINT DEBUG {context} - {car.ID}: ConfigurableJoints={allJoints.Length}, FixedJoints={fixedJoints.Length}, SpringJoints={springJoints.Length}, HingeJoints={hingeJoints.Length}");
+                Main.DebugLog(() => $"Joint summary {context} - {car.ID}: Configurable={allJoints.Length}, Fixed={fixedJoints.Length}, Spring={springJoints.Length}, Hinge={hingeJoints.Length}");
 
                 foreach (var joint in allJoints)
                 {
                     if (joint?.connectedBody != null)
                     {
                         var connectedCar = TrainCar.Resolve(joint.connectedBody.gameObject);
-                        Main.DebugLog(() => $"  ConfigurableJoint: {car.ID} -> {connectedCar?.ID ?? "unknown"}");
+                        // Detailed joint listing intentionally omitted to reduce log volume
                     }
                 }
 
@@ -80,13 +80,13 @@ namespace DvMod.ZCouplers
                     if (joint?.connectedBody != null)
                     {
                         var connectedCar = TrainCar.Resolve(joint.connectedBody.gameObject);
-                        Main.DebugLog(() => $"  FixedJoint: {car.ID} -> {connectedCar?.ID ?? "unknown"}");
+                        // Detailed joint listing intentionally omitted to reduce log volume
                     }
                 }
             }
             catch (System.Exception ex)
             {
-                Main.DebugLog(() => $"Error logging joints for {car.ID}: {ex.Message}");
+                Main.ErrorLog(() => $"Error logging joints for {car.ID}: {ex.Message}");
             }
         }
 
@@ -118,7 +118,7 @@ namespace DvMod.ZCouplers
                 }
                 catch (System.Exception ex)
                 {
-                    Main.DebugLog(() => $"Error in collision patch: {ex.Message}");
+                    Main.ErrorLog(() => $"Error in collision patch: {ex.Message}");
                 }
             }
 
@@ -145,7 +145,7 @@ namespace DvMod.ZCouplers
                 Vector3 forceVector = collisionNormal * additionalForce;
                 thisRigidbody.AddForceAtPosition(forceVector, contact.point);
 
-                Main.DebugLog(() => $"Enhanced collision response between {thisCar.ID} and {otherCar.ID}: added force={additionalForce:F1}, velocity={velocityMagnitude:F2}");
+                Main.DebugLog(() => $"Enhanced collision response: {thisCar.ID} <-> {otherCar.ID}, force={additionalForce:F1}, v={velocityMagnitude:F2}");
             }
         }
     }

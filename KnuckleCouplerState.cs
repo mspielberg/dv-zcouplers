@@ -63,12 +63,12 @@ namespace DvMod.ZCouplers
             if (coupler == null)
                 return;
 
-            Main.DebugLog(() => $"ReadyCoupler called for {coupler.train.ID} {coupler.Position()}, current state: {coupler.state}");
+            Main.DebugLog(() => $"ReadyCoupler: {coupler.train.ID} {coupler.Position()}, state={coupler.state}");
 
             // Check if the coupler is actually in a locked/ready state
             if (coupler.state != ChainCouplerInteraction.State.Parked)
             {
-                Main.DebugLog(() => $"ReadyCoupler: {coupler.train.ID} {coupler.Position()} already ready/locked (state: {coupler.state})");
+                Main.DebugLog(() => $"Already ready/locked: {coupler.train.ID} {coupler.Position()} (state={coupler.state})");
                 return; // Already ready/locked
             }
 
@@ -80,11 +80,9 @@ namespace DvMod.ZCouplers
             if (!coupler.IsCoupled())
             {
                 coupler.state = ChainCouplerInteraction.State.Dangling;
-                Main.DebugLog(() => $"Updated {coupler.train.ID} {coupler.Position()} to Dangling state after making ready");
             }
 
             // Update visual state after changing the state
-            Main.DebugLog(() => $"ReadyCoupler: About to call UpdateHookVisualStateFromCouplerState for {coupler.train.ID} {coupler.Position()}");
             HookManager.UpdateHookVisualStateFromCouplerState(coupler);
         }
 
@@ -93,7 +91,7 @@ namespace DvMod.ZCouplers
             if (coupler == null)
                 return;
 
-            Main.DebugLog(() => $"ZCouplers: SetCouplerLocked called for {coupler.train.ID} {coupler.Position()}: locked={locked}, current state={coupler.state}");
+            Main.DebugLog(() => $"SetCouplerLocked: {coupler.train.ID} {coupler.Position()}, locked={locked}, state={coupler.state}");
 
             if (locked)
             {
@@ -112,7 +110,6 @@ namespace DvMod.ZCouplers
                 if (!coupler.IsCoupled())
                 {
                     coupler.state = ChainCouplerInteraction.State.Dangling;
-                    Main.DebugLog(() => $"ZCouplers: Updated {coupler.train.ID} {coupler.Position()} to Dangling state (locked)");
                 }
             }
             else
@@ -132,7 +129,6 @@ namespace DvMod.ZCouplers
                 if (!coupler.IsCoupled())
                 {
                     coupler.state = ChainCouplerInteraction.State.Parked;
-                    Main.DebugLog(() => $"ZCouplers: Updated {coupler.train.ID} {coupler.Position()} to Parked state (unlocked)");
                 }
             }
         }

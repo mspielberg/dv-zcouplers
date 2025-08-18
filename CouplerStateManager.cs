@@ -17,7 +17,7 @@ namespace DvMod.ZCouplers
             if (coupler == null)
                 return;
 
-            Main.DebugLog(() => $"Applying knuckle coupler state for {coupler.train.ID} {coupler.Position()}: locked={locked}, currently coupled={coupler.IsCoupled()}, native state={coupler.state}");
+            Main.DebugLog(() => $"Apply knuckle coupler state: {coupler.train.ID} {coupler.Position()}, locked={locked}, coupled={coupler.IsCoupled()}, native={coupler.state}");
 
             // Apply the knuckle coupler state first
             KnuckleCouplers.SetCouplerLocked(coupler, locked);
@@ -30,7 +30,7 @@ namespace DvMod.ZCouplers
                 {
                     // Force to locked state - knuckle couplers can't be "not ready" while coupled
                     KnuckleCouplers.SetCouplerLocked(coupler, true);
-                    Main.DebugLog(() => $"Forced {coupler.train.ID} {coupler.Position()} to ready state (was coupled but not ready)");
+                    Main.DebugLog(() => $"Force ready: {coupler.train.ID} {coupler.Position()} (coupled but not ready)");
                 }
 
                 // Coupled knuckle couplers are always Attached_Tight
@@ -39,7 +39,7 @@ namespace DvMod.ZCouplers
                 if (coupler.state != newState)
                 {
                     coupler.state = newState;
-                    Main.DebugLog(() => $"Updated native state for coupled {coupler.train.ID} {coupler.Position()} to {newState}");
+                    Main.DebugLog(() => $"Set coupled state: {coupler.train.ID} {coupler.Position()} -> {newState}");
                 }
 
                 // Force create tension joint to ensure proper physics connection
@@ -63,7 +63,7 @@ namespace DvMod.ZCouplers
                 if (coupler.state != newState)
                 {
                     coupler.state = newState;
-                    Main.DebugLog(() => $"Updated native state for uncoupled {coupler.train.ID} {coupler.Position()} to {newState}");
+                    Main.DebugLog(() => $"Set uncoupled state: {coupler.train.ID} {coupler.Position()} -> {newState}");
                 }
 
                 // Force trigger DetermineNextState to ensure state machine is updated correctly

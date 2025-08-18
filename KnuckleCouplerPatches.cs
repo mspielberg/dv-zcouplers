@@ -108,9 +108,7 @@ namespace DvMod.ZCouplers
                 catch (System.Exception ex)
                 {
                     if (Main.settings?.enableLogging == true)
-                    {
                         Main.ErrorLog(() => $"Exception in Entry_AttachedPatch: {ex.Message}");
-                    }
                     return true; // Fall back to original method if our patch fails
                 }
             }
@@ -151,9 +149,7 @@ namespace DvMod.ZCouplers
                 catch (System.Exception ex)
                 {
                     if (Main.settings?.enableLogging == true)
-                    {
                         Main.ErrorLog(() => $"Exception in LateUpdate_AttachedPatch: {ex.Message}");
-                    }
                     return true; // Fall back to original method if our patch fails
                 }
             }
@@ -224,9 +220,7 @@ namespace DvMod.ZCouplers
                 catch (System.Exception ex)
                 {
                     if (Main.settings?.enableLogging == true)
-                    {
                         Main.ErrorLog(() => $"Exception in Exit_AttachedPatch: {ex.Message}");
-                    }
                     return true; // Fall back to original method if our patch fails
                 }
             }
@@ -257,9 +251,7 @@ namespace DvMod.ZCouplers
                 catch (System.Exception ex)
                 {
                     if (Main.settings?.enableLogging == true)
-                    {
                         Main.ErrorLog(() => $"Exception in Exit_ParkedPatch: {ex.Message}");
-                    }
                     return true; // Fall back to original method if our patch fails
                 }
             }
@@ -397,7 +389,7 @@ namespace DvMod.ZCouplers
                 if (!KnuckleCouplers.enabled)
                     return;
 
-                Main.DebugLog(() => $"Knuckle OnCoupled: {e.thisCoupler.train.ID}<=>{e.otherCoupler.train.ID},viaChain={e.viaChainInteraction}");
+                Main.DebugLog(() => $"OnCoupled: {e.thisCoupler.train.ID} <-> {e.otherCoupler.train.ID}, viaChain={e.viaChainInteraction}");
 
                 // Update knuckle coupler visual state to show coupled (locked) without triggering uncoupling
                 KnuckleCouplerState.UpdateCouplerVisualState(e.thisCoupler, locked: true);
@@ -411,12 +403,12 @@ namespace DvMod.ZCouplers
                 if (!KnuckleCouplers.IsReadyToCouple(e.thisCoupler))
                 {
                     KnuckleCouplers.SetCouplerLocked(e.thisCoupler, true);
-                    Main.DebugLog(() => $"Forced {e.thisCoupler.train.ID} {e.thisCoupler.Position()} to ready state on coupling");
+                    Main.DebugLog(() => $"Force ready on couple: {e.thisCoupler.train.ID} {e.thisCoupler.Position()}");
                 }
                 if (!KnuckleCouplers.IsReadyToCouple(e.otherCoupler))
                 {
                     KnuckleCouplers.SetCouplerLocked(e.otherCoupler, true);
-                    Main.DebugLog(() => $"Forced {e.otherCoupler.train.ID} {e.otherCoupler.Position()} to ready state on coupling");
+                    Main.DebugLog(() => $"Force ready on couple: {e.otherCoupler.train.ID} {e.otherCoupler.Position()}");
                 }
 
                 // Now both are ready and coupled -> Attached_Tight
@@ -426,13 +418,13 @@ namespace DvMod.ZCouplers
                 if (thisChainScript != null && e.thisCoupler.IsCoupled())
                 {
                     e.thisCoupler.state = newState;
-                    Main.DebugLog(() => $"Updated coupled state for {e.thisCoupler.train.ID} {e.thisCoupler.Position()} to {newState}");
+                    Main.DebugLog(() => $"Set coupled state: {e.thisCoupler.train.ID} {e.thisCoupler.Position()} -> {newState}");
                 }
 
                 if (otherChainScript != null && e.otherCoupler.IsCoupled())
                 {
                     e.otherCoupler.state = newState;
-                    Main.DebugLog(() => $"Updated coupled state for {e.otherCoupler.train.ID} {e.otherCoupler.Position()} to {newState}");
+                    Main.DebugLog(() => $"Set coupled state: {e.otherCoupler.train.ID} {e.otherCoupler.Position()} -> {newState}");
                 }
 
                 // Ensure both coupler state machines are synchronized for external coupling
@@ -460,7 +452,7 @@ namespace DvMod.ZCouplers
                             thisChainScriptSync.enabled = true;
                             otherChainScriptSync.enabled = true;
 
-                            Main.DebugLog(() => $"Forced state synchronization for external coupling: {e.thisCoupler.train.ID} and {e.otherCoupler.train.ID}");
+                            Main.DebugLog(() => $"Forced state sync after external coupling: {e.thisCoupler.train.ID} & {e.otherCoupler.train.ID}");
                         }
 
                         // Clean up the synchronization record after a short delay
@@ -490,12 +482,12 @@ namespace DvMod.ZCouplers
                         if (!KnuckleCouplers.IsReadyToCouple(thisCoupler))
                         {
                             KnuckleCouplers.SetCouplerLocked(thisCoupler, true);
-                            Main.DebugLog(() => $"Forced {thisCoupler.train.ID} {thisCoupler.Position()} to ready state (was coupled but not ready)");
+                            Main.DebugLog(() => $"Force ready: {thisCoupler.train.ID} {thisCoupler.Position()}");
                         }
                         if (!KnuckleCouplers.IsReadyToCouple(otherCoupler))
                         {
                             KnuckleCouplers.SetCouplerLocked(otherCoupler, true);
-                            Main.DebugLog(() => $"Forced {otherCoupler.train.ID} {otherCoupler.Position()} to ready state (was coupled but not ready)");
+                            Main.DebugLog(() => $"Force ready: {otherCoupler.train.ID} {otherCoupler.Position()}");
                         }
 
                         // Now both are ready and coupled -> Attached_Tight
@@ -505,13 +497,13 @@ namespace DvMod.ZCouplers
                         if (thisCoupler.state != correctState)
                         {
                             thisCoupler.state = correctState;
-                            Main.DebugLog(() => $"Force-corrected state for {thisCoupler.train.ID} {thisCoupler.Position()} to {correctState}");
+                            Main.DebugLog(() => $"Correct state: {thisCoupler.train.ID} {thisCoupler.Position()} -> {correctState}");
                         }
 
                         if (otherCoupler.state != correctState)
                         {
                             otherCoupler.state = correctState;
-                            Main.DebugLog(() => $"Force-corrected state for {otherCoupler.train.ID} {otherCoupler.Position()} to {correctState}");
+                            Main.DebugLog(() => $"Correct state: {otherCoupler.train.ID} {otherCoupler.Position()} -> {correctState}");
                         }
 
                         // Also ensure visual states are consistent (both should be locked/ready now)
@@ -711,9 +703,7 @@ namespace DvMod.ZCouplers
                     stateMachine.OnUnhandledTrigger((s, trigger) =>
                     {
                         if (Main.settings?.enableLogging == true)
-                        {
-                            Main.DebugLog(() => $"[KnuckleCoupler] Unhandled trigger '{trigger}' for state '{s}'");
-                        }
+                            Main.DebugLog(() => $"Unhandled trigger '{trigger}' for state '{s}'");
                     });
 
                     __result = stateMachine;
@@ -728,9 +718,7 @@ namespace DvMod.ZCouplers
                 catch (System.Exception ex)
                 {
                     if (Main.settings?.enableLogging == true)
-                    {
                         Main.ErrorLog(() => $"Exception in MakeFSMPatch: {ex.Message}");
-                    }
                     return true; // Fall back to original method if our patch fails
                 }
             }

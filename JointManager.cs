@@ -6,7 +6,7 @@ using UnityEngine;
 namespace DvMod.ZCouplers
 {
     /// <summary>
-    /// Manages creation, destruction, and tracking of physics joints between train cars
+    /// Manages creation, destruction, and tracking of physics joints between train cars.
     /// </summary>
     public static class JointManager
     {
@@ -15,7 +15,7 @@ namespace DvMod.ZCouplers
 
         // Track when joints were last created to prevent rapid recreation
         private static readonly Dictionary<Coupler, float> lastJointCreationTime = new Dictionary<Coupler, float>();
-        private const float MinJointCreationInterval = 2.0f; // Seconds between joint creation attempts
+        private const float MinJointCreationInterval = 2.0f; // Minimum seconds between joint creation attempts
 
         // Buffer joint tracking
         internal static readonly Dictionary<Coupler, (Coupler otherCoupler, ConfigurableJoint joint)> bufferJoints =
@@ -26,9 +26,8 @@ namespace DvMod.ZCouplers
         private const float BufferTravel = 0.25f;
 
         /// <summary>
-        /// Calculate the actual distance between joint anchors (matches original game's JointDistance method)
-        /// This ensures we use the real measured distance after coupling rather than a hardcoded value,
-        /// which provides better compatibility with different car types and mod configurations.
+        /// Calculate the actual distance between joint anchors (matching the game's JointDistance).
+        /// Uses the measured distance after coupling for better compatibility across car types and configurations.
         /// </summary>
         private static float CalculateJointDistance(ConfigurableJoint joint)
         {
@@ -38,7 +37,7 @@ namespace DvMod.ZCouplers
         }
 
         /// <summary>
-        /// Get tension joint for a coupler (used by CouplerBreaker)
+        /// Get tension joint for a coupler (used by CouplerBreaker).
         /// </summary>
         public static ConfigurableJoint? GetTensionJoint(Coupler coupler)
         {
@@ -46,7 +45,7 @@ namespace DvMod.ZCouplers
         }
 
         /// <summary>
-        /// Check if tension joint exists for a coupler
+        /// Check whether a tension joint exists for a coupler.
         /// </summary>
         public static bool HasTensionJoint(Coupler coupler)
         {
@@ -54,7 +53,7 @@ namespace DvMod.ZCouplers
         }
 
         /// <summary>
-        /// Force create tension joint (used by SaveManager)
+        /// Force-create tension joint (used by SaveManager).
         /// </summary>
         public static void ForceCreateTensionJoint(Coupler coupler)
         {
@@ -72,13 +71,13 @@ namespace DvMod.ZCouplers
         }
 
         /// <summary>
-        /// Create tension joint between two coupled cars
+        /// Create a tension joint between two coupled cars.
         /// </summary>
         public static void CreateTensionJoint(Coupler coupler)
         {
             var coupledTo = coupler.coupledTo;
 
-            // Calculate the anchor positions to match the original game's approach
+            // Calculate anchor positions to match the game's approach
             var anchorOffset = Vector3.forward * TightChainLength * (coupler.isFrontCoupler ? -1f : 1f);
 
             var cj = coupler.train.gameObject.AddComponent<ConfigurableJoint>();
@@ -87,7 +86,7 @@ namespace DvMod.ZCouplers
             cj.connectedBody = coupler.coupledTo.train.gameObject.GetComponent<Rigidbody>();
             cj.connectedAnchor = coupler.coupledTo.transform.localPosition;
 
-            // Calculate actual joint distance like the original game does
+            // Calculate actual joint distance like the game does
             var actualJointDistance = CalculateJointDistance(cj);
             var jointLimit = Mathf.Max(actualJointDistance, LooseChainLength);
 
@@ -118,21 +117,20 @@ namespace DvMod.ZCouplers
             // Store tension joint
             customTensionJoints[coupler] = cj;
 
-            Main.DebugLog(() => $"Created tension joint with actual distance {actualJointDistance:F3}m, using limit {jointLimit:F3}m for {coupler.train.ID}");
+            Main.DebugLog(() => $"Tension joint created: distance={actualJointDistance:F3}m, limit={jointLimit:F3}m for {coupler.train.ID}");
         }
 
         /// <summary>
-        /// Create compression joint between two couplers
+        /// Create a compression joint between two couplers.
         /// </summary>
         public static void CreateCompressionJoint(Coupler a, Coupler b)
         {
             if (a?.coupledTo != b || b?.coupledTo != a)
             {
-                Main.DebugLog(() => $"Skipping compression joint creation - couplers not properly coupled: {a?.train?.ID} to {b?.train?.ID}");
+                Main.DebugLog(() => $"Skip compression joint: not properly coupled {a?.train?.ID} -> {b?.train?.ID}");
                 return;
             }
-            // Only log if debug logging is enabled
-            Main.DebugLog(() => $"Creating compression joint between {TrainCar.Resolve(a.gameObject)?.ID} and {TrainCar.Resolve(b.gameObject)?.ID}");
+            Main.DebugLog(() => $"Compression joint created between {TrainCar.Resolve(a.gameObject)?.ID} and {TrainCar.Resolve(b.gameObject)?.ID}");
 
             // Create rigid (bottoming out) joint
             var bottomedCj = a.train.gameObject.AddComponent<ConfigurableJoint>();
@@ -171,13 +169,13 @@ namespace DvMod.ZCouplers
             bufferJoints.Add(a, (b, bufferCj));
             bufferJoints.Add(b, (a, bufferCj));
 
-            // If both couplers are ready (locked) but showing as Dangling, update them to Attached_Tight
-            // This handles the case where compression joints are created after deferred state application
+            // If both couplers are ready (locked) but showing as Dangling, update them to Attached_Tight.
+            // Handles compression joints created after deferred state application.
             UpdateCouplerStatesAfterCompressionJoint(a, b);
         }
 
         /// <summary>
-        /// Update coupler states to Attached_Tight when compression joints are created for ready couplers
+        /// Update coupler states to Attached_Tight when compression joints are created for ready couplers.
         /// </summary>
         private static void UpdateCouplerStatesAfterCompressionJoint(Coupler a, Coupler b)
         {
@@ -189,7 +187,7 @@ namespace DvMod.ZCouplers
 
                 if (aWasDangling || bWasDangling)
                 {
-                    Main.DebugLog(() => $"Updating coupler states after compression joint creation: {a.train.ID} {a.Position()} (was {a.state}) and {b.train.ID} {b.Position()} (was {b.state})");
+                    Main.DebugLog(() => $"Set Attached_Tight after compression joint: {a.train.ID} {a.Position()} (was {a.state}), {b.train.ID} {b.Position()} (was {b.state})");
 
                     // Update both couplers to Attached_Tight since they're both ready and have compression joints
                     // The actual coupling and tension joint creation will be handled by MasterCoro
@@ -209,7 +207,7 @@ namespace DvMod.ZCouplers
         }
 
         /// <summary>
-        /// Destroy tension joint for a coupler
+        /// Destroy the tension joint for a coupler.
         /// </summary>
         public static void DestroyTensionJoint(Coupler coupler)
         {
@@ -223,12 +221,12 @@ namespace DvMod.ZCouplers
                 {
                     if (tensionJoint != null)
                     {
-                        // Removed verbose tension joint destruction logs
+                        // Destroy found joint
                         UnityEngine.Object.Destroy(tensionJoint);
                     }
                     customTensionJoints.Remove(coupler);
                     lastJointCreationTime.Remove(coupler);
-                    // Removed verbose joint destruction log
+                    // Cleaned up tracking entries
                     return;
                 }
 
@@ -237,17 +235,16 @@ namespace DvMod.ZCouplers
                 {
                     if (tensionJoint != null)
                     {
-                        // Removed verbose partner joint destruction log
+                        // Destroy partner's joint
                         UnityEngine.Object.Destroy(tensionJoint);
                     }
                     customTensionJoints.Remove(coupler.coupledTo);
                     lastJointCreationTime.Remove(coupler.coupledTo);
-                    // Removed verbose partner destruction log
+                    // Cleaned up partner tracking entries
                     return;
                 }
 
-                // Keep important warning about missing joints for debugging
-                Main.DebugLog(() => $"TENSION JOINT: No tension joint found to destroy for {coupler.train.ID} {coupler.Position()} or its partner");
+                Main.DebugLog(() => $"Tension joint not found to destroy for {coupler.train.ID} {coupler.Position()} or its partner");
             }
             catch (System.Exception ex)
             {
@@ -264,7 +261,7 @@ namespace DvMod.ZCouplers
         }
 
         /// <summary>
-        /// Destroy compression joint for a coupler
+        /// Destroy the compression joint for a coupler.
         /// </summary>
         public static void DestroyCompressionJoint(Coupler coupler, string caller = "unknown")
         {
@@ -273,8 +270,7 @@ namespace DvMod.ZCouplers
 
             try
             {
-                // Only log destruction when debug logging is enabled
-                Main.DebugLog(() => $"Destroying compression joint between {TrainCar.Resolve(coupler.gameObject)?.ID} and {TrainCar.Resolve(result.otherCoupler.gameObject)?.ID} - called from: {caller}");
+                Main.DebugLog(() => $"Destroy compression joint between {TrainCar.Resolve(coupler.gameObject)?.ID} and {TrainCar.Resolve(result.otherCoupler.gameObject)?.ID} (caller: {caller})");
 
                 // Destroy the joint
                 if (result.joint != null)
@@ -318,7 +314,7 @@ namespace DvMod.ZCouplers
         }
 
         /// <summary>
-        /// Convert compression joint to use game's collision system instead
+        /// Convert compression joint to use the game's collision system instead.
         /// </summary>
         public static void ConvertCompressionJointToBufferOnly(Coupler coupler)
         {
@@ -327,7 +323,7 @@ namespace DvMod.ZCouplers
 
             try
             {
-                // Removed verbose collision system conversion logs
+                // Remove existing compression joints and use the game's collision system instead.
 
                 // Destroy any existing compression joints - we'll use the game's collision system instead
                 if (bufferJoints.TryGetValue(coupler, out var result))
@@ -335,7 +331,7 @@ namespace DvMod.ZCouplers
                     if (result.joint != null)
                     {
                         Component.Destroy(result.joint);
-                        // Removed verbose collision system success log
+                        // Joint removed
                     }
 
                     // Remove from tracking
@@ -344,19 +340,19 @@ namespace DvMod.ZCouplers
                 }
                 else
                 {
-                    // Removed verbose conversion failure log
+                    // No joint found; nothing to convert
                 }
 
-                // Clear the rigidCJ references so the game doesn't think cars are rigidly coupled
+                // Clear rigidCJ references so the game doesn't think cars are rigidly coupled
                 if (coupler.rigidCJ != null)
                 {
                     coupler.rigidCJ = null;
-                    // Removed verbose reference cleanup logs
+                    // Cleared
                 }
                 if (coupler.coupledTo.rigidCJ != null)
                 {
                     coupler.coupledTo.rigidCJ = null;
-                    // Removed verbose reference cleanup logs
+                    // Cleared
                 }
 
                 // Clear coroutines
@@ -380,7 +376,7 @@ namespace DvMod.ZCouplers
         }
 
         /// <summary>
-        /// Update all compression joints with current settings
+        /// Update all compression joints with current settings.
         /// </summary>
         public static void UpdateAllCompressionJoints()
         {
@@ -405,7 +401,7 @@ namespace DvMod.ZCouplers
         }
 
         /// <summary>
-        /// Check if joint creation should be allowed based on timing
+        /// Check whether joint creation should be allowed based on timing.
         /// </summary>
         public static bool CanCreateJoint(Coupler coupler)
         {
@@ -418,7 +414,7 @@ namespace DvMod.ZCouplers
         }
 
         /// <summary>
-        /// Record that a joint was created for timing purposes
+        /// Record that a joint was created for timing purposes.
         /// </summary>
         public static void RecordJointCreation(Coupler coupler)
         {
