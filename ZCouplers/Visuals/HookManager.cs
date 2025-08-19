@@ -45,16 +45,17 @@ namespace DvMod.ZCouplers
                 return false;
 
             var liveryId = coupler?.train?.carLivery?.id;
-            return liveryId == "LocoS282A" || liveryId == "LocoS060";
+            // Disable front coupler on the S282A
+            return liveryId == "LocoS282A";
         }
 
         /// <summary>
-        /// Check whether a locomotive is a steam locomotive type.
+        /// Check whether a locomotive should use steam-specific front hose handling.
         /// </summary>
         private static bool IsSteamLocomotive(Coupler? coupler)
         {
             var liveryId = coupler?.train?.carLivery?.id;
-            return liveryId == "LocoS282A" || liveryId == "LocoS060";
+            return liveryId == "LocoS282A";
         }
 
         /// <summary>
@@ -138,7 +139,7 @@ namespace DvMod.ZCouplers
             if (!Main.settings.disableFrontCouplersOnSteamLocos)
                 return;
 
-            // Only process steam locomotives (S282A and S060)
+            // Only process heavy steam locomotive (S282A)
             if (!IsSteamLocomotive(coupler))
                 return;
 

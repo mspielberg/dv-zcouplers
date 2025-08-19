@@ -27,7 +27,7 @@ namespace DvMod.ZCouplers
         /// </summary>
         public bool EffectiveFullAutomaticMode => fullAutomaticMode || couplerType == CouplerType.Schafenberg;
 
-        [Draw("Disable Front Couplers on Steam Locos", Tooltip = "Disable knuckle couplers on the front of S282A and S060 locomotives")]
+        [Draw("Disable Front Couplers on S282")]
         public bool disableFrontCouplersOnSteamLocos = false;
 
         [Draw("Enable debug logging")]
