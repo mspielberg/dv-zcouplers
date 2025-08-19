@@ -167,7 +167,10 @@ namespace DvMod.ZCouplers
                 if (child != null && child.name == "hoses")
                 {
                     child.gameObject.SetActive(visible);
-                    if (!visible) HoseHider.Attach(child);
+                    if (!visible)
+                        HoseHider.Attach(child);
+                    else
+                        HoseHider.Detach(child);
                 }
             }
         }
@@ -207,10 +210,10 @@ namespace DvMod.ZCouplers
                 SetActiveForChildrenNamed(interiorGameObject.transform, "hoses", visible, recursive: false);
                 // and recursive as a safety net
                 SetActiveForChildrenNamed(interiorGameObject.transform, "hoses", visible, recursive: true);
-                if (!visible)
+                foreach (var t in FindAllTransformsByName(interiorGameObject.transform, "hoses", recursive: true))
                 {
-                    foreach (var t in FindAllTransformsByName(interiorGameObject.transform, "hoses", recursive: true))
-                        HoseHider.Attach(t);
+                    if (!visible) HoseHider.Attach(t);
+                    else HoseHider.Detach(t);
                 }
             }
 
@@ -246,6 +249,7 @@ namespace DvMod.ZCouplers
                     foreach (var renderer in renderers)
                         renderer.enabled = visible;
                     if (!visible) HoseHider.Attach(t);
+                    else HoseHider.Detach(t);
                 }
         }
 
@@ -416,10 +420,26 @@ namespace DvMod.ZCouplers
                 return;
             }
 
-            // Check if hook already exists
+            // If we already have a tracked pivot, nothing to do
             if (GetPivot(chainScript) != null)
-            {
                 return;
+
+            // Attempt to rebind to an existing ZCouplers pivot/hook left in the scene
+            // from a previous mod load (static dictionary would have been cleared).
+            if (TryRebindExistingPivot(chainScript))
+            {
+                // Ensure visuals/components are wired and hardware visible
+                var existingUpdater = chainScript.gameObject.GetComponent<CouplerVisualUpdater>();
+                if (existingUpdater == null)
+                    chainScript.gameObject.AddComponent<CouplerVisualUpdater>();
+
+                var existingCoupler = chainScript.couplerAdapter?.coupler;
+                if (existingCoupler != null)
+                {
+                    ToggleCouplerHardware(existingCoupler, true);
+                    UpdateHookVisualStateFromCouplerState(existingCoupler);
+                }
+                return; // Successfully rebound; do not create a duplicate
             }
 
             // Ensure assets are loaded
@@ -463,6 +483,91 @@ namespace DvMod.ZCouplers
 
             // Ensure coupler hardware is visible for enabled couplers
             ToggleCouplerHardware(coupler, true);
+        }
+
+        /// <summary>
+        /// Try to find an existing ZCouplers pivot in the scene for this chainScript/coupler and rebind it
+        /// to our runtime dictionary. Returns true if successful.
+        /// </summary>
+        private static bool TryRebindExistingPivot(ChainCouplerInteraction chainScript)
+        {
+            if (chainScript?.couplerAdapter?.coupler == null)
+                return false;
+
+            var coupler = chainScript.couplerAdapter.coupler;
+            var pivot = FindExistingPivotForCoupler(coupler);
+            if (pivot == null)
+                return false;
+
+            // Validate the pivot still has a hook child; if it doesn’t, treat as not reboundable
+            var hook = pivot.Find("hook") ?? pivot.Find("hook_open") ?? pivot.Find("SA3_closed") ?? pivot.Find("SA3_open") ?? pivot.Find("Schaku_closed") ?? pivot.Find("Schaku_open");
+            if (hook == null)
+                return false;
+
+            // Rebind in dictionary
+            pivots[chainScript] = pivot;
+            return true;
+        }
+
+        /// <summary>
+        /// Locate an existing pivot Transform for a coupler created by ZCouplers in a previous load.
+        /// Prefers exact names "ZCouplers pivot front/rear" under the train interior; falls back to any
+        /// transform whose name contains "ZCouplers pivot" and picks the closest to the coupler.
+        /// </summary>
+        private static Transform? FindExistingPivotForCoupler(Coupler coupler)
+        {
+            var interior = coupler?.train?.interior;
+            if (interior == null)
+                return null;
+
+            // Use a non-null local after guard to keep nullable analysis happy
+            Transform interiorTf = interior;
+
+            // 1) Try exact expected name first
+            var isFront = coupler!.isFrontCoupler; // Unity coupler component exists here
+            var expectedName = isFront ? "ZCouplers pivot front" : "ZCouplers pivot rear";
+            var exact = FindTransformRecursive(interiorTf, expectedName);
+            if (exact != null)
+                return exact;
+
+            // 2) Fallback: search for any transform containing our prefix
+            Transform? best = null;
+            float bestDist = float.MaxValue;
+
+            var stack = new Stack<Transform>();
+            stack.Push(interiorTf);
+            while (stack.Count > 0)
+            {
+                var t = stack.Pop();
+                if (t != null)
+                {
+                    if (t.name.IndexOf("ZCouplers pivot", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        // If front/rear keyword matches, consider it first by distance
+                        bool nameMatchesSide = isFront ? t.name.IndexOf("front", StringComparison.OrdinalIgnoreCase) >= 0
+                                                       : t.name.IndexOf("rear", StringComparison.OrdinalIgnoreCase) >= 0;
+                        var couplerPos = coupler!.transform!.position;
+                        var dist = Vector3.Distance(couplerPos, t.position);
+                        // Prefer matching side, otherwise still eligible
+                        var score = nameMatchesSide ? dist : dist + 1000f; // penalize non-matching side
+                        if (score < bestDist)
+                        {
+                            bestDist = score;
+                            best = t;
+                        }
+                    }
+
+                    for (int i = 0; i < t.childCount; i++)
+                        stack.Push(t.GetChild(i));
+                }
+            }
+
+            // Only accept a candidate if it's reasonably close to this coupler (avoid binding front to rear, etc.)
+            const float maxAcceptableDistance = 3.0f; // meters
+            if (best != null && bestDist < maxAcceptableDistance)
+                return best;
+
+            return null;
         }
 
         /// <summary>
@@ -809,6 +914,21 @@ namespace DvMod.ZCouplers
 
             if (needsSwap)
             {
+                // Prefetch the replacement prefab; if unavailable (e.g., assets not yet loaded), skip swapping
+                GameObject? newHookPrefab = null;
+                string desiredName = "";
+                if (profile != null)
+                {
+                    newHookPrefab = shouldUseOpenHook ? profile.GetOpenPrefab() : profile.GetClosedPrefab();
+                    desiredName = shouldUseOpenHook ? (options?.HookOpenChildName ?? "hook_open") : (options?.HookClosedChildName ?? "hook");
+                }
+
+                if (newHookPrefab == null || pivot == null)
+                {
+                    // Don’t destroy existing hook if we can’t replace it yet
+                    return;
+                }
+
                 Main.DebugLog(() => $"Hook visual swapped for {coupler.train.ID} {coupler.Position()} -> {(shouldUseOpenHook ? "open" : "closed")} state");
 
                 // Play appropriate sound for the state change
@@ -823,30 +943,9 @@ namespace DvMod.ZCouplers
                     chainScript.PlaySound(chainScript.attachSound, chainScript.transform.position);
                 }
 
-                // Store current state
-                var buttonSpec = hook.GetComponent<Button>();
-                var infoArea = hook.GetComponent<InfoArea>();
-                var currentPosition = hook.localPosition;
-                var wasActive = hook.gameObject.activeSelf;
-
-                // Remove old hook immediately to prevent conflicts
+                // Remove old hook and create replacement
                 GameObject.DestroyImmediate(hook.gameObject);
-
-                // Create new hook with appropriate prefab
-                GameObject? newHookPrefab = null;
-                string desiredName = "";
-
-                if (profile != null)
-                {
-                    newHookPrefab = shouldUseOpenHook ? profile.GetOpenPrefab() : profile.GetClosedPrefab();
-                    desiredName = shouldUseOpenHook ? (options?.HookOpenChildName ?? "hook_open") : (options?.HookClosedChildName ?? "hook");
-                }
-
-                if (newHookPrefab != null && pivot != null)
-                {
-                    CreateHookInstance(pivot, newHookPrefab, chainScript, coupler, desiredName);
-                    // Optionally verify creation by name if needed during debugging
-                }
+                CreateHookInstance(pivot, newHookPrefab, chainScript, coupler, desiredName);
             }
         }
 

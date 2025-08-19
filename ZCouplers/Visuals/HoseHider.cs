@@ -17,12 +17,17 @@ namespace DvMod.ZCouplers
                 t.gameObject.AddComponent<HoseHider>();
         }
 
+        public static void Detach(Transform t)
+        {
+            if (t == null)
+                return;
+            var hh = t.GetComponent<HoseHider>();
+            if (hh != null)
+                Destroy(hh);
+        }
+
         private void OnEnable()
         {
-            // Only enforce in profiles that require hiding hoses (e.g., Schaku)
-            if (CouplerProfiles.Current?.Options.AlwaysHideAirHoses != true)
-                return;
-
             // Immediately disable visuals and object
             HideNow();
             // Also re-assert next frame in case something else flips it this frame
