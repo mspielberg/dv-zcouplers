@@ -58,6 +58,8 @@ public static class BufferVisualManager
             }
         }
         ToggleSpecialLocoBufferStems(root, livery, visible);
+    // CCL: additionally support markers named "[BufferStems]" anywhere under the car hierarchy
+    ToggleCCLBufferStemsByMarker(root, livery, visible);
     }
 
     private static void ToggleBufferVisuals(Transform buffers, TrainCarLivery livery, bool visible)
@@ -338,6 +340,65 @@ public static class BufferVisualManager
         {
             Main.DebugLog(() => "Special buffer stems not found: " + stemName + " on " + livery.id);
         }
+    }
+
+    // CCL: Find any transforms named "[BufferStems]" and toggle all renderers beneath them for CCL trains/cars
+    private static void ToggleCCLBufferStemsByMarker(GameObject root, TrainCarLivery livery, bool visible)
+    {
+        try
+        {
+            var all = root.GetComponentsInChildren<Transform>(includeInactive: true);
+            var markers = all.Where(t => t != null && t.name == "[BufferStems]");
+            int toggled = 0;
+            foreach (var marker in markers)
+            {
+                toggled += ToggleRendererTreeCCL(marker, visible);
+            }
+            if (toggled > 0)
+            {
+                Main.DebugLog(() => $"CCL: Toggled {toggled} renderer(s) under [BufferStems] on {livery.id}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Main.ErrorLog(() => "Error in ToggleCCLBufferStemsByMarker: " + ex.Message);
+        }
+    }
+
+    // CCL: Toggle renderers under a marker for CCL trains/cars
+    private static int ToggleRendererTreeCCL(Transform root, bool visible)
+    {
+        int count = 0;
+        if (root == null)
+            return count;
+
+        try
+        {
+            foreach (var r in root.GetComponentsInChildren<MeshRenderer>(includeInactive: true))
+            {
+                if (!IsZCouplersObject(r.transform))
+                {
+                    r.enabled = visible;
+                    ForceRendererUpdate(r);
+                    count++;
+                }
+            }
+            foreach (var r in root.GetComponentsInChildren<SkinnedMeshRenderer>(includeInactive: true))
+            {
+                if (!IsZCouplersObject(r.transform))
+                {
+                    r.enabled = visible;
+                    ForceRendererUpdate(r);
+                    count++;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Main.ErrorLog(() => "Error in ToggleRendererTreeCCL: " + ex.Message);
+        }
+
+        return count;
     }
 
     private static void ForceRendererUpdate(Renderer renderer)
