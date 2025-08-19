@@ -5,7 +5,7 @@ Zeibach's Couplers replaces the default buffer-and-chain couplers with realistic
 
 ## Features
 
-- AAR and SA3 knuckle couplers with game-ready visuals (asset bundle embedded in the DLL)
+- AAR, SA3 knuckle and Schafenberg couplers with game-ready visuals (asset bundle embedded in the DLL)
 - Custom coupling physics: tension/compression joints, spring and damping parameters
 - Breakable couplers with stress tracking
 - Toggleable buffer visuals across all cars and prefabs
@@ -30,6 +30,7 @@ Open Unity Mod Manager (Ctrl+F10 by default) → ZCouplers to access settings:
 - Coupler type (requires restart):
   - AAR Knuckle
   - SA3 Knuckle
+  - Schafenberg Typ10
 - Show Buffers With Knuckles: show/hide buffer visuals while knuckles are enabled
 - Knuckle strength (MN)
 - Tension spring rate (MN/m)
