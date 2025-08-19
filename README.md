@@ -1,6 +1,6 @@
 ## ZCouplers — Realistic Knuckle Couplers for Derail Valley
 
-Zeibach's Couplers replaces the default buffer-and-chain couplers with realistic knuckle couplers (AAR and SA3). It updates visuals and physics, adds drawgear behavior, and integrates with the game's save system. Built as a Unity Mod Manager (UMM) plugin with Harmony patches.
+Zeibach's Couplers replaces the default buffer-and-chain couplers with realistic knuckle couplers (AAR, SA3 and Schafenberg). It updates visuals and physics, adds drawgear behavior, and integrates with the game's save system.
 
 
 ## Features
