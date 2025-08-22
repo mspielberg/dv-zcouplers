@@ -11,8 +11,8 @@ namespace DvMod.ZCouplers
             HookLateralOffsetX = 0f,
             SupportsVerticalArticulation = false,
             AlwaysHideAirHoses = false,
-            HookClosedChildName = "hook",
-            HookOpenChildName = "hook_open",
+            HookClosedChildName = "AAR_closed",
+            HookOpenChildName = "AAR_open",
             HasOpenVariant = true,
         };
 
