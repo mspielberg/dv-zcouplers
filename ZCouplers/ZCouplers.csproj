@@ -37,7 +37,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="ZCouplers.assetbundle"/>
+    <EmbeddedResource Include="..\ZCouplers.Unity\Assets\AssetBundles\zcouplers"/>
   </ItemGroup>
 
   <ItemGroup>
