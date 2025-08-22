@@ -1,3 +1,6 @@
+using System;
+using System.IO;
+using System.Linq;
 using UnityEngine;
 
 namespace DvMod.ZCouplers
@@ -14,35 +17,14 @@ namespace DvMod.ZCouplers
         private static GameObject? schakuClosedPrefab; // For Schafenberg closed/ready state
         private static GameObject? schakuOpenPrefab;   // For Schafenberg open/parked state
 
-        public static GameObject? GetAARClosedPrefab()
-        {
-            return aarClosedPrefab;
-        }
+        public static GameObject? GetAARClosedPrefab() => aarClosedPrefab;
+        public static GameObject? GetAAROpenPrefab() => aarOpenPrefab;
 
-        public static GameObject? GetAAROpenPrefab()
-        {
-            return aarOpenPrefab;
-        }
+        public static GameObject? GetSA3ClosedPrefab() => sa3ClosedPrefab;
+        public static GameObject? GetSA3OpenPrefab() => sa3OpenPrefab;
 
-        public static GameObject? GetSA3ClosedPrefab()
-        {
-            return sa3ClosedPrefab;
-        }
-
-        public static GameObject? GetSA3OpenPrefab()
-        {
-            return sa3OpenPrefab;
-        }
-
-        public static GameObject? GetSchakuClosedPrefab()
-        {
-            return schakuClosedPrefab;
-        }
-
-        public static GameObject? GetSchakuOpenPrefab()
-        {
-            return schakuOpenPrefab;
-        }
+        public static GameObject? GetSchakuClosedPrefab() => schakuClosedPrefab;
+        public static GameObject? GetSchakuOpenPrefab() => schakuOpenPrefab;
 
         /// <summary>
         /// Returns the hook prefab for the specified coupler type and parked state.
@@ -52,22 +34,13 @@ namespace DvMod.ZCouplers
             switch (couplerType)
             {
                 case CouplerType.AARKnuckle:
-                    // Use open hook for AAR couplers in parked state, closed AAR for ready state
-                    if (isParked && aarOpenPrefab != null)
-                        return aarOpenPrefab;
-                    return aarClosedPrefab;
+                    return isParked && aarOpenPrefab != null ? aarOpenPrefab : aarClosedPrefab;
 
                 case CouplerType.SA3Knuckle:
-                    // Use open SA3 for parked state, closed SA3 for ready state
-                    if (isParked && sa3OpenPrefab != null)
-                        return sa3OpenPrefab;
-                    return sa3ClosedPrefab;
+                    return isParked && sa3OpenPrefab != null ? sa3OpenPrefab : sa3ClosedPrefab;
 
                 case CouplerType.Schafenberg:
-                    // Use open Schaku for parked state, closed Schaku for ready state
-                    if (isParked && schakuOpenPrefab != null)
-                        return schakuOpenPrefab;
-                    return schakuClosedPrefab;
+                    return isParked && schakuOpenPrefab != null ? schakuOpenPrefab : schakuClosedPrefab;
 
                 default:
                     return aarClosedPrefab;
@@ -114,25 +87,63 @@ namespace DvMod.ZCouplers
             {
                 CouplerType couplerType = Main.settings.couplerType;
 
+                // Helper to load a prefab by name regardless of folder path within the bundle
+                GameObject? LoadPrefab(string desiredName)
+                {
+                    // Try direct name first (works if asset was explicitly named)
+                    var go = bundle.LoadAsset<GameObject>(desiredName);
+                    if (go != null)
+                        return go;
+
+                    // Scan all asset names (lowercased paths like "assets/prefabs/foo.prefab")
+                    string[] names;
+                    try { names = bundle.GetAllAssetNames(); }
+                    catch { names = Array.Empty<string>(); }
+
+                    if (names.Length == 0)
+                        return null;
+
+                    // Match by filename without extension, then by path ending, then by contains
+                    var match = names.FirstOrDefault(p => string.Equals(Path.GetFileNameWithoutExtension(p), desiredName, StringComparison.OrdinalIgnoreCase))
+                             ?? names.FirstOrDefault(p => p.EndsWith("/" + desiredName + ".prefab", StringComparison.OrdinalIgnoreCase))
+                             ?? names.FirstOrDefault(p => p.IndexOf(desiredName, StringComparison.OrdinalIgnoreCase) >= 0 && p.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase));
+
+                    if (match != null)
+                    {
+                        var loaded = bundle.LoadAsset<GameObject>(match);
+                        if (loaded != null)
+                        {
+                            Main.DebugLog(() => $"Loaded '{desiredName}' via asset path '{match}'");
+                            return loaded;
+                        }
+                    }
+                    else if (Main.settings.enableLogging)
+                    {
+                        Main.ErrorLog(() => $"Asset '{desiredName}' not found in bundle.");
+                    }
+                    return null;
+                }
+
                 // Load assets based on coupler type
                 switch (couplerType)
                 {
                     case CouplerType.AARKnuckle:
                         Main.DebugLog(() => "Loading AAR assets");
-                        aarClosedPrefab = bundle.LoadAsset<GameObject>("hook");
-                        aarOpenPrefab = bundle.LoadAsset<GameObject>("hook_open");
+                        aarClosedPrefab = LoadPrefab("AAR_closed");
+                        aarOpenPrefab = LoadPrefab("AAR_open");
+                        aarSocketPrefab = LoadPrefab("AAR_socket");
 
                         if (aarClosedPrefab == null)
-                            Main.ErrorLog(() => "Failed to load 'hook' prefab for AAR coupler");
+                            Main.ErrorLog(() => "Failed to load 'AAR_closed' prefab for AAR coupler");
 
                         if (aarOpenPrefab == null)
-                            Main.ErrorLog(() => "Failed to load 'hook_open' prefab for AAR coupler");
+                            Main.ErrorLog(() => "Failed to load 'AAR_open' prefab for AAR coupler");
                         break;
 
                     case CouplerType.SA3Knuckle:
                         Main.DebugLog(() => "Loading SA3 assets");
-                        sa3ClosedPrefab = bundle.LoadAsset<GameObject>("SA3_closed");
-                        sa3OpenPrefab = bundle.LoadAsset<GameObject>("SA3_open");
+                        sa3ClosedPrefab = LoadPrefab("SA3_closed");
+                        sa3OpenPrefab = LoadPrefab("SA3_open");
 
                         if (sa3ClosedPrefab == null)
                             Main.ErrorLog(() => "Failed to load 'SA3_closed' prefab for SA3 coupler");
@@ -143,8 +154,8 @@ namespace DvMod.ZCouplers
 
                     case CouplerType.Schafenberg:
                         Main.DebugLog(() => "Loading Schafenberg assets");
-                        schakuClosedPrefab = bundle.LoadAsset<GameObject>("Schaku_closed");
-                        schakuOpenPrefab = bundle.LoadAsset<GameObject>("Schaku_open");
+                        schakuClosedPrefab = LoadPrefab("Schaku_closed");
+                        schakuOpenPrefab = LoadPrefab("Schaku_open");
 
                         if (schakuClosedPrefab == null)
                             Main.ErrorLog(() => "Failed to load 'Schaku_closed' prefab for Schafenberg coupler");
@@ -157,7 +168,7 @@ namespace DvMod.ZCouplers
                         // Fallback - try to load by enum name
                         string assetName = couplerType.ToString();
                         Main.DebugLog(() => $"Loading fallback asset '{assetName}' ({couplerType})");
-                        aarClosedPrefab = bundle.LoadAsset<GameObject>(assetName);
+                        aarClosedPrefab = LoadPrefab(assetName);
 
                         if (aarClosedPrefab == null)
                         {
