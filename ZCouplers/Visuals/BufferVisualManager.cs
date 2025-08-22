@@ -12,9 +12,20 @@ namespace DvMod.ZCouplers;
 
 public static class BufferVisualManager
 {
+    private static bool? _lastVisibilityState = null;
+
     public static void ToggleBuffers(bool visible)
     {
+        // Skip if we're trying to set the same state again
+        if (_lastVisibilityState.HasValue && _lastVisibilityState.Value == visible)
+        {
+            Main.DebugLog(() => $"Skipping buffer visibility toggle - already set to {(visible ? "on" : "off")}");
+            return;
+        }
+
         Main.DebugLog(() => "Toggling buffer visibility " + (visible ? "on" : "off"));
+        _lastVisibilityState = visible;
+
         foreach (TrainCarLivery livery in Globals.G.Types.Liveries)
         {
             ToggleBuffers(livery.prefab, livery, visible);
@@ -28,6 +39,24 @@ public static class BufferVisualManager
             ToggleBuffers(allCar.gameObject, allCar.carLivery, visible);
         }
         ForceGlobalRenderingUpdate();
+    }
+
+    /// <summary>
+    /// Force a refresh of buffer visibility, ignoring the cached state.
+    /// Use this when new cars are spawned and need to have their buffer visibility updated.
+    /// </summary>
+    public static void ForceRefreshBuffers(bool visible)
+    {
+        _lastVisibilityState = null;
+        ToggleBuffers(visible);
+    }
+
+    /// <summary>
+    /// Reset the cached visibility state. This will cause the next call to ToggleBuffers to execute regardless of the previous state.
+    /// </summary>
+    public static void ResetVisibilityCache()
+    {
+        _lastVisibilityState = null;
     }
 
     private static void ToggleBuffers(GameObject root, TrainCarLivery livery, bool visible)

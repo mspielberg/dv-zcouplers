@@ -3,12 +3,14 @@ using System;
 using DV.CabControls;
 
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace DvMod.ZCouplers
 {
     public class KnuckleCouplers
     {
         public static KnuckleCouplers? Instance { get; private set; }
+    private static bool sceneLoadHooked = false;
 
         // Temporarily match the old working code exactly
         public static bool enabled => true; // Always enabled like the old code
@@ -199,6 +201,19 @@ namespace DvMod.ZCouplers
                 new KnuckleCouplers();
             }
 
+            // Apply buffer visibility immediately based on current settings
+            BufferVisualManager.ToggleBuffers(Main.settings.showBuffersWithKnuckles);
+
+            // Also re-apply shortly after load to catch already spawned cars - use ForceRefresh here
+            UnityEngine.Object.FindObjectOfType<CarSpawner>()?.StartCoroutine(DelayedBufferVisualUpdate());
+
+            // Ensure we re-apply on future scene loads (e.g., entering game)
+            if (!sceneLoadHooked)
+            {
+                SceneManager.sceneLoaded += OnSceneLoaded;
+                sceneLoadHooked = true;
+            }
+
             // If the current profile requires always hiding air hoses, do it after a small delay
             if (CouplerProfiles.Current?.Options.AlwaysHideAirHoses == true)
                 UnityEngine.Object.FindObjectOfType<CarSpawner>()?.StartCoroutine(DelayedAirHoseDeactivation());
@@ -211,6 +226,25 @@ namespace DvMod.ZCouplers
         {
             yield return new UnityEngine.WaitForSeconds(1.0f);
             DeactivateAllAirHoses();
+        }
+
+        /// <summary>
+        /// Delay to ensure cars are present before applying buffer visibility to instances.
+        /// </summary>
+        private static System.Collections.IEnumerator DelayedBufferVisualUpdate()
+        {
+            yield return new UnityEngine.WaitForSeconds(1.0f);
+            // Use ForceRefresh here since new cars may have spawned
+            BufferVisualManager.ForceRefreshBuffers(Main.settings.showBuffersWithKnuckles);
+        }
+
+        private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+        {
+            // Only do the immediate call, remove redundant delayed call
+            BufferVisualManager.ToggleBuffers(Main.settings.showBuffersWithKnuckles);
+
+            if (CouplerProfiles.Current?.Options.AlwaysHideAirHoses == true)
+                UnityEngine.Object.FindObjectOfType<CarSpawner>()?.StartCoroutine(DelayedAirHoseDeactivation());
         }
 
     }
