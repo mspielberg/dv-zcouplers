@@ -5,23 +5,24 @@ using UnityEngine;
 namespace DvMod.ZCouplers
 {
     /// <summary>
-    /// Ensures hose GameObjects remain hidden even if re-enabled by game optimizers/LODs.
+    /// Ensures a GameObject and its MeshRenderers remain hidden even if re-enabled by game optimizers/LODs.
+    /// Generic version of the old HoseHider.
     /// </summary>
-    internal sealed class HoseHider : MonoBehaviour
+    internal sealed class GameObjHider : MonoBehaviour
     {
         public static void Attach(Transform t)
         {
             if (t == null)
                 return;
-            if (t.GetComponent<HoseHider>() == null)
-                t.gameObject.AddComponent<HoseHider>();
+            if (t.GetComponent<GameObjHider>() == null)
+                t.gameObject.AddComponent<GameObjHider>();
         }
 
         public static void Detach(Transform t)
         {
             if (t == null)
                 return;
-            var hh = t.GetComponent<HoseHider>();
+            var hh = t.GetComponent<GameObjHider>();
             if (hh != null)
                 Destroy(hh);
         }

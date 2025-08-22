@@ -183,7 +183,7 @@ namespace DvMod.ZCouplers
                 if (child != null && child.name == "hoses")
                 {
                     child.gameObject.SetActive(false);
-                    HoseHider.Attach(child);
+                    GameObjHider.Attach(child);
                 }
             }
         }

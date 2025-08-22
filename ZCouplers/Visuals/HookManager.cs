@@ -168,9 +168,9 @@ namespace DvMod.ZCouplers
                 {
                     child.gameObject.SetActive(visible);
                     if (!visible)
-                        HoseHider.Attach(child);
+                        GameObjHider.Attach(child);
                     else
-                        HoseHider.Detach(child);
+                        GameObjHider.Detach(child);
                 }
             }
         }
@@ -212,8 +212,8 @@ namespace DvMod.ZCouplers
                 SetActiveForChildrenNamed(interiorGameObject.transform, "hoses", visible, recursive: true);
                 foreach (var t in FindAllTransformsByName(interiorGameObject.transform, "hoses", recursive: true))
                 {
-                    if (!visible) HoseHider.Attach(t);
-                    else HoseHider.Detach(t);
+                    if (!visible) GameObjHider.Attach(t);
+                    else GameObjHider.Detach(t);
                 }
             }
 
@@ -227,7 +227,7 @@ namespace DvMod.ZCouplers
                     var renderers = t.GetComponentsInChildren<MeshRenderer>(true);
                     foreach (var renderer in renderers)
                         renderer.enabled = visible;
-                    if (!visible) HoseHider.Attach(t);
+                    if (!visible) GameObjHider.Attach(t);
                 }
             }
 
@@ -248,8 +248,8 @@ namespace DvMod.ZCouplers
                     var renderers = t.GetComponentsInChildren<MeshRenderer>(true);
                     foreach (var renderer in renderers)
                         renderer.enabled = visible;
-                    if (!visible) HoseHider.Attach(t);
-                    else HoseHider.Detach(t);
+                    if (!visible) GameObjHider.Attach(t);
+                    else GameObjHider.Detach(t);
                 }
         }
 
@@ -325,17 +325,29 @@ namespace DvMod.ZCouplers
             return count;
         }
 
-        /// <summary>
-        /// Helper to enable/disable all renderers under a transform and set its GameObject active.
-        /// </summary>
-        private static void SetRenderersAndObjectActive(Transform t, bool visible)
+        private static void SetLayerRecursively(GameObject obj, int layer)
         {
-            if (t == null)
-                return;
-            var renderers = t.GetComponentsInChildren<MeshRenderer>(true);
-            foreach (var r in renderers)
-                r.enabled = visible;
-            t.gameObject.SetActive(visible);
+            if (obj == null) return;
+            obj.layer = layer;
+            for (int i = 0; i < obj.transform.childCount; i++)
+            {
+                var child = obj.transform.GetChild(i)?.gameObject;
+                if (child != null)
+                    SetLayerRecursively(child, layer);
+            }
+        }
+
+        private static void ForceRendererRefresh(Renderer r)
+        {
+            if (r == null) return;
+            try
+            {
+                bool was = r.enabled;
+                r.enabled = false;
+                r.enabled = was || true; // ensure on
+                r.transform.hasChanged = true;
+            }
+            catch { }
         }
 
         /// <summary>
