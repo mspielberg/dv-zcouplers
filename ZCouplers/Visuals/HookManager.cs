@@ -69,7 +69,6 @@ namespace DvMod.ZCouplers
                 return;
 
             var trainGameObject = coupler.train.gameObject;
-            var liveryId = coupler.train.carLivery?.id;
 
             // Toggle the actual coupler component functionality
             ToggleCouplerComponent(coupler, visible);
@@ -81,11 +80,8 @@ namespace DvMod.ZCouplers
             // Toggle air hose
             ToggleAirHose(coupler, shouldShowAirHose);
 
-            // Toggle mounting hardware based on locomotive type
-            if (liveryId == "LocoS060")
-            {
-                ToggleHookPlate(trainGameObject, visible);
-            }
+            // Ensure replacement socket plates are present (destroys originals)
+            EnsureSocketPlates(coupler.train);
 
             // Summary debug
             Main.DebugLog(() => $"Coupler hardware toggled for {coupler.train.ID} {coupler.Position()}: visible={visible}, airHose={shouldShowAirHose}");
@@ -351,35 +347,148 @@ namespace DvMod.ZCouplers
         }
 
         /// <summary>
-        /// Toggle HookPlate_F visibility for S060 locomotive.
+        /// Ensure we have ZCouplers socket plates instantiated for the current coupler type (AAR/SA3) on this car.
+        /// New sockets are placed at the original HookPlate_F/R local position, plus a small type-specific offset, under the same parent.
         /// </summary>
-        private static void ToggleHookPlate(GameObject trainGameObject, bool visible)
+        private static void EnsureSocketPlates(TrainCar car)
         {
-            // Look for HookPlate_F in the [buffers] hierarchy
-            var buffersTransform = trainGameObject.transform.Find("[buffers]");
-            if (buffersTransform != null)
+            if (car?.gameObject == null)
+                return;
+
+            // Try direct find first
+            var buffers = car.gameObject.transform.Find("[buffers]");
+            if (buffers == null)
             {
-                var hookPlate = FindHookPlateRecursive(buffersTransform);
-                if (hookPlate != null)
+                // Fallback: search recursively for a transform literally named "[buffers]"
+                buffers = FindTransformRecursive(car.gameObject.transform, "[buffers]");
+                if (buffers == null)
                 {
-                    var renderer = hookPlate.GetComponent<MeshRenderer>();
-                    if (renderer != null)
-                    {
-                        renderer.enabled = visible;
-                    }
+                    // Last resort: some cars might not have a [buffers] container; we'll search the whole car
+                    buffers = car.gameObject.transform;
+                    if (Main.settings.enableLogging)
+                        Main.DebugLog(() => $"[Sockets] '[buffers]' not found on {car.ID}; falling back to full-car search");
                 }
             }
 
-            // Also check in the main hierarchy as backup
-            var mainHookPlate = FindHookPlateRecursive(trainGameObject.transform);
-            if (mainHookPlate != null)
+            // Pick prefab based on current coupler type
+            GameObject? socketPrefab = null;
+            switch (Main.settings.couplerType)
             {
-                var renderer = mainHookPlate.GetComponent<MeshRenderer>();
-                if (renderer != null)
-                {
-                    renderer.enabled = visible;
-                }
+                case CouplerType.AARKnuckle:
+                    socketPrefab = AssetManager.GetAARSocketPrefab();
+                    break;
+                case CouplerType.SA3Knuckle:
+                    socketPrefab = AssetManager.GetSA3SocketPrefab();
+                    break;
+                default:
+                    socketPrefab = null;
+                    break;
             }
+
+            if (socketPrefab == null)
+            {
+                if (Main.settings.enableLogging)
+                    Main.DebugLog(() => "[Sockets] Socket prefab is null for current coupler type; skipping creation");
+                return; // Nothing to create for this coupler type
+            }
+
+            // Helper to create one socket at the position of an original plate (with offset)
+            void CreateSocketIfMissing(string originalName, string newName)
+            {
+                bool isFrontPlate = originalName.EndsWith("_F", StringComparison.OrdinalIgnoreCase);
+                // Avoid duplicates (search recursively)
+                foreach (var existing in FindAllTransformsByName(buffers, newName, recursive: true))
+                {
+                    if (existing != null)
+                        return; // already present somewhere under [buffers]
+                }
+
+                // Find the original plate transform (may be inactive)
+                Transform? original = null;
+                foreach (var t in FindAllTransformsByName(buffers, originalName, recursive: true))
+                {
+                    original = t;
+                    break;
+                }
+
+                if (original == null)
+                {
+                    if (Main.settings.enableLogging)
+                        Main.DebugLog(() => $"[Sockets] Original plate '{originalName}' not found on {car.ID}; skipping {newName}");
+                    return; // No anchor found
+                }
+
+                var parentTransform = original.parent;
+                var originalLocalPos = original.localPosition;
+                
+                // Type-specific local offset relative to the stock HookPlate position
+                Vector3 offset = Vector3.zero;
+                Quaternion prefabLocalRot = socketPrefab.transform.localRotation; // Default to prefab rotation
+                Vector3 prefabScale = socketPrefab.transform.localScale;
+                if (isFrontPlate)
+                {
+                    switch (Main.settings.couplerType)
+                    {
+                        case CouplerType.AARKnuckle:
+                            offset = new Vector3(0f, 0.02f, 0.01f);
+                            prefabScale -= new Vector3(1f, 0f, 0f);
+                            break;
+                        case CouplerType.SA3Knuckle:
+                            offset = new Vector3(-0.02f, 0.04f, 0.01f);
+                            break;
+                        default:
+                            break;
+                    }
+                }
+                // Rear sockets need other offsets and rotation
+                else if (!isFrontPlate)
+                {
+                    switch (Main.settings.couplerType)
+                    {
+                        case CouplerType.AARKnuckle:
+                            offset = new Vector3(0f, 0.02f, 0.01f);
+                            prefabLocalRot = Quaternion.Euler(0f, 180f, 0f) * socketPrefab.transform.localRotation;
+                            prefabScale -= new Vector3(1f, 0f, 0f);
+                            break;
+                        case CouplerType.SA3Knuckle:
+                            offset = new Vector3(0.02f, 0.04f, -0.01f);
+                            prefabLocalRot = Quaternion.Euler(0f, 180f, 0f) * socketPrefab.transform.localRotation;
+                            break;
+                        default:
+                            break;
+                    }
+                }
+
+                // Destroy the original plate completely
+                GameObject.Destroy(original.gameObject);
+
+                var instance = GameObject.Instantiate(socketPrefab);
+                if (instance == null)
+                    return;
+
+                instance.name = newName;
+                instance.transform.SetParent(parentTransform, worldPositionStays: false);
+                instance.transform.localPosition = originalLocalPos + offset;
+                instance.transform.localRotation = prefabLocalRot;
+                instance.transform.localScale = prefabScale;
+
+                // Put sockets on the car root layer for consistent rendering
+                int targetLayer = car.gameObject.layer;
+                SetLayerRecursively(instance, targetLayer);
+
+                // Ensure visible by default (all renderer types)
+                var rends = instance.GetComponentsInChildren<Renderer>(true);
+                foreach (var r in rends)
+                {
+                    r.enabled = true;
+                    ForceRendererRefresh(r);
+                }
+                instance.SetActive(true);
+                Main.DebugLog(() => $"[Sockets] Created socket '{instance.name}' on {car.ID} with position {instance.transform.localPosition} and scale {instance.transform.localScale}");
+            }
+
+            CreateSocketIfMissing("HookPlate_F", "ZC_Socket_F");
+            CreateSocketIfMissing("HookPlate_R", "ZC_Socket_R");
         }
 
         /// <summary>
@@ -1007,6 +1116,9 @@ namespace DvMod.ZCouplers
         {
             if (car?.gameObject == null)
                 return 0;
+
+            // Add ZCouplers socket plates for AAR/SA3 (destroys originals)
+            EnsureSocketPlates(car);
 
             int created = 0;
 

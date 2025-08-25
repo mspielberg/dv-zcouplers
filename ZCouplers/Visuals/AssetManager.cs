@@ -12,16 +12,20 @@ namespace DvMod.ZCouplers
     {
         private static GameObject? aarClosedPrefab;
         private static GameObject? aarOpenPrefab; // For AAR open state
+        private static GameObject? aarSocketPrefab; // For AAR mount hardware
         private static GameObject? sa3ClosedPrefab; // For SA3 closed/ready state
         private static GameObject? sa3OpenPrefab;   // For SA3 open/parked state
+        private static GameObject? sa3SocketPrefab; // For SA3 mount hardware
         private static GameObject? schakuClosedPrefab; // For Schafenberg closed/ready state
         private static GameObject? schakuOpenPrefab;   // For Schafenberg open/parked state
 
         public static GameObject? GetAARClosedPrefab() => aarClosedPrefab;
         public static GameObject? GetAAROpenPrefab() => aarOpenPrefab;
+        public static GameObject? GetAARSocketPrefab() => aarSocketPrefab;
 
         public static GameObject? GetSA3ClosedPrefab() => sa3ClosedPrefab;
         public static GameObject? GetSA3OpenPrefab() => sa3OpenPrefab;
+        public static GameObject? GetSA3SocketPrefab() => sa3SocketPrefab;
 
         public static GameObject? GetSchakuClosedPrefab() => schakuClosedPrefab;
         public static GameObject? GetSchakuOpenPrefab() => schakuOpenPrefab;
@@ -138,18 +142,25 @@ namespace DvMod.ZCouplers
 
                         if (aarOpenPrefab == null)
                             Main.ErrorLog(() => "Failed to load 'AAR_open' prefab for AAR coupler");
+
+                        if (aarSocketPrefab == null)
+                            Main.ErrorLog(() => "Failed to load 'AAR_socket' prefab for AAR coupler mount hardware");
                         break;
 
                     case CouplerType.SA3Knuckle:
                         Main.DebugLog(() => "Loading SA3 assets");
                         sa3ClosedPrefab = LoadPrefab("SA3_closed");
                         sa3OpenPrefab = LoadPrefab("SA3_open");
+                        sa3SocketPrefab = LoadPrefab("SA3_socket");
 
                         if (sa3ClosedPrefab == null)
                             Main.ErrorLog(() => "Failed to load 'SA3_closed' prefab for SA3 coupler");
 
                         if (sa3OpenPrefab == null)
                             Main.ErrorLog(() => "Failed to load 'SA3_open' prefab for SA3 coupler");
+
+                        if (sa3SocketPrefab == null)
+                            Main.ErrorLog(() => "Failed to load 'SA3_socket' prefab for SA3 coupler mount hardware");
                         break;
 
                     case CouplerType.Schafenberg:
