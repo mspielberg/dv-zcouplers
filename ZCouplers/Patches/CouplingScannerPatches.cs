@@ -471,7 +471,8 @@ namespace DvMod.ZCouplers
                 // Safely unpair with additional null checks
                 try
                 {
-                    if (__instance != null && __instance.gameObject != null)
+                    // Only attempt Unpair if the scanner and its nearbyScanner are still valid
+                    if (__instance != null && __instance.gameObject != null && __instance.nearbyScanner != null)
                     {
                         __instance.Unpair(true);
                     }
