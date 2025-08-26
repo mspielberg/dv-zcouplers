@@ -21,6 +21,8 @@ namespace DvMod.ZCouplers
         [Draw("Auto Air & MU Mode", Tooltip = "Automatically connect air hoses, open brake valves, and connect MU cables when coupling")]
         public bool autoAirAndMuMode = false;
 
+        [Draw("Auto Coupling Mode", Tooltip = "Automatically couple even when couplers are not ready (parked state)")]
+        public bool autoCouplingMode = false;
 
         /// <summary>
         /// Gets the effective Auto Air & MU Mode setting, considering Schafenberg coupler requirements.

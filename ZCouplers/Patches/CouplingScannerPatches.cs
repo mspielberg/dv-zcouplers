@@ -12,6 +12,23 @@ namespace DvMod.ZCouplers
     public static class CouplingScannerPatches
     {
         /// <summary>
+        /// Helper method to check if couplers should be considered ready based on settings
+        /// </summary>
+        private static bool ShouldCouplersBeReady(Coupler coupler, Coupler? otherCoupler)
+        {
+            if (coupler == null || otherCoupler == null)
+                return false;
+                
+            if (Main.settings.autoCouplingMode)
+            {
+                // In auto coupling mode, skip ready checks - always allow coupling
+                return true;
+            }
+            
+            // Normal mode: both couplers must be ready
+            return KnuckleCouplers.IsReadyToCouple(coupler) && KnuckleCouplers.IsReadyToCouple(otherCoupler);
+        }
+        /// <summary>
         /// Get the coupling scanner component from a coupler.
         /// </summary>
         public static CouplingScanner? GetScanner(Coupler coupler)
@@ -178,11 +195,10 @@ namespace DvMod.ZCouplers
 
                         // Create a compression joint only if both couplers are ready and not during save loading.
                         if (coupler.rigidCJ == null && otherCoupler.rigidCJ == null
-                            && KnuckleCouplers.IsReadyToCouple(coupler)
-                            && KnuckleCouplers.IsReadyToCouple(otherCoupler)
+                            && ShouldCouplersBeReady(coupler, otherCoupler)
                             && !SaveManager.IsLoadingFromSave)
                         {
-                            Main.DebugLog(() => $"Creating compression joint between {coupler.train.ID} and {otherCoupler.train.ID} - both couplers ready");
+                            Main.DebugLog(() => $"Creating compression joint between {coupler.train.ID} and {otherCoupler.train.ID} - couplers ready (auto mode: {Main.settings.autoCouplingMode})");
                             JointManager.CreateCompressionJoint(coupler, otherCoupler);
                         }
                         else if (SaveManager.IsLoadingFromSave)
@@ -191,7 +207,7 @@ namespace DvMod.ZCouplers
                         }
                         else if (coupler.rigidCJ == null && otherCoupler.rigidCJ == null)
                         {
-                            Main.DebugLog(() => $"Skipping compression joint creation between {coupler.train.ID} and {otherCoupler.train.ID} - couplers not ready (coupler ready: {KnuckleCouplers.IsReadyToCouple(coupler)}, other ready: {KnuckleCouplers.IsReadyToCouple(otherCoupler)})");
+                            Main.DebugLog(() => $"Skipping compression joint creation between {coupler.train.ID} and {otherCoupler.train.ID} - couplers not ready (coupler ready: {KnuckleCouplers.IsReadyToCouple(coupler)}, other ready: {KnuckleCouplers.IsReadyToCouple(otherCoupler)}, auto mode: {Main.settings.autoCouplingMode})");
                         }
                     }
                     else
@@ -242,6 +258,22 @@ namespace DvMod.ZCouplers
                 var otherCoupler = coupler.GetFirstCouplerInRange();
                 if (otherCoupler == null || otherCoupler.train.derailed)
                     return;
+
+                // In auto coupling mode, automatically ready both couplers if they're not already
+                if (Main.settings.autoCouplingMode)
+                {
+                    if (!KnuckleCouplers.IsReadyToCouple(coupler))
+                    {
+                        Main.DebugLog(() => $"Auto coupling mode: readying coupler {coupler.train.ID} {coupler.Position()}");
+                        KnuckleCouplers.ReadyCoupler(coupler);
+                    }
+                    if (!KnuckleCouplers.IsReadyToCouple(otherCoupler))
+                    {
+                        Main.DebugLog(() => $"Auto coupling mode: readying coupler {otherCoupler.train.ID} {otherCoupler.Position()}");
+                        KnuckleCouplers.ReadyCoupler(otherCoupler);
+                    }
+                }
+
                 coupler.CoupleTo(otherCoupler, viaChainInteraction: true);
 
                 // Automatic coupling modes: handle air and MU connections.
@@ -369,8 +401,8 @@ namespace DvMod.ZCouplers
                         bool couplerReady = KnuckleCouplers.IsReadyToCouple(coupler);
                         bool otherReady = KnuckleCouplers.IsReadyToCouple(otherCoupler);
 
-                        // If both couplers are ready but have mismatched states, fix them and couple
-                        if (couplerReady && otherReady)
+                        // If both couplers are ready (or auto coupling mode is enabled) but have mismatched states, fix them and couple
+                        if (ShouldCouplersBeReady(coupler, otherCoupler) && (couplerReady && otherReady || Main.settings.autoCouplingMode))
                         {
                             bool needsFix = false;
 
@@ -458,11 +490,10 @@ namespace DvMod.ZCouplers
                         var nearbyNearbyeCoupler = GetCoupler(__instance.nearbyScanner);
                         if (__instance.nearbyScanner.isActiveAndEnabled
                             && compression > Main.settings.autoCoupleThreshold * 1e-3f
-                            && KnuckleCouplers.IsReadyToCouple(coupler)
-                            && nearbyNearbyeCoupler != null
-                            && KnuckleCouplers.IsReadyToCouple(nearbyNearbyeCoupler))
+                            && ShouldCouplersBeReady(coupler, nearbyNearbyeCoupler)
+                            && nearbyNearbyeCoupler != null)
                         {
-                            Main.DebugLog(() => $"{coupler.train.ID} {coupler.Position()}: auto-coupling due to compression={compression:F3}");
+                            Main.DebugLog(() => $"{coupler.train.ID} {coupler.Position()}: auto-coupling due to compression={compression:F3} (auto mode: {Main.settings.autoCouplingMode})");
                             TryCouple(coupler);
                         }
                     }
