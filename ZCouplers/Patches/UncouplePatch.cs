@@ -15,6 +15,19 @@ public static class UncouplePatch
 
     private static readonly Dictionary<Coupler, Coupler> partnerCouplers = new Dictionary<Coupler, Coupler>();
 
+    /// <summary>
+    /// Delayed visual state update to avoid NRE during button interaction processing
+    /// </summary>
+    private static System.Collections.IEnumerator DelayedVisualStateUpdate(Coupler coupler)
+    {
+        // Wait a frame to allow any pending interaction events to complete
+        yield return null;
+        
+        // Update visual state
+        KnuckleCouplers.UpdateCouplerVisualState(coupler, locked: false);
+        Main.DebugLog(() => "Updated visual state for uncoupled coupler: " + coupler.train.ID + " " + coupler.Position());
+    }
+
     public static void Prefix(Coupler __instance)
     {
         Main.DebugLog(() => "Uncoupling " + __instance.train.ID + " from " + __instance.coupledTo?.train.ID);
@@ -134,28 +147,27 @@ public static class UncouplePatch
                 }
                 coros.Remove(partnerCoupler);
             }
-            KnuckleCouplers.UpdateCouplerVisualState(partnerCoupler, locked: false);
+            // Defer visual state update for partner coupler too
+            if (partnerCoupler.visualCoupler?.chainAdapter?.chainScript != null)
+            {
+                partnerCoupler.visualCoupler.chainAdapter.chainScript.StartCoroutine(DelayedVisualStateUpdate(partnerCoupler));
+            }
             if (!partnerCoupler.IsCoupled())
             {
                 partnerCoupler.state = ChainCouplerInteraction.State.Parked;
                 Main.DebugLog(() => "Reset partner coupler state to Parked: " + partnerCoupler.train.ID + " " + partnerCoupler.Position());
             }
             partnerCouplers.Remove(__instance);
-            Main.DebugLog(() => "Updated visual state for both uncoupled couplers: " + __instance.train.ID + " and " + partnerCoupler.train.ID);
         }
-        KnuckleCouplers.UpdateCouplerVisualState(__instance, locked: false);
+        // Defer visual state update to next frame to avoid NRE during button interaction processing
+        if (__instance.visualCoupler?.chainAdapter?.chainScript != null)
+        {
+            __instance.visualCoupler.chainAdapter.chainScript.StartCoroutine(DelayedVisualStateUpdate(__instance));
+        }
         if (!__instance.IsCoupled())
         {
             __instance.state = ChainCouplerInteraction.State.Parked;
             Main.DebugLog(() => "Reset coupler state to Parked: " + __instance.train.ID + " " + __instance.Position());
-        }
-        if (!partnerCouplers.ContainsKey(__instance))
-        {
-            Main.DebugLog(() => "Updated visual state for uncoupled coupler: " + __instance.train.ID + " " + __instance.Position());
-        }
-        else
-        {
-            Main.DebugLog(() => "Updated visual state for uncoupled coupler: " + __instance.train.ID + " " + __instance.Position());
         }
     }
 }

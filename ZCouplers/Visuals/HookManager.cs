@@ -1050,24 +1050,65 @@ namespace DvMod.ZCouplers
                     return;
                 }
 
-                Main.DebugLog(() => $"Hook visual swapped for {coupler.train.ID} {coupler.Position()} -> {(shouldUseOpenHook ? "open" : "closed")} state");
-
-                // Play appropriate sound for the state change
-                if (!shouldUseOpenHook && isCurrentlyOpen)
-                {
-                    // Swapping from open to closed - play park sound (coupler becoming ready)
-                    chainScript.PlaySound(chainScript.parkSound, chainScript.transform.position);
-                }
-                else if (shouldUseOpenHook && !isCurrentlyOpen)
-                {
-                    // Swapping from closed to open - play attach sound (coupler becoming unlocked)
-                    chainScript.PlaySound(chainScript.attachSound, chainScript.transform.position);
-                }
-
-                // Remove old hook and create replacement
-                GameObject.DestroyImmediate(hook.gameObject);
-                CreateHookInstance(pivot, newHookPrefab, chainScript, coupler, desiredName);
+                // Remove old hook and create replacement - defer to avoid NRE during button interaction
+                chainScript.StartCoroutine(DelayedHookSwap(chainScript, coupler, shouldUseOpenHook));
             }
+        }
+
+        /// <summary>
+        /// Delayed hook visual swap to avoid NRE during button interaction processing
+        /// </summary>
+        private static System.Collections.IEnumerator DelayedHookSwap(ChainCouplerInteraction chainScript, Coupler coupler, bool shouldUseOpenHook)
+        {
+            // Wait a frame to allow button interaction to complete
+            yield return null;
+
+            var pivot = GetPivot(chainScript);
+            if (pivot == null)
+                yield break;
+
+            // Re-find the hook after waiting a frame
+            var options = CouplerProfiles.Current?.Options;
+            var openName = options?.HookOpenChildName ?? "hook_open";
+            var closedName = options?.HookClosedChildName ?? "hook";
+            var hookOpen = pivot.Find(openName) ?? pivot.Find("hook_open") ?? pivot.Find("SA3_open") ?? pivot.Find("Schaku_open");
+            var hookClosed = pivot.Find(closedName) ?? pivot.Find("hook") ?? pivot.Find("SA3_closed") ?? pivot.Find("Schaku_closed");
+            var hook = hookOpen ?? hookClosed;
+
+            if (hook == null)
+                yield break;
+
+            // Prefetch the replacement prefab
+            GameObject? newHookPrefab = null;
+            string desiredName = "";
+            var profile = CouplerProfiles.Current;
+            if (profile != null)
+            {
+                newHookPrefab = shouldUseOpenHook ? profile.GetOpenPrefab() : profile.GetClosedPrefab();
+                desiredName = shouldUseOpenHook ? (options?.HookOpenChildName ?? "hook_open") : (options?.HookClosedChildName ?? "hook");
+            }
+
+            if (newHookPrefab == null || pivot == null)
+                yield break;
+
+            Main.DebugLog(() => $"Hook visual swapped for {coupler.train.ID} {coupler.Position()} -> {(shouldUseOpenHook ? "open" : "closed")} state");
+
+            // Play appropriate sound for the state change
+            var isCurrentlyOpen = hook.name.Contains("open");
+            if (!shouldUseOpenHook && isCurrentlyOpen)
+            {
+                // Swapping from open to closed - play park sound (coupler becoming ready)
+                chainScript.PlaySound(chainScript.parkSound, chainScript.transform.position);
+            }
+            else if (shouldUseOpenHook && !isCurrentlyOpen)
+            {
+                // Swapping from closed to open - play attach sound (coupler becoming unlocked)
+                chainScript.PlaySound(chainScript.attachSound, chainScript.transform.position);
+            }
+
+            // Remove old hook and create replacement
+            GameObject.DestroyImmediate(hook.gameObject);
+            CreateHookInstance(pivot, newHookPrefab, chainScript, coupler, desiredName);
         }
 
         /// <summary>
