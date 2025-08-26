@@ -32,7 +32,11 @@ namespace DvMod.ZCouplers
             // Immediately disable visuals and object
             HideNow();
             // Also re-assert next frame in case something else flips it this frame
-            StartCoroutine(DisableNextFrame());
+            // Check if the GameObject is active before starting the coroutine to prevent Unity errors
+            if (gameObject.activeInHierarchy)
+            {
+                StartCoroutine(DisableNextFrame());
+            }
         }
 
         private IEnumerator DisableNextFrame()
