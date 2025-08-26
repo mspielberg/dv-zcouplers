@@ -18,14 +18,15 @@ namespace DvMod.ZCouplers
         [Draw("Auto couple threshold (mm)", Min = 0f)]
         public float autoCoupleThreshold = 20f;
 
-        [Draw("Full Automatic Mode", Tooltip = "Automatically connect air hoses and open brake valves when coupling")]
-        public bool fullAutomaticMode = false;
+        [Draw("Auto Air & MU Mode", Tooltip = "Automatically connect air hoses, open brake valves, and connect MU cables when coupling")]
+        public bool autoAirAndMuMode = false;
+
 
         /// <summary>
-        /// Gets the effective Full Automatic Mode setting, considering Schafenberg coupler requirements.
-        /// Schafenberg couplers automatically force Full Automatic Mode to be active.
+        /// Gets the effective Auto Air & MU Mode setting, considering Schafenberg coupler requirements.
+        /// Schafenberg couplers automatically force Auto Air & MU Mode to be active.
         /// </summary>
-        public bool EffectiveFullAutomaticMode => fullAutomaticMode || couplerType == CouplerType.Schafenberg;
+        public bool EffectiveAutoAirAndMuMode => autoAirAndMuMode || couplerType == CouplerType.Schafenberg;
 
         [Draw("Disable Front Couplers on S282")]
         public bool disableFrontCouplersOnSteamLocos = false;

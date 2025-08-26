@@ -48,7 +48,7 @@ namespace DvMod.ZCouplers
             if (a == null || b == null)
                 return;
 
-            if (!Main.settings.EffectiveFullAutomaticMode)
+            if (!Main.settings.EffectiveAutoAirAndMuMode)
                 return;
 
             try
@@ -64,7 +64,7 @@ namespace DvMod.ZCouplers
                 // Also disconnect MU/control cables if present
                 TryAutoDisconnectMU(a, b);
 
-                Main.DebugLog(() => $"Auto-disconnected air (and MU if present) between {a.train.ID} and {b.train.ID}");
+                Main.DebugLog(() => $"Auto-disconnected air between {a.train.ID} and {b.train.ID}");
             }
             catch (Exception ex)
             {
@@ -79,7 +79,7 @@ namespace DvMod.ZCouplers
         {
             if (a == null || b == null)
                 return;
-            if (!Main.settings.EffectiveFullAutomaticMode)
+            if (!Main.settings.EffectiveAutoAirAndMuMode)
                 return;
             try
             {
@@ -114,7 +114,7 @@ namespace DvMod.ZCouplers
         {
             if (a == null || b == null)
                 return;
-            if (!Main.settings.EffectiveFullAutomaticMode)
+            if (!Main.settings.EffectiveAutoAirAndMuMode)
                 return;
             try
             {

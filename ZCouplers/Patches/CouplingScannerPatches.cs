@@ -244,8 +244,8 @@ namespace DvMod.ZCouplers
                     return;
                 coupler.CoupleTo(otherCoupler, viaChainInteraction: true);
 
-                // Full Automatic Mode: connect air hoses and open brake valves.
-                if (Main.settings.EffectiveFullAutomaticMode && coupler.IsCoupled() && otherCoupler.IsCoupled())
+                // Automatic coupling modes: handle air and MU connections.
+                if (coupler.IsCoupled() && otherCoupler.IsCoupled() && Main.settings.EffectiveAutoAirAndMuMode)
                 {
                     TryConnectAirSystemsAutomatically(coupler, otherCoupler);
                     AirSystemAutomation.TryAutoConnectMU(coupler, otherCoupler);
@@ -350,8 +350,8 @@ namespace DvMod.ZCouplers
                                 JointManager.ForceCreateTensionJoint(otherCoupler);
                             }
 
-                            // Handle Full Automatic Mode for already coupled cars during save loading
-                            if (Main.settings.EffectiveFullAutomaticMode)
+                            // Handle automatic modes for already coupled cars during save loading
+                            if (Main.settings.EffectiveAutoAirAndMuMode)
                             {
                                 TryConnectAirSystemsAutomatically(coupler, otherCoupler);
                                 AirSystemAutomation.TryAutoConnectMU(coupler, otherCoupler);
@@ -411,8 +411,8 @@ namespace DvMod.ZCouplers
                                         JointManager.ForceCreateTensionJoint(otherCoupler);
                                     }
 
-                                    // Handle Full Automatic Mode for couplers fixed from mismatched states
-                                    if (Main.settings.EffectiveFullAutomaticMode)
+                                    // Handle automatic modes for couplers fixed from mismatched states
+                                    if (Main.settings.EffectiveAutoAirAndMuMode)
                                     {
                                         TryConnectAirSystemsAutomatically(coupler, otherCoupler);
                                         AirSystemAutomation.TryAutoConnectMU(coupler, otherCoupler);

@@ -46,7 +46,7 @@ namespace DvMod.ZCouplers
                     partner.IsCockOpen = true;
 
                     // Auto-connect MU cables in automatic mode
-                    if (Main.settings.EffectiveFullAutomaticMode)
+                    if (Main.settings.EffectiveAutoAirAndMuMode)
                         AirSystemAutomation.TryAutoConnectMU(coupler, partner);
 
                     // Force create joints for remote coupling
