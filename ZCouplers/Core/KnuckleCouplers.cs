@@ -141,24 +141,31 @@ namespace DvMod.ZCouplers
 
             Main.DebugLog(() => "Deactivating all air hoses for Schafenberg couplers");
 
+            int processedCars = 0;
+            int processedCouplers = 0;
+
             foreach (var car in CarSpawner.Instance.allCars)
             {
                 if (car == null) continue;
 
-                Main.DebugLog(() => $"Processing air hoses for car: {car.ID}");
+                processedCars++;
 
                 // Deactivate air hoses on front coupler
                 if (car.frontCoupler != null)
                 {
                     DeactivateAirHoseForCoupler(car.frontCoupler);
+                    processedCouplers++;
                 }
 
                 // Deactivate air hoses on rear coupler
                 if (car.rearCoupler != null)
                 {
                     DeactivateAirHoseForCoupler(car.rearCoupler);
+                    processedCouplers++;
                 }
             }
+
+            Main.DebugLog(() => $"Processed air hoses: {processedCars} cars, {processedCouplers} couplers");
         }
 
         /// <summary>
@@ -169,8 +176,6 @@ namespace DvMod.ZCouplers
         {
             if (coupler?.train?.gameObject == null)
                 return;
-
-            Main.DebugLog(() => $"Deactivating air hose for {coupler.train.ID} {(coupler.isFrontCoupler ? "front" : "rear")}");
 
             // Deterministic: only disable both direct "hoses" children under the interior
             var interior = coupler.train.interior;

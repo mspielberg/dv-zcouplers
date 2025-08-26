@@ -403,18 +403,22 @@ namespace DvMod.ZCouplers
                 if (trainCar == null)
                     yield break;
 
-                Main.DebugLog(() => $"Deactivating air hoses on newly spawned car: {trainCar.ID}");
+                int deactivatedCouplers = 0;
 
                 // Deactivate air hoses on both couplers of the new car
                 if (trainCar.frontCoupler != null)
                 {
                     KnuckleCouplers.DeactivateAirHoseForCoupler(trainCar.frontCoupler);
+                    deactivatedCouplers++;
                 }
 
                 if (trainCar.rearCoupler != null)
                 {
                     KnuckleCouplers.DeactivateAirHoseForCoupler(trainCar.rearCoupler);
+                    deactivatedCouplers++;
                 }
+
+                Main.DebugLog(() => $"Deactivated air hoses on newly spawned car {trainCar.ID} ({deactivatedCouplers} couplers)");
             }
         }
 
