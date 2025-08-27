@@ -595,7 +595,14 @@ namespace DvMod.ZCouplers
                 return;
             }
 
-            CreateHookInstance(pivot.transform, actualHookPrefab, chainScript, coupler);
+            // Name the initial hook child according to the state so swap detection works correctly
+            var options = CouplerProfiles.Current?.Options;
+            var profile = CouplerProfiles.Current;
+            bool initialShouldUseOpenHook = profile?.Options.HasOpenVariant == true && isParked && profile.GetOpenPrefab() != null;
+            string desiredName = initialShouldUseOpenHook ? (options?.HookOpenChildName ?? "hook_open")
+                                                          : (options?.HookClosedChildName ?? "hook");
+
+            CreateHookInstance(pivot.transform, actualHookPrefab, chainScript, coupler, desiredName);
 
             // Add the visual updater component to ensure rotation works
             if (chainScript.gameObject.GetComponent<CouplerVisualUpdater>() == null)
