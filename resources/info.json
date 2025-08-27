@@ -2,7 +2,7 @@
   "Id": "ZCouplers",
   "DisplayName": "Zeibach's Couplers",
   "Author": "Zeibach",
-  "Version": "2.2.0",
+  "Version": "2.2.1",
   "LoadAfter": [],
   "AssemblyName": "ZCouplers.dll",
   "EntryMethod": "DvMod.ZCouplers.Main.Load",
