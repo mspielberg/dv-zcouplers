@@ -798,6 +798,11 @@ namespace DvMod.ZCouplers
                     __result = $"Coupler is unlocked\nPress {InteractionText.Instance.BtnUse} to ready coupler";
                     return false;
                 }
+                if (infoType == HookManager.KnuckleCouplerCoupled)
+                {
+                    __result = $"Coupler is coupled\nPress {InteractionText.Instance.BtnUse} to uncouple";
+                    return false;
+                }
                 return true;
             }
         }

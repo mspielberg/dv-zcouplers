@@ -21,6 +21,7 @@ namespace DvMod.ZCouplers
 
         public static InteractionInfoType KnuckleCouplerUnlock = (InteractionInfoType)23000;
         public static InteractionInfoType KnuckleCouplerLock = (InteractionInfoType)23001;
+        public static InteractionInfoType KnuckleCouplerCoupled = (InteractionInfoType)23002;
 
         /// <summary>
         /// Check if the given coupler is the front coupler of a LocoS282A (LocoSteamHeavy).
@@ -788,7 +789,15 @@ namespace DvMod.ZCouplers
             buttonSpec.colliderGameObjects = new GameObject[] { hook };
 
             var infoArea = hook.AddComponent<InfoArea>();
-            infoArea.infoType = KnuckleCouplerState.IsUnlocked(coupler) ? KnuckleCouplerLock : KnuckleCouplerUnlock;
+            // Set initial interaction type based on coupler state
+            if (coupler.IsCoupled() && coupler.state == ChainCouplerInteraction.State.Attached_Tight)
+            {
+                infoArea.infoType = KnuckleCouplerCoupled;
+            }
+            else
+            {
+                infoArea.infoType = KnuckleCouplerState.IsUnlocked(coupler) ? KnuckleCouplerLock : KnuckleCouplerUnlock;
+            }
             hook.SetActive(true); // Activate after initialization completes
 
             var buttonBase = hook.GetComponent<ButtonBase>();
@@ -926,11 +935,22 @@ namespace DvMod.ZCouplers
                             infoArea.infoType = KnuckleCouplerLock; // "Press to ready coupler"
                             break;
 
+                        case ChainCouplerInteraction.State.Attached_Tight:
+                            // Attached_Tight = coupler is coupled to another coupler
+                            if (coupler.IsCoupled())
+                            {
+                                infoArea.infoType = KnuckleCouplerCoupled; // "Coupler is coupled"
+                            }
+                            else
+                            {
+                                infoArea.infoType = KnuckleCouplerUnlock; // "Press to unlock coupler"
+                            }
+                            break;
+
                         case ChainCouplerInteraction.State.Dangling:
                         case ChainCouplerInteraction.State.Being_Dragged:
                         case ChainCouplerInteraction.State.Attached_Loose:
-                        case ChainCouplerInteraction.State.Attached_Tight:
-                            // All other states = coupler is ready/locked and can be unlocked
+                            // These states = coupler is ready/locked but not coupled, can be unlocked
                             infoArea.infoType = KnuckleCouplerUnlock; // "Press to unlock coupler"
                             break;
                     }
@@ -1156,11 +1176,22 @@ namespace DvMod.ZCouplers
                             infoArea.infoType = KnuckleCouplerLock; // "Press to ready coupler"
                             break;
 
+                        case ChainCouplerInteraction.State.Attached_Tight:
+                            // Attached_Tight = coupler is coupled to another coupler
+                            if (coupler.IsCoupled())
+                            {
+                                infoArea.infoType = KnuckleCouplerCoupled; // "Coupler is coupled"
+                            }
+                            else
+                            {
+                                infoArea.infoType = KnuckleCouplerUnlock; // "Press to unlock coupler"
+                            }
+                            break;
+
                         case ChainCouplerInteraction.State.Dangling:
                         case ChainCouplerInteraction.State.Being_Dragged:
                         case ChainCouplerInteraction.State.Attached_Loose:
-                        case ChainCouplerInteraction.State.Attached_Tight:
-                            // All other states = coupler is ready/locked and can be unlocked
+                            // These states = coupler is ready/locked but not coupled, can be unlocked
                             infoArea.infoType = KnuckleCouplerUnlock; // "Press to unlock coupler"
                             break;
                     }
