@@ -82,8 +82,9 @@ namespace DvMod.ZCouplers
                 coupler.state = ChainCouplerInteraction.State.Dangling;
             }
 
-            // Update visual state after changing the state
-            HookManager.UpdateHookVisualStateFromCouplerState(coupler);
+            // Update visual state after changing the state - defer to avoid NRE during button interaction
+            if (chainScript != null)
+                chainScript.StartCoroutine(DelayedVisualUpdate(coupler));
         }
 
         public static void SetCouplerLocked(Coupler coupler, bool locked)

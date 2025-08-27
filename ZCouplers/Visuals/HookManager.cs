@@ -1113,6 +1113,7 @@ namespace DvMod.ZCouplers
 
         /// <summary>
         /// Update hook visual state based on current coupler state.
+        /// Uses immediate hook swapping for proper visual synchronization during loading.
         /// </summary>
         public static void UpdateHookVisualStateFromCouplerState(Coupler coupler)
         {
@@ -1121,9 +1122,174 @@ namespace DvMod.ZCouplers
 
             var chainScript = coupler.visualCoupler.chainAdapter.chainScript;
 
-            // Use the existing UpdateHookVisualState method, but pass a dummy locked value
-            // since the method now determines the correct state internally
-            UpdateHookVisualState(chainScript, false);
+            // Use immediate hook swapping instead of the deferred UpdateHookVisualState
+            UpdateHookVisualStateImmediate(chainScript, coupler);
+        }
+
+        /// <summary>
+        /// Update hook visual state with immediate hook swapping - safe for loading and normal contexts
+        /// </summary>
+        private static void UpdateHookVisualStateImmediate(ChainCouplerInteraction chainScript, Coupler coupler)
+        {
+            if (chainScript == null || coupler == null)
+                return;
+
+            try
+            {
+                // Check if we need to swap the hook visual for couplers that support multiple states
+                var couplerType = Main.settings.couplerType;
+                if (couplerType == CouplerType.AARKnuckle || couplerType == CouplerType.SA3Knuckle || couplerType == CouplerType.Schafenberg)
+                {
+                    SwapHookVisualImmediately(chainScript, coupler);
+                }
+
+                // Determine the correct interaction text based on coupler state
+                var pivot = GetPivot(chainScript);
+                var hook = pivot?.Find("hook") ?? pivot?.Find("hook_open") ?? pivot?.Find("SA3_closed") ?? pivot?.Find("SA3_open") ?? pivot?.Find("Schaku_closed") ?? pivot?.Find("Schaku_open");
+                if (hook?.GetComponent<InfoArea>() is InfoArea infoArea)
+                {
+                    // Base the text on the actual coupler state, not just the locked flag
+                    switch (coupler.state)
+                    {
+                        case ChainCouplerInteraction.State.Parked:
+                            // Parked = coupler is unlocked and ready to be made ready
+                            infoArea.infoType = KnuckleCouplerLock; // "Press to ready coupler"
+                            break;
+
+                        case ChainCouplerInteraction.State.Dangling:
+                        case ChainCouplerInteraction.State.Being_Dragged:
+                        case ChainCouplerInteraction.State.Attached_Loose:
+                        case ChainCouplerInteraction.State.Attached_Tight:
+                            // All other states = coupler is ready/locked and can be unlocked
+                            infoArea.infoType = KnuckleCouplerUnlock; // "Press to unlock coupler"
+                            break;
+                    }
+                }
+
+                // Handle visual disconnection for unlocked couplers
+                if (coupler.state == ChainCouplerInteraction.State.Parked)
+                {
+                    // Manually trigger visual disconnection for knuckle couplers
+                    if (pivot != null && pivot.gameObject != null && coupler.transform != null)
+                    {
+                        pivot.localEulerAngles = coupler.transform.localEulerAngles;
+                        if (hook != null && hook.gameObject != null)
+                        {
+                            // Base position when parked/disconnected
+                            var basePosition = PivotLength * Vector3.forward;
+
+                            // Start with base position and apply profile offsets
+                            var finalPosition = basePosition;
+                            var options = CouplerProfiles.Current?.Options;
+                            if (options != null)
+                                finalPosition += new Vector3(options.HookLateralOffsetX, 0f, 0f) + options.HookAdditionalOffset;
+
+                            // Apply height offset for LocoS282A front coupler
+                            if (IsFrontCouplerOnLocoS282A(coupler))
+                            {
+                                // Move front coupler on LocoS282A down by 0.05 units
+                                finalPosition += new Vector3(0f, -0.05f, 0f);
+                            }
+
+                            hook.localPosition = finalPosition;
+                        }
+                    }
+
+                    // Clear the attached reference if it exists
+                    if (chainScript.attachedTo != null)
+                    {
+                        chainScript.attachedTo.attachedTo = null;
+                        chainScript.attachedTo = null;
+                    }
+                }
+            }
+            catch (System.Exception ex)
+            {
+                if (Main.settings.enableLogging)
+                {
+                    Main.ErrorLog(() => $"Exception in UpdateHookVisualStateImmediate: {ex.Message}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Immediate hook visual swap - safe when not in button interaction context
+        /// </summary>
+        private static void SwapHookVisualImmediately(ChainCouplerInteraction chainScript, Coupler coupler)
+        {
+            var pivot = GetPivot(chainScript);
+            if (pivot == null)
+            {
+                return;
+            }
+
+            // Find hook by name - use profile names with fallbacks
+            var options = CouplerProfiles.Current?.Options;
+            var openName = options?.HookOpenChildName ?? "hook_open";
+            var closedName = options?.HookClosedChildName ?? "hook";
+            var hookOpen = pivot.Find(openName) ?? pivot.Find("hook_open") ?? pivot.Find("SA3_open") ?? pivot.Find("Schaku_open");
+            var hookClosed = pivot.Find(closedName) ?? pivot.Find("hook") ?? pivot.Find("SA3_closed") ?? pivot.Find("Schaku_closed");
+            var hook = hookOpen ?? hookClosed;
+
+            if (hook == null)
+            {
+                return;
+            }
+
+            var isParked = coupler.state == ChainCouplerInteraction.State.Parked;
+            var profile = CouplerProfiles.Current;
+            bool shouldUseOpenHook = profile?.Options.HasOpenVariant == true && isParked && profile.GetOpenPrefab() != null;
+
+            // Check if we need to swap the hook visual
+            var currentHookName = hook.name;
+            var needsSwap = false;
+            var isCurrentlyOpen = currentHookName.Contains("open");
+
+            if (shouldUseOpenHook && !isCurrentlyOpen)
+            {
+                needsSwap = true;
+            }
+            else if (!shouldUseOpenHook && isCurrentlyOpen)
+            {
+                needsSwap = true;
+            }
+
+            if (needsSwap)
+            {
+                // Prefetch the replacement prefab; if unavailable (e.g., assets not yet loaded), skip swapping
+                GameObject? newHookPrefab = null;
+                string desiredName = "";
+                if (profile != null)
+                {
+                    newHookPrefab = shouldUseOpenHook ? profile.GetOpenPrefab() : profile.GetClosedPrefab();
+                    desiredName = shouldUseOpenHook ? (options?.HookOpenChildName ?? "hook_open") : (options?.HookClosedChildName ?? "hook");
+                }
+
+                if (newHookPrefab == null || pivot == null)
+                {
+                    // Don't destroy existing hook if we can't replace it yet
+                    return;
+                }
+
+                // Immediate swap - safe when not called during button interaction
+                Main.DebugLog(() => $"Hook visual swapped immediately for {coupler.train.ID} {coupler.Position()} -> {(shouldUseOpenHook ? "open" : "closed")} state");
+
+                // Play appropriate sound for the state change
+                if (!shouldUseOpenHook && isCurrentlyOpen)
+                {
+                    // Swapping from open to closed - play park sound (coupler becoming ready)
+                    chainScript.PlaySound(chainScript.parkSound, chainScript.transform.position);
+                }
+                else if (shouldUseOpenHook && !isCurrentlyOpen)
+                {
+                    // Swapping from closed to open - play attach sound (coupler becoming unlocked)
+                    chainScript.PlaySound(chainScript.attachSound, chainScript.transform.position);
+                }
+
+                // Remove old hook and create replacement immediately
+                GameObject.DestroyImmediate(hook.gameObject);
+                CreateHookInstance(pivot, newHookPrefab, chainScript, coupler, desiredName);
+            }
         }
 
         private static void OnButtonPressed(ChainCouplerInteraction chainScript)

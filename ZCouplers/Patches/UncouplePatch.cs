@@ -147,11 +147,11 @@ public static class UncouplePatch
                 }
                 coros.Remove(partnerCoupler);
             }
-            // Defer visual state update for partner coupler too
-            if (partnerCoupler.visualCoupler?.chainAdapter?.chainScript != null)
-            {
-                partnerCoupler.visualCoupler.chainAdapter.chainScript.StartCoroutine(DelayedVisualStateUpdate(partnerCoupler));
-            }
+        // Update visual state for partner coupler too - defer to avoid NRE
+        if (partnerCoupler.visualCoupler?.chainAdapter?.chainScript != null)
+        {
+            partnerCoupler.visualCoupler.chainAdapter.chainScript.StartCoroutine(DelayedVisualStateUpdate(partnerCoupler));
+        }
             if (!partnerCoupler.IsCoupled())
             {
                 partnerCoupler.state = ChainCouplerInteraction.State.Parked;
@@ -159,7 +159,7 @@ public static class UncouplePatch
             }
             partnerCouplers.Remove(__instance);
         }
-        // Defer visual state update to next frame to avoid NRE during button interaction processing
+        // Update visual state with deferred approach to avoid NRE during button-triggered uncoupling
         if (__instance.visualCoupler?.chainAdapter?.chainScript != null)
         {
             __instance.visualCoupler.chainAdapter.chainScript.StartCoroutine(DelayedVisualStateUpdate(__instance));
