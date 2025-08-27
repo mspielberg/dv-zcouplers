@@ -159,7 +159,8 @@ namespace DvMod.ZCouplers
                 if (!__instance.enabled)
                     return false;
                 __instance.enabled = false;
-                __instance.chain.SetActive(false);
+                // Do NOT deactivate the chain root; audio (and some logic) lives under it.
+                // Visual hiding is handled elsewhere by disabling child renderers on Enable.
                 return false;
             }
         }

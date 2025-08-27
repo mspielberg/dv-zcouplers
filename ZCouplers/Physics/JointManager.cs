@@ -143,24 +143,22 @@ namespace DvMod.ZCouplers
             Main.DebugLog(() => $"Compression joint created between {TrainCar.Resolve(a.gameObject)?.ID} and {TrainCar.Resolve(b.gameObject)?.ID}");
 
             bool showBuffers = Main.settings.showBuffersWithKnuckles;
-            if (showBuffers)
-            {
-                // Create rigid (bottoming out) joint only when buffers are shown
-                var bottomedCj = a.train.gameObject.AddComponent<ConfigurableJoint>();
-                bottomedCj.autoConfigureConnectedAnchor = false;
-                bottomedCj.anchor = a.transform.localPosition + (2 * (a.isFrontCoupler ? Vector3.forward : Vector3.back));
-                bottomedCj.connectedBody = b.train.gameObject.GetComponent<Rigidbody>();
-                bottomedCj.connectedAnchor = b.transform.localPosition;
-                bottomedCj.zMotion = ConfigurableJointMotion.Limited;
+            // Always create a lightweight "rigid" joint so DV's native coupling logic (and audio) can run,
+            // even when buffers are hidden and we use a tight guard joint for physics.
+            var bottomedCj = a.train.gameObject.AddComponent<ConfigurableJoint>();
+            bottomedCj.autoConfigureConnectedAnchor = false;
+            bottomedCj.anchor = a.transform.localPosition + (2 * (a.isFrontCoupler ? Vector3.forward : Vector3.back));
+            bottomedCj.connectedBody = b.train.gameObject.GetComponent<Rigidbody>();
+            bottomedCj.connectedAnchor = b.transform.localPosition;
+            bottomedCj.zMotion = ConfigurableJointMotion.Limited;
 
-                bottomedCj.linearLimit = new SoftJointLimit { limit = BufferTravel + 2f };
-                bottomedCj.linearLimitSpring = new SoftJointLimitSpring { spring = Main.settings.GetSpringRate() };
-                bottomedCj.enableCollision = false;
-                bottomedCj.breakForce = float.PositiveInfinity;
-                bottomedCj.breakTorque = float.PositiveInfinity;
+            bottomedCj.linearLimit = new SoftJointLimit { limit = BufferTravel + 2f };
+            bottomedCj.linearLimitSpring = new SoftJointLimitSpring { spring = Main.settings.GetSpringRate() };
+            bottomedCj.enableCollision = false;
+            bottomedCj.breakForce = float.PositiveInfinity;
+            bottomedCj.breakTorque = float.PositiveInfinity;
 
-                a.rigidCJ = bottomedCj;
-            }
+            a.rigidCJ = bottomedCj;
 
             // Create buffer joint
             var bufferCj = a.train.gameObject.AddComponent<ConfigurableJoint>();
