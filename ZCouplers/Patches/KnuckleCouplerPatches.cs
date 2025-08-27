@@ -790,12 +790,12 @@ namespace DvMod.ZCouplers
                 // When knuckle couplers are enabled, handle knuckle coupler-specific text
                 if (infoType == HookManager.KnuckleCouplerUnlock)
                 {
-                    __result = $"Press {InteractionText.Instance.BtnUse} to unlock coupler";
+                    __result = $"Coupler is ready\nPress {InteractionText.Instance.BtnUse} to unlock coupler";
                     return false;
                 }
                 if (infoType == HookManager.KnuckleCouplerLock)
                 {
-                    __result = $"Press {InteractionText.Instance.BtnUse} to ready coupler";
+                    __result = $"Coupler is unlocked\nPress {InteractionText.Instance.BtnUse} to ready coupler";
                     return false;
                 }
                 return true;
