@@ -303,10 +303,45 @@ namespace DvMod.ZCouplers
             }
         }
 
+        /// <summary>
+        /// Explicitly synchronize the visual states of both couplers in a coupled pair.
+        /// This ensures both couplers have consistent visual states after teleporting.
+        /// </summary>
+        private static void SynchronizeCouplerVisuals(Coupler coupler1, Coupler coupler2)
+        {
+            if (coupler1?.visualCoupler?.chainAdapter?.chainScript == null ||
+                coupler2?.visualCoupler?.chainAdapter?.chainScript == null)
+                return;
+
+            var chainScript1 = coupler1.visualCoupler.chainAdapter.chainScript;
+            var chainScript2 = coupler2.visualCoupler.chainAdapter.chainScript;
+
+            // Force visual update for both couplers
+            HookManager.UpdateHookVisualStateFromCouplerState(coupler1);
+            HookManager.UpdateHookVisualStateFromCouplerState(coupler2);
+        }
+
+        /// <summary>
+        /// Synchronize visual states of both couplers when they become coupled.
+        /// Ensures both couplers show the correct visual state immediately after coupling.
+        /// </summary>
+        private static void SynchronizeCoupledVisualStates(Coupler thisCoupler, Coupler otherCoupler)
+        {
+            // Update both couplers' visual states
+            KnuckleCouplerState.UpdateCouplerVisualState(thisCoupler, locked: true);
+            KnuckleCouplerState.UpdateCouplerVisualState(otherCoupler, locked: true);
+
+            // Additional explicit visual synchronization
+            HookManager.UpdateHookVisualStateFromCouplerState(thisCoupler);
+            HookManager.UpdateHookVisualStateFromCouplerState(otherCoupler);
+        }
+
         /// Patch to catch train cars when they're being set up, including teleported trains.
         [HarmonyPatch(typeof(TrainCar), nameof(TrainCar.Start))]
         public static class TrainCarStartPatch
         {
+            private static bool comprehensiveCheckScheduled = false;
+
             public static void Postfix(TrainCar __instance)
             {
                 if (!KnuckleCouplers.enabled)
@@ -317,6 +352,156 @@ namespace DvMod.ZCouplers
 
                 // Also check and fix states for teleported trains that might already be coupled
                 __instance.StartCoroutine(DelayedCoupledStateCheck(__instance));
+
+                // Schedule a comprehensive visual sync check if not already scheduled
+                if (!comprehensiveCheckScheduled)
+                {
+                    comprehensiveCheckScheduled = true;
+                    __instance.StartCoroutine(ScheduleComprehensiveVisualSync());
+                }
+            }
+
+            /// <summary>
+            /// Schedule a comprehensive visual synchronization check after a delay.
+            /// This catches all visual state issues for teleported or newly loaded trains.
+            /// </summary>
+            private static IEnumerator ScheduleComprehensiveVisualSync()
+            {
+                // Wait for all train cars to be processed and initialized
+                yield return new WaitForSeconds(2.0f);
+
+                // Perform comprehensive visual synchronization for all coupled couplers
+                PerformComprehensiveVisualSync();
+
+                // Reset the flag so it can be triggered again for future teleports
+                yield return new WaitForSeconds(5.0f);
+                comprehensiveCheckScheduled = false;
+            }
+
+            /// <summary>
+            /// Perform comprehensive visual synchronization for all coupled couplers.
+            /// This is the same logic as used in DeferredStateApplicator but can be triggered independently.
+            /// </summary>
+            private static void PerformComprehensiveVisualSync()
+            {
+                try
+                {
+                    if (CarSpawner.Instance?.allCars == null)
+                        return;
+
+                    int synchronizedPairs = 0;
+                    var processedCouplers = new HashSet<Coupler>();
+
+                    foreach (var car in CarSpawner.Instance.allCars)
+                    {
+                        if (car == null) continue;
+
+                        // Check front coupler
+                        if (car.frontCoupler != null && car.frontCoupler.IsCoupled() && !processedCouplers.Contains(car.frontCoupler))
+                        {
+                            var partner = car.frontCoupler.coupledTo;
+                            if (partner != null && !processedCouplers.Contains(partner))
+                            {
+                                SynchronizeCouplerPairVisuals(car.frontCoupler, partner);
+                                processedCouplers.Add(car.frontCoupler);
+                                processedCouplers.Add(partner);
+                                synchronizedPairs++;
+                            }
+                        }
+
+                        // Check rear coupler
+                        if (car.rearCoupler != null && car.rearCoupler.IsCoupled() && !processedCouplers.Contains(car.rearCoupler))
+                        {
+                            var partner = car.rearCoupler.coupledTo;
+                            if (partner != null && !processedCouplers.Contains(partner))
+                            {
+                                SynchronizeCouplerPairVisuals(car.rearCoupler, partner);
+                                processedCouplers.Add(car.rearCoupler);
+                                processedCouplers.Add(partner);
+                                synchronizedPairs++;
+                            }
+                        }
+                    }
+                }
+                catch (System.Exception ex)
+                {
+                    Main.ErrorLog(() => $"Error during comprehensive visual sync: {ex.Message}");
+                }
+            }
+
+            /// <summary>
+            /// Synchronize the visual states of a specific coupler pair.
+            /// </summary>
+            private static void SynchronizeCouplerPairVisuals(Coupler coupler1, Coupler coupler2)
+            {
+                try
+                {
+                    // Ensure both couplers are in the correct state (should be Attached_Tight when coupled)
+                    if (coupler1.state != ChainCouplerInteraction.State.Attached_Tight)
+                    {
+                        coupler1.state = ChainCouplerInteraction.State.Attached_Tight;
+                    }
+                    if (coupler2.state != ChainCouplerInteraction.State.Attached_Tight)
+                    {
+                        coupler2.state = ChainCouplerInteraction.State.Attached_Tight;
+                    }
+
+                    // Ensure both couplers are ready/locked (knuckle couplers should be ready when coupled)
+                    if (!KnuckleCouplers.IsReadyToCouple(coupler1))
+                    {
+                        KnuckleCouplers.SetCouplerLocked(coupler1, true);
+                    }
+                    if (!KnuckleCouplers.IsReadyToCouple(coupler2))
+                    {
+                        KnuckleCouplers.SetCouplerLocked(coupler2, true);
+                    }
+
+                    // Force visual state update for both couplers
+                    KnuckleCouplerState.UpdateCouplerVisualState(coupler1, locked: true);
+                    KnuckleCouplerState.UpdateCouplerVisualState(coupler2, locked: true);
+
+                    // Additional explicit visual synchronization
+                    HookManager.UpdateHookVisualStateFromCouplerState(coupler1);
+                    HookManager.UpdateHookVisualStateFromCouplerState(coupler2);
+                }
+                catch (System.Exception ex)
+                {
+                    Main.ErrorLog(() => $"Error synchronizing coupler pair visuals: {ex.Message}");
+                }
+            }
+
+            /// <summary>
+            /// Check a single coupler for state mismatches and fix them if found.
+            /// Returns true if a mismatch was fixed.
+            /// </summary>
+            private static bool CheckAndFixCouplerStateMismatch(Coupler coupler)
+            {
+                if (coupler == null || !coupler.IsCoupled())
+                    return false;
+
+                var partner = coupler.coupledTo;
+                if (partner == null || !partner.IsCoupled())
+                    return false;
+
+                // Check for any state mismatch or wrong states while coupled
+                bool hasMismatch = coupler.state != partner.state ||
+                                  coupler.state == ChainCouplerInteraction.State.Parked ||
+                                  partner.state == ChainCouplerInteraction.State.Parked ||
+                                  coupler.state == ChainCouplerInteraction.State.Dangling ||
+                                  partner.state == ChainCouplerInteraction.State.Dangling;
+
+                if (hasMismatch)
+                {
+                    Main.DebugLog(() => $"Background checker found mismatch: {coupler.train.ID} {coupler.Position()}({coupler.state}) <-> {partner.train.ID} {partner.Position()}({partner.state})");
+
+                    // Fix both couplers
+                    FixCoupledState(coupler);
+                    FixCoupledState(partner);
+
+                    return true;
+                }
+
+                return false;
             }
 
             private static IEnumerator DelayedCoupledStateCheck(TrainCar car)
@@ -332,6 +517,87 @@ namespace DvMod.ZCouplers
                 if (car.rearCoupler != null && car.rearCoupler.IsCoupled())
                 {
                     FixCoupledState(car.rearCoupler);
+                }
+
+                // Additional check with longer delay to catch teleport issues
+                yield return new WaitForSeconds(0.5f);
+
+                // Second pass: look for specific teleport-related state issues
+                CheckAndFixTeleportStateIssues(car);
+
+                // Third pass with even longer delay: ensure visual states are synchronized
+                yield return new WaitForSeconds(1.0f);
+                EnsureVisualSynchronizationForCoupledCars(car);
+            }
+
+            /// <summary>
+            /// Final pass to ensure visual states are properly synchronized for coupled couplers.
+            /// This catches cases where the visual swapping didn't happen during earlier phases.
+            /// </summary>
+            private static void EnsureVisualSynchronizationForCoupledCars(TrainCar car)
+            {
+                if (car.frontCoupler != null && car.frontCoupler.IsCoupled())
+                {
+                    var partner = car.frontCoupler.coupledTo;
+                    if (partner != null)
+                    {
+                        SynchronizeCouplerVisuals(car.frontCoupler, partner);
+                    }
+                }
+
+                if (car.rearCoupler != null && car.rearCoupler.IsCoupled())
+                {
+                    var partner = car.rearCoupler.coupledTo;
+                    if (partner != null)
+                    {
+                        SynchronizeCouplerVisuals(car.rearCoupler, partner);
+                    }
+                }
+            }
+
+            private static void CheckAndFixTeleportStateIssues(TrainCar car)
+            {
+                // Check for the specific teleport bug: one coupler Parked, partner Attached_Tight, but both have joints
+                CheckCouplerForTeleportIssues(car.frontCoupler);
+                CheckCouplerForTeleportIssues(car.rearCoupler);
+            }
+
+            private static void CheckCouplerForTeleportIssues(Coupler coupler)
+            {
+                if (coupler == null || !coupler.IsCoupled())
+                    return;
+
+                var partner = coupler.coupledTo;
+                if (partner == null || !partner.IsCoupled())
+                    return;
+
+                // Look for the classic teleport mismatch: one Parked, other Attached_Tight
+                bool thisParked = coupler.state == ChainCouplerInteraction.State.Parked;
+                bool partnerParked = partner.state == ChainCouplerInteraction.State.Parked;
+                bool thisAttached = coupler.state == ChainCouplerInteraction.State.Attached_Tight;
+                bool partnerAttached = partner.state == ChainCouplerInteraction.State.Attached_Tight;
+
+                // Detect the specific teleport issue pattern
+                bool teleportIssueDetected = (thisParked && partnerAttached) || (thisAttached && partnerParked);
+
+                if (teleportIssueDetected)
+                {
+                    Main.DebugLog(() => $"Teleport state mismatch detected: {coupler.train.ID} {coupler.Position()}({coupler.state}) <-> {partner.train.ID} {partner.Position()}({partner.state})");
+
+                    // Fix both couplers immediately
+                    FixCoupledState(coupler);
+                    FixCoupledState(partner);
+
+                    Main.DebugLog(() => $"Fixed teleport state mismatch: {coupler.train.ID} {coupler.Position()}({coupler.state}) <-> {partner.train.ID} {partner.Position()}({partner.state})");
+                }
+                // Also check for any other state mismatches while physically coupled
+                else if (coupler.state != partner.state)
+                {
+                    Main.DebugLog(() => $"General state mismatch detected: {coupler.train.ID} {coupler.Position()}({coupler.state}) <-> {partner.train.ID} {partner.Position()}({partner.state})");
+
+                    // Fix both couplers to be consistent
+                    FixCoupledState(coupler);
+                    FixCoupledState(partner);
                 }
             }
 
@@ -364,9 +630,12 @@ namespace DvMod.ZCouplers
                     Main.DebugLog(() => $"Fixed teleported train state: {partner.train.ID} {partner.Position()} set to Attached_Tight");
                 }
 
-                // Update visual states
+                // Update visual states for both couplers - this is crucial for teleport fixes
                 KnuckleCouplerState.UpdateCouplerVisualState(coupler, locked: true);
                 KnuckleCouplerState.UpdateCouplerVisualState(partner, locked: true);
+
+                // Additional explicit visual synchronization to ensure both hooks get swapped
+                SynchronizeCouplerVisuals(coupler, partner);
             }
         }
 
@@ -374,6 +643,8 @@ namespace DvMod.ZCouplers
         [HarmonyPatch(typeof(CarSpawner), nameof(CarSpawner.SpawnCar))]
         public static class CarSpawnerSpawnCarPatch
         {
+            private static bool teleportVisualSyncScheduled = false;
+
             public static void Postfix(TrainCar __result)
             {
                 if (!KnuckleCouplers.enabled)
@@ -389,6 +660,121 @@ namespace DvMod.ZCouplers
                 if (Main.settings.couplerType == CouplerType.Schafenberg)
                 {
                     __result.StartCoroutine(DelayedAirHoseDeactivationForCar(__result));
+                }
+
+                // Schedule comprehensive visual sync for teleported/spawned cars
+                if (!teleportVisualSyncScheduled)
+                {
+                    teleportVisualSyncScheduled = true;
+                    __result.StartCoroutine(ScheduleTeleportVisualSync());
+                }
+            }
+
+            /// <summary>
+            /// Schedule comprehensive visual sync specifically for teleported/spawned cars.
+            /// This catches cars that are spawned via CarSpawner rather than just TrainCar.Start.
+            /// </summary>
+            private static IEnumerator ScheduleTeleportVisualSync()
+            {
+                // Wait for all spawning to complete
+                yield return new WaitForSeconds(3.0f);
+
+                PerformComprehensiveVisualSync();
+
+                // Reset the flag for future teleports
+                yield return new WaitForSeconds(5.0f);
+                teleportVisualSyncScheduled = false;
+            }
+
+            /// <summary>
+            /// Perform comprehensive visual synchronization for all coupled couplers.
+            /// This is the same logic as used in TrainCarStartPatch but triggered by CarSpawner.
+            /// </summary>
+            private static void PerformComprehensiveVisualSync()
+            {
+                try
+                {
+                    if (CarSpawner.Instance?.allCars == null)
+                        return;
+
+                    int synchronizedPairs = 0;
+                    var processedCouplers = new HashSet<Coupler>();
+
+                    foreach (var car in CarSpawner.Instance.allCars)
+                    {
+                        if (car == null) continue;
+
+                        // Check front coupler
+                        if (car.frontCoupler != null && car.frontCoupler.IsCoupled() && !processedCouplers.Contains(car.frontCoupler))
+                        {
+                            var partner = car.frontCoupler.coupledTo;
+                            if (partner != null && !processedCouplers.Contains(partner))
+                            {
+                                SynchronizeCouplerPairVisuals(car.frontCoupler, partner);
+                                processedCouplers.Add(car.frontCoupler);
+                                processedCouplers.Add(partner);
+                                synchronizedPairs++;
+                            }
+                        }
+
+                        // Check rear coupler
+                        if (car.rearCoupler != null && car.rearCoupler.IsCoupled() && !processedCouplers.Contains(car.rearCoupler))
+                        {
+                            var partner = car.rearCoupler.coupledTo;
+                            if (partner != null && !processedCouplers.Contains(partner))
+                            {
+                                SynchronizeCouplerPairVisuals(car.rearCoupler, partner);
+                                processedCouplers.Add(car.rearCoupler);
+                                processedCouplers.Add(partner);
+                                synchronizedPairs++;
+                            }
+                        }
+                    }
+                }
+                catch (System.Exception ex)
+                {
+                    Main.ErrorLog(() => $"Error during CarSpawner visual sync: {ex.Message}");
+                }
+            }
+
+            /// <summary>
+            /// Synchronize the visual states of a specific coupler pair.
+            /// </summary>
+            private static void SynchronizeCouplerPairVisuals(Coupler coupler1, Coupler coupler2)
+            {
+                try
+                {
+                    // Ensure both couplers are in the correct state (should be Attached_Tight when coupled)
+                    if (coupler1.state != ChainCouplerInteraction.State.Attached_Tight)
+                    {
+                        coupler1.state = ChainCouplerInteraction.State.Attached_Tight;
+                    }
+                    if (coupler2.state != ChainCouplerInteraction.State.Attached_Tight)
+                    {
+                        coupler2.state = ChainCouplerInteraction.State.Attached_Tight;
+                    }
+
+                    // Ensure both couplers are ready/locked (knuckle couplers should be ready when coupled)
+                    if (!KnuckleCouplers.IsReadyToCouple(coupler1))
+                    {
+                        KnuckleCouplers.SetCouplerLocked(coupler1, true);
+                    }
+                    if (!KnuckleCouplers.IsReadyToCouple(coupler2))
+                    {
+                        KnuckleCouplers.SetCouplerLocked(coupler2, true);
+                    }
+
+                    // Force visual state update for both couplers
+                    KnuckleCouplerState.UpdateCouplerVisualState(coupler1, locked: true);
+                    KnuckleCouplerState.UpdateCouplerVisualState(coupler2, locked: true);
+
+                    // Additional explicit visual synchronization
+                    HookManager.UpdateHookVisualStateFromCouplerState(coupler1);
+                    HookManager.UpdateHookVisualStateFromCouplerState(coupler2);
+                }
+                catch (System.Exception ex)
+                {
+                    Main.ErrorLog(() => $"Error synchronizing coupler pair visuals: {ex.Message}");
                 }
             }
 
@@ -422,6 +808,74 @@ namespace DvMod.ZCouplers
             }
         }
 
+        /// <summary>
+        /// Patch to catch when joints are created, indicating couplers need visual synchronization.
+        /// This is specifically important for teleported trains where TrainCar.Start might not be called.
+        /// </summary>
+        [HarmonyPatch(typeof(JointManager), nameof(JointManager.CreateTensionJoint))]
+        public static class CreateTensionJointPatch
+        {
+            public static void Postfix(Coupler coupler)
+            {
+                if (!KnuckleCouplers.enabled || coupler == null)
+                    return;
+
+                var partner = coupler.coupledTo;
+                
+                // When a tension joint is successfully created, ensure both couplers have proper visual states
+                if (partner != null && coupler.IsCoupled() && partner.IsCoupled())
+                {
+                    // Use a short delay to let the joint settle before updating visuals
+                    if (coupler.gameObject != null)
+                    {
+                        coupler.StartCoroutine(DelayedJointVisualSync(coupler, partner));
+                    }
+                }
+            }
+
+            private static IEnumerator DelayedJointVisualSync(Coupler coupler1, Coupler coupler2)
+            {
+                yield return new WaitForSeconds(0.1f);
+
+                if (coupler1 != null && coupler2 != null && coupler1.IsCoupled() && coupler2.IsCoupled())
+                {
+                    try
+                    {
+                        // Ensure both couplers are in correct state
+                        if (coupler1.state != ChainCouplerInteraction.State.Attached_Tight)
+                        {
+                            coupler1.state = ChainCouplerInteraction.State.Attached_Tight;
+                        }
+                        if (coupler2.state != ChainCouplerInteraction.State.Attached_Tight)
+                        {
+                            coupler2.state = ChainCouplerInteraction.State.Attached_Tight;
+                        }
+
+                        // Ensure both couplers are ready/locked
+                        if (!KnuckleCouplers.IsReadyToCouple(coupler1))
+                        {
+                            KnuckleCouplers.SetCouplerLocked(coupler1, true);
+                        }
+                        if (!KnuckleCouplers.IsReadyToCouple(coupler2))
+                        {
+                            KnuckleCouplers.SetCouplerLocked(coupler2, true);
+                        }
+
+                        // Force visual updates
+                        KnuckleCouplerState.UpdateCouplerVisualState(coupler1, locked: true);
+                        KnuckleCouplerState.UpdateCouplerVisualState(coupler2, locked: true);
+
+                        HookManager.UpdateHookVisualStateFromCouplerState(coupler1);
+                        HookManager.UpdateHookVisualStateFromCouplerState(coupler2);
+                    }
+                    catch (System.Exception ex)
+                    {
+                        Main.ErrorLog(() => $"Error in joint visual sync: {ex.Message}");
+                    }
+                }
+            }
+        }
+
         [HarmonyPatch(typeof(ChainCouplerInteraction), nameof(ChainCouplerInteraction.CoupleBrokenExternally))]
         public static class CoupleBrokenExternallyPatch
         {
@@ -447,8 +901,8 @@ namespace DvMod.ZCouplers
                 Main.DebugLog(() => $"OnCoupled: {e.thisCoupler.train.ID} <-> {e.otherCoupler.train.ID}, viaChain={e.viaChainInteraction}");
 
                 // Update knuckle coupler visual state to show coupled (locked) without triggering uncoupling
-                KnuckleCouplerState.UpdateCouplerVisualState(e.thisCoupler, locked: true);
-                KnuckleCouplerState.UpdateCouplerVisualState(e.otherCoupler, locked: true);
+                // Use explicit visual synchronization to ensure both couplers get updated
+                SynchronizeCoupledVisualStates(e.thisCoupler, e.otherCoupler);
 
                 // Directly update coupler states after coupling
                 var thisChainScript = e.thisCoupler.visualCoupler?.chain?.GetComponent<ChainCouplerInteraction>();
@@ -523,47 +977,92 @@ namespace DvMod.ZCouplers
             {
                 yield return new WaitForSeconds(0.1f); // Small delay to allow coupling to complete
 
-                // Force state update for both couplers if they're still in wrong states or mismatched
-                if (thisCoupler != null && thisCoupler.IsCoupled() && otherCoupler != null && otherCoupler.IsCoupled())
+                // Perform multiple checks with increasing delays to catch teleport state issues
+                for (int attempt = 0; attempt < 3; attempt++)
                 {
-                    // Check for state mismatches between coupled couplers
-                    bool thisCouplerWrongState = thisCoupler.state == ChainCouplerInteraction.State.Parked || thisCoupler.state == ChainCouplerInteraction.State.Dangling;
-                    bool otherCouplerWrongState = otherCoupler.state == ChainCouplerInteraction.State.Parked || otherCoupler.state == ChainCouplerInteraction.State.Dangling;
-                    bool statesMismatch = thisCoupler.state != otherCoupler.state;
+                    if (attempt > 0)
+                        yield return new WaitForSeconds(0.2f); // Additional delays for subsequent checks
 
-                    if (thisCouplerWrongState || otherCouplerWrongState || statesMismatch)
+                    // Force state update for both couplers if they're still in wrong states or mismatched
+                    if (thisCoupler != null && thisCoupler.IsCoupled() && otherCoupler != null && otherCoupler.IsCoupled())
                     {
-                        // For knuckle couplers: if physically coupled, force both to be ready
-                        if (!KnuckleCouplers.IsReadyToCouple(thisCoupler))
-                        {
-                            KnuckleCouplers.SetCouplerLocked(thisCoupler, true);
-                            Main.DebugLog(() => $"Force ready: {thisCoupler.train.ID} {thisCoupler.Position()}");
-                        }
-                        if (!KnuckleCouplers.IsReadyToCouple(otherCoupler))
-                        {
-                            KnuckleCouplers.SetCouplerLocked(otherCoupler, true);
-                            Main.DebugLog(() => $"Force ready: {otherCoupler.train.ID} {otherCoupler.Position()}");
-                        }
+                        // Any of these conditions indicate a state problem that needs fixing:
+                        // 1. Either coupler is in Parked state while coupled (the main teleport bug)
+                        // 2. Either coupler is in Dangling state while coupled
+                        // 3. States don't match between the two couplers
+                        bool thisCouplerWrongState = thisCoupler.state == ChainCouplerInteraction.State.Parked || 
+                                                    thisCoupler.state == ChainCouplerInteraction.State.Dangling;
+                        bool otherCouplerWrongState = otherCoupler.state == ChainCouplerInteraction.State.Parked || 
+                                                     otherCoupler.state == ChainCouplerInteraction.State.Dangling;
+                        bool statesMismatch = thisCoupler.state != otherCoupler.state;
 
-                        // Now both are ready and coupled -> Attached_Tight
-                        var correctState = ChainCouplerInteraction.State.Attached_Tight;
-
-                        // Update both couplers to the same correct state
-                        if (thisCoupler.state != correctState)
+                        if (thisCouplerWrongState || otherCouplerWrongState || statesMismatch)
                         {
-                            thisCoupler.state = correctState;
-                            Main.DebugLog(() => $"Correct state: {thisCoupler.train.ID} {thisCoupler.Position()} -> {correctState}");
-                        }
+                            Main.DebugLog(() => $"State sync issue detected (attempt {attempt + 1}): {thisCoupler.train.ID} {thisCoupler.Position()}({thisCoupler.state}) <-> {otherCoupler.train.ID} {otherCoupler.Position()}({otherCoupler.state})");
 
-                        if (otherCoupler.state != correctState)
+                            // For knuckle couplers: if physically coupled, force both to be ready
+                            if (!KnuckleCouplers.IsReadyToCouple(thisCoupler))
+                            {
+                                KnuckleCouplers.SetCouplerLocked(thisCoupler, true);
+                                Main.DebugLog(() => $"Force ready: {thisCoupler.train.ID} {thisCoupler.Position()}");
+                            }
+                            if (!KnuckleCouplers.IsReadyToCouple(otherCoupler))
+                            {
+                                KnuckleCouplers.SetCouplerLocked(otherCoupler, true);
+                                Main.DebugLog(() => $"Force ready: {otherCoupler.train.ID} {otherCoupler.Position()}");
+                            }
+
+                            // Now both are ready and coupled -> Attached_Tight
+                            var correctState = ChainCouplerInteraction.State.Attached_Tight;
+
+                            // Update both couplers to the same correct state
+                            if (thisCoupler.state != correctState)
+                            {
+                                thisCoupler.state = correctState;
+                                Main.DebugLog(() => $"Correct state: {thisCoupler.train.ID} {thisCoupler.Position()} -> {correctState}");
+                            }
+
+                            if (otherCoupler.state != correctState)
+                            {
+                                otherCoupler.state = correctState;
+                                Main.DebugLog(() => $"Correct state: {otherCoupler.train.ID} {otherCoupler.Position()} -> {correctState}");
+                            }
+
+                            // Also ensure visual states are consistent (both should be locked/ready now)
+                            KnuckleCouplerState.UpdateCouplerVisualState(thisCoupler, locked: true);
+                            KnuckleCouplerState.UpdateCouplerVisualState(otherCoupler, locked: true);
+
+                            // If this was the final attempt, do a more aggressive sync
+                            if (attempt == 2)
+                            {
+                                // Force state machine re-evaluation as a last resort
+                                var thisChainScript = thisCoupler.visualCoupler?.chainAdapter?.chainScript;
+                                var otherChainScript = otherCoupler.visualCoupler?.chainAdapter?.chainScript;
+
+                                if (thisChainScript != null && otherChainScript != null)
+                                {
+                                    // Trigger state machine refresh by disabling and re-enabling
+                                    thisChainScript.enabled = false;
+                                    otherChainScript.enabled = false;
+                                    yield return null; // Wait a frame
+                                    thisChainScript.enabled = true;
+                                    otherChainScript.enabled = true;
+
+                                    Main.DebugLog(() => $"Final aggressive sync for: {thisCoupler.train.ID} & {otherCoupler.train.ID}");
+                                }
+                            }
+                        }
+                        else
                         {
-                            otherCoupler.state = correctState;
-                            Main.DebugLog(() => $"Correct state: {otherCoupler.train.ID} {otherCoupler.Position()} -> {correctState}");
+                            // States are correct, no more attempts needed
+                            Main.DebugLog(() => $"States synchronized successfully: {thisCoupler.train.ID} {thisCoupler.Position()}({thisCoupler.state}) <-> {otherCoupler.train.ID} {otherCoupler.Position()}({otherCoupler.state})");
+                            break;
                         }
-
-                        // Also ensure visual states are consistent (both should be locked/ready now)
-                        KnuckleCouplerState.UpdateCouplerVisualState(thisCoupler, locked: true);
-                        KnuckleCouplerState.UpdateCouplerVisualState(otherCoupler, locked: true);
+                    }
+                    else
+                    {
+                        // One or both couplers are no longer coupled, stop checking
+                        break;
                     }
                 }
             }
@@ -610,6 +1109,21 @@ namespace DvMod.ZCouplers
                         {
                             KnuckleCouplers.SetCouplerLocked(partnerCoupler, true);
                             Main.DebugLog(() => $"Forced {partnerCoupler.train.ID} {partnerCoupler.Position()} to ready state (was coupled but not ready)");
+                        }
+
+                        // Check for state mismatches and fix them immediately
+                        var partnerChainScript = partnerCoupler.visualCoupler?.chainAdapter?.chainScript;
+                        if (partnerChainScript != null)
+                        {
+                            var currentPartnerState = partnerCoupler.state;
+                            var expectedState = ChainCouplerInteraction.State.Attached_Tight;
+                            
+                            // If partner has wrong state while coupled, fix it
+                            if (currentPartnerState != expectedState)
+                            {
+                                partnerCoupler.state = expectedState;
+                                Main.DebugLog(() => $"Fixed partner state in DetermineNextState: {partnerCoupler.train.ID} {partnerCoupler.Position()} {currentPartnerState} -> {expectedState}");
+                            }
                         }
 
                         // Now both are ready and coupled -> Attached_Tight

@@ -170,12 +170,108 @@ namespace DvMod.ZCouplers
                     // Final validation to catch any missed joints
                     yield return new WaitForSeconds(1.0f);
                     CouplerStateManager.ValidateAllJointsAfterLoading();
+
+                    // Final step: Comprehensive visual state synchronization for all coupled couplers
+                    yield return new WaitForSeconds(0.5f);
+                    SynchronizeAllCouplerVisualStates();
                 }
 
                 // Removed verbose completion log
 
                 // Self-destruct after completion
                 Destroy(this);
+            }
+
+            /// <summary>
+            /// Comprehensive visual state synchronization for all coupled couplers after loading.
+            /// This ensures that both couplers in every coupled pair have consistent visual states.
+            /// </summary>
+            private void SynchronizeAllCouplerVisualStates()
+            {
+                try
+                {
+                    if (CarSpawner.Instance?.allCars == null)
+                        return;
+
+                    int synchronizedPairs = 0;
+                    var processedCouplers = new HashSet<Coupler>();
+
+                    foreach (var car in CarSpawner.Instance.allCars)
+                    {
+                        if (car == null) continue;
+
+                        // Check front coupler
+                        if (car.frontCoupler != null && car.frontCoupler.IsCoupled() && !processedCouplers.Contains(car.frontCoupler))
+                        {
+                            var partner = car.frontCoupler.coupledTo;
+                            if (partner != null && !processedCouplers.Contains(partner))
+                            {
+                                SynchronizeCouplerPairVisuals(car.frontCoupler, partner);
+                                processedCouplers.Add(car.frontCoupler);
+                                processedCouplers.Add(partner);
+                                synchronizedPairs++;
+                            }
+                        }
+
+                        // Check rear coupler
+                        if (car.rearCoupler != null && car.rearCoupler.IsCoupled() && !processedCouplers.Contains(car.rearCoupler))
+                        {
+                            var partner = car.rearCoupler.coupledTo;
+                            if (partner != null && !processedCouplers.Contains(partner))
+                            {
+                                SynchronizeCouplerPairVisuals(car.rearCoupler, partner);
+                                processedCouplers.Add(car.rearCoupler);
+                                processedCouplers.Add(partner);
+                                synchronizedPairs++;
+                            }
+                        }
+                    }
+                }
+                catch (System.Exception ex)
+                {
+                    Main.ErrorLog(() => $"Error during visual state synchronization: {ex.Message}");
+                }
+            }
+
+            /// <summary>
+            /// Synchronize the visual states of a specific coupler pair.
+            /// </summary>
+            private void SynchronizeCouplerPairVisuals(Coupler coupler1, Coupler coupler2)
+            {
+                try
+                {
+                    // Ensure both couplers are in the correct state (should be Attached_Tight when coupled)
+                    if (coupler1.state != ChainCouplerInteraction.State.Attached_Tight)
+                    {
+                        coupler1.state = ChainCouplerInteraction.State.Attached_Tight;
+                    }
+                    if (coupler2.state != ChainCouplerInteraction.State.Attached_Tight)
+                    {
+                        coupler2.state = ChainCouplerInteraction.State.Attached_Tight;
+                    }
+
+                    // Ensure both couplers are ready/locked (knuckle couplers should be ready when coupled)
+                    if (!KnuckleCouplers.IsReadyToCouple(coupler1))
+                    {
+                        KnuckleCouplers.SetCouplerLocked(coupler1, true);
+                    }
+                    if (!KnuckleCouplers.IsReadyToCouple(coupler2))
+                    {
+                        KnuckleCouplers.SetCouplerLocked(coupler2, true);
+                    }
+
+                    // Force visual state update for both couplers
+                    KnuckleCouplerState.UpdateCouplerVisualState(coupler1, locked: true);
+                    KnuckleCouplerState.UpdateCouplerVisualState(coupler2, locked: true);
+
+                    // Additional explicit visual synchronization
+                    HookManager.UpdateHookVisualStateFromCouplerState(coupler1);
+                    HookManager.UpdateHookVisualStateFromCouplerState(coupler2);
+                }
+                catch (System.Exception ex)
+                {
+                    Main.ErrorLog(() => $"Error synchronizing coupler pair visuals: {ex.Message}");
+                }
             }
         }
     }

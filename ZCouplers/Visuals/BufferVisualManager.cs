@@ -111,10 +111,6 @@ public static class BufferVisualManager
                 toggledVisuals = num + 1;
             }
         }
-        if (toggledVisuals > 0)
-        {
-            Main.DebugLog(() => $"Toggled {toggledVisuals} buffer visual elements on {livery.id}");
-        }
     }
 
     private static bool IsZCouplersObject(Transform transform)
