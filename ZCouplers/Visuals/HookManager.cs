@@ -430,8 +430,8 @@ namespace DvMod.ZCouplers
                     switch (Main.settings.couplerType)
                     {
                         case CouplerType.AARKnuckle:
-                            offset = new Vector3(0f, 0.02f, 0.01f);
-                            prefabScale -= new Vector3(1f, 0f, 0f);
+                            offset = new Vector3(0f, -0.01f, 0.01f);
+                            //prefabScale += new Vector3(-1f, 0f, 10f);
                             break;
                         case CouplerType.SA3Knuckle:
                             offset = new Vector3(-0.02f, 0.04f, 0.01f);
@@ -446,9 +446,9 @@ namespace DvMod.ZCouplers
                     switch (Main.settings.couplerType)
                     {
                         case CouplerType.AARKnuckle:
-                            offset = new Vector3(0f, 0.02f, 0.01f);
+                            offset = new Vector3(0f, -0.01f, -0.01f);
                             prefabLocalRot = Quaternion.Euler(0f, 180f, 0f) * socketPrefab.transform.localRotation;
-                            prefabScale -= new Vector3(1f, 0f, 0f);
+                            //prefabScale += new Vector3(-1f, 0f, 10f);
                             break;
                         case CouplerType.SA3Knuckle:
                             offset = new Vector3(0.02f, 0.04f, -0.01f);

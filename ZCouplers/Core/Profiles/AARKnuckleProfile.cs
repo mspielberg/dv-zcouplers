@@ -8,9 +8,9 @@ namespace DvMod.ZCouplers
         public CouplerOptions Options { get; } = new CouplerOptions
         {
             Name = "AAR Knuckle",
-            HookLateralOffsetX = 0f,
             SupportsVerticalArticulation = false,
             AlwaysHideAirHoses = false,
+            HookAdditionalOffset = new Vector3(0f, -0.03f, 0f),  // Full 3D offset: X=lateral, Y=vertical, Z=forward/back
             HookClosedChildName = "AAR_closed",
             HookOpenChildName = "AAR_open",
             HasOpenVariant = true,
