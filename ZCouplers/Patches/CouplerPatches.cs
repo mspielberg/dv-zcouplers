@@ -80,7 +80,7 @@ namespace DvMod.ZCouplers
                 var tensionJoint = JointManager.GetTensionJoint(__instance);
                 if (tensionJoint != null)
                     breaker.joint = tensionJoint;
-                if (__instance.rigidCJ == null && __instance.coupledTo.rigidCJ == null)
+                if (!JointManager.HasCompressionJoint(__instance) && !JointManager.HasCompressionJoint(__instance.coupledTo))
                     JointManager.CreateCompressionJoint(__instance, __instance.coupledTo);
                 CouplingScannerPatches.KillCouplingScanner(__instance);
                 CouplingScannerPatches.KillCouplingScanner(__instance.coupledTo);

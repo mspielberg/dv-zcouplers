@@ -98,11 +98,21 @@ namespace DvMod.ZCouplers
             cj.angularYMotion = ConfigurableJointMotion.Limited;
             cj.angularZMotion = ConfigurableJointMotion.Limited;
 
-            // Set angular limits
-            cj.lowAngularXLimit = new SoftJointLimit { limit = 5f };
-            cj.highAngularXLimit = new SoftJointLimit { limit = 5f };
-            cj.angularYLimit = new SoftJointLimit { limit = 30f };
-            cj.angularZLimit = new SoftJointLimit { limit = 5 };
+            // Set angular limits (looser when buffers are hidden to increase play)
+            if (Main.settings.showBuffersWithKnuckles)
+            {
+                cj.lowAngularXLimit = new SoftJointLimit { limit = 5f };
+                cj.highAngularXLimit = new SoftJointLimit { limit = 5f };
+                cj.angularYLimit = new SoftJointLimit { limit = 30f };
+                cj.angularZLimit = new SoftJointLimit { limit = 5 };
+            }
+            else
+            {
+                cj.lowAngularXLimit = new SoftJointLimit { limit = 20f };
+                cj.highAngularXLimit = new SoftJointLimit { limit = 20f };
+                cj.angularYLimit = new SoftJointLimit { limit = 80f };
+                cj.angularZLimit = new SoftJointLimit { limit = 45f };
+            }
 
             // Configure spring forces
             cj.angularXLimitSpring = new SoftJointLimitSpring { spring = Main.settings.GetSpringRate() };
@@ -132,36 +142,75 @@ namespace DvMod.ZCouplers
             }
             Main.DebugLog(() => $"Compression joint created between {TrainCar.Resolve(a.gameObject)?.ID} and {TrainCar.Resolve(b.gameObject)?.ID}");
 
-            // Create rigid (bottoming out) joint
-            var bottomedCj = a.train.gameObject.AddComponent<ConfigurableJoint>();
-            bottomedCj.autoConfigureConnectedAnchor = false;
-            bottomedCj.anchor = a.transform.localPosition + (2 * (a.isFrontCoupler ? Vector3.forward : Vector3.back));
-            bottomedCj.connectedBody = b.train.gameObject.GetComponent<Rigidbody>();
-            bottomedCj.connectedAnchor = b.transform.localPosition;
-            bottomedCj.zMotion = ConfigurableJointMotion.Limited;
+            bool showBuffers = Main.settings.showBuffersWithKnuckles;
+            if (showBuffers)
+            {
+                // Create rigid (bottoming out) joint only when buffers are shown
+                var bottomedCj = a.train.gameObject.AddComponent<ConfigurableJoint>();
+                bottomedCj.autoConfigureConnectedAnchor = false;
+                bottomedCj.anchor = a.transform.localPosition + (2 * (a.isFrontCoupler ? Vector3.forward : Vector3.back));
+                bottomedCj.connectedBody = b.train.gameObject.GetComponent<Rigidbody>();
+                bottomedCj.connectedAnchor = b.transform.localPosition;
+                bottomedCj.zMotion = ConfigurableJointMotion.Limited;
 
-            bottomedCj.linearLimit = new SoftJointLimit { limit = BufferTravel + 2f };
-            bottomedCj.linearLimitSpring = new SoftJointLimitSpring { spring = Main.settings.GetSpringRate() };
-            bottomedCj.enableCollision = false;
-            bottomedCj.breakForce = float.PositiveInfinity;
-            bottomedCj.breakTorque = float.PositiveInfinity;
+                bottomedCj.linearLimit = new SoftJointLimit { limit = BufferTravel + 2f };
+                bottomedCj.linearLimitSpring = new SoftJointLimitSpring { spring = Main.settings.GetSpringRate() };
+                bottomedCj.enableCollision = false;
+                bottomedCj.breakForce = float.PositiveInfinity;
+                bottomedCj.breakTorque = float.PositiveInfinity;
 
-            a.rigidCJ = bottomedCj;
+                a.rigidCJ = bottomedCj;
+            }
 
             // Create buffer joint
             var bufferCj = a.train.gameObject.AddComponent<ConfigurableJoint>();
             bufferCj.autoConfigureConnectedAnchor = false;
-            bufferCj.anchor = a.transform.localPosition + (2 * (a.isFrontCoupler ? Vector3.forward : Vector3.back));
             bufferCj.connectedBody = b.train.gameObject.GetComponent<Rigidbody>();
-            bufferCj.connectedAnchor = b.transform.localPosition;
-            bufferCj.zMotion = ConfigurableJointMotion.Limited;
 
-            bufferCj.linearLimit = new SoftJointLimit { limit = 2f };
-            bufferCj.linearLimitSpring = new SoftJointLimitSpring
+            if (showBuffers)
             {
-                spring = Main.settings.GetSpringRate(),
-                damper = Main.settings.GetDamperRate(),
-            };
+                // Full buffer behavior uses the historical anchor offset
+                bufferCj.anchor = a.transform.localPosition + (2 * (a.isFrontCoupler ? Vector3.forward : Vector3.back));
+                bufferCj.connectedAnchor = b.transform.localPosition;
+                bufferCj.zMotion = ConfigurableJointMotion.Limited;
+                // Full buffer behavior
+                bufferCj.linearLimit = new SoftJointLimit { limit = 2f };
+                bufferCj.linearLimitSpring = new SoftJointLimitSpring
+                {
+                    spring = Main.settings.GetSpringRate(),
+                    damper = Main.settings.GetDamperRate(),
+                };
+                // Keep other motions at defaults (free lateral), let tension joint manage angulars
+                bufferCj.angularXMotion = ConfigurableJointMotion.Free;
+                bufferCj.angularYMotion = ConfigurableJointMotion.Free;
+                bufferCj.angularZMotion = ConfigurableJointMotion.Free;
+            }
+            else
+            {
+                // Guard mode when buffers are hidden: spherical, tight limit about the actual coupler faces
+                // Use coupler local positions for anchors to avoid introducing a baseline offset/gap
+                bufferCj.anchor = a.transform.localPosition;
+                bufferCj.connectedAnchor = b.transform.localPosition;
+
+                // Limit only along the coupler axis (z); allow lateral (x/y) to avoid clamping in curves
+                bufferCj.xMotion = ConfigurableJointMotion.Free;
+                bufferCj.yMotion = ConfigurableJointMotion.Free;
+                bufferCj.zMotion = ConfigurableJointMotion.Limited;
+                bufferCj.linearLimit = new SoftJointLimit { limit = 0.03f }; // ~3 cm axial guard
+
+                // Use user-configured spring/damper values directly
+                bufferCj.linearLimitSpring = new SoftJointLimitSpring
+                {
+                    spring = Main.settings.GetSpringRate(),
+                    damper = Main.settings.GetDamperRate(),
+                };
+
+                // Allow free angles; tension joint governs overall articulation
+                bufferCj.angularXMotion = ConfigurableJointMotion.Free;
+                bufferCj.angularYMotion = ConfigurableJointMotion.Free;
+                bufferCj.angularZMotion = ConfigurableJointMotion.Free;
+            }
+
             bufferCj.enableCollision = false;
             bufferCj.breakForce = float.PositiveInfinity;
             bufferCj.breakTorque = float.PositiveInfinity;
@@ -172,6 +221,28 @@ namespace DvMod.ZCouplers
             // If both couplers are ready (locked) but showing as Dangling, update them to Attached_Tight.
             // Handles compression joints created after deferred state application.
             UpdateCouplerStatesAfterCompressionJoint(a, b);
+        }
+
+        /// <summary>
+        /// Check if a compression (buffer) joint exists for this coupler.
+        /// </summary>
+        public static bool HasCompressionJoint(Coupler coupler)
+        {
+            return coupler != null && bufferJoints.ContainsKey(coupler);
+        }
+
+        /// <summary>
+        /// Try get the compression joint for this coupler.
+        /// </summary>
+        public static bool TryGetCompressionJoint(Coupler coupler, out ConfigurableJoint joint)
+        {
+            joint = default!;
+            if (coupler != null && bufferJoints.TryGetValue(coupler, out var tuple) && tuple.joint != null)
+            {
+                joint = tuple.joint;
+                return true;
+            }
+            return false;
         }
 
         /// <summary>

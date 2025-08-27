@@ -7,7 +7,7 @@ namespace DvMod.ZCouplers
         [Draw("Coupler type (requires restart)")]
         public CouplerType couplerType = CouplerType.AARKnuckle;
 
-        [Draw("Show Buffers With Knuckles")]
+        [Draw("Toggle Buffers Visuals", Tooltip = "Also modifies the physics to account for buffer absence")]
         public bool showBuffersWithKnuckles = false;
         [Draw("Knuckle strength (Mn)", Min = 0.1f)]
         public float knuckleStrength = 1.78f;

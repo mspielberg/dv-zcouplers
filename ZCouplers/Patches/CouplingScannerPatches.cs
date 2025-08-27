@@ -194,7 +194,7 @@ namespace DvMod.ZCouplers
                             return;
 
                         // Create a compression joint only if both couplers are ready and not during save loading.
-                        if (coupler.rigidCJ == null && otherCoupler.rigidCJ == null
+                        if (!JointManager.HasCompressionJoint(coupler) && !JointManager.HasCompressionJoint(otherCoupler)
                             && ShouldCouplersBeReady(coupler, otherCoupler)
                             && !SaveManager.IsLoadingFromSave)
                         {

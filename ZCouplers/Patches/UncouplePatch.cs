@@ -53,7 +53,16 @@ public static class UncouplePatch
             Main.DebugLog(() => "Stored partner coupler joints for " + __instance.coupledTo.train.ID);
         }
         JointManager.DestroyTensionJoint(__instance);
-        JointManager.ConvertCompressionJointToBufferOnly(__instance);
+        if (Main.settings.showBuffersWithKnuckles)
+        {
+            // Use game buffer collisions when buffers are visible
+            JointManager.ConvertCompressionJointToBufferOnly(__instance);
+        }
+        else
+        {
+            // Keep the guard compression joint for a brief period to avoid immediate interpenetration and snapping
+            TryKeepGuardCompressionForGrace(__instance, 0.4f);
+        }
         if (__instance.coupledTo?.train != null)
         {
             CollisionHandler.DestroyJointsBetweenCars(__instance.train, __instance.coupledTo.train);
@@ -70,6 +79,29 @@ public static class UncouplePatch
             CouplingScannerPatches.SeparateCarsAfterUncoupling(__instance, __instance.coupledTo);
         }
         Main.DebugLog(() => "Completed uncoupling cleanup for " + __instance.train.ID);
+    }
+
+    private static void TryKeepGuardCompressionForGrace(Coupler coupler, float seconds)
+    {
+        if (coupler?.visualCoupler?.chainAdapter?.chainScript == null)
+            return;
+
+        // If the pair has a compression joint, leave it as-is for a short time; otherwise nothing to do
+        if (!DvMod.ZCouplers.JointManager.TryGetCompressionJoint(coupler, out var joint))
+            return;
+
+        var chain = coupler.visualCoupler.chainAdapter.chainScript;
+        chain.StartCoroutine(GraceDisable());
+
+        System.Collections.IEnumerator GraceDisable()
+        {
+            yield return new UnityEngine.WaitForSeconds(seconds);
+            // If still uncoupled and joint still tracked, destroy it now
+            if (coupler != null && !coupler.IsCoupled())
+            {
+                DvMod.ZCouplers.JointManager.DestroyCompressionJoint(coupler, caller: "uncouple-grace");
+            }
+        }
     }
 
     public static void Postfix(Coupler __instance)
