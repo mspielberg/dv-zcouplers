@@ -16,29 +16,35 @@ public static class BufferVisualManager
 
     public static void ToggleBuffers(bool visible)
     {
-        // Skip if we're trying to set the same state again
-        if (_lastVisibilityState.HasValue && _lastVisibilityState.Value == visible)
+        // If the requested state is the same as the last applied state, skip re-toggling prefabs
+        // but still refresh live cars to cover newly spawned instances.
+        bool sameAsLast = _lastVisibilityState.HasValue && _lastVisibilityState.Value == visible;
+
+        if (!sameAsLast)
         {
-            Main.DebugLog(() => $"Skipping buffer visibility toggle - already set to {(visible ? "on" : "off")}");
-            return;
+            Main.DebugLog(() => "Toggling buffer visibility " + (visible ? "on" : "off"));
+            _lastVisibilityState = visible;
+
+            foreach (TrainCarLivery livery in Globals.G.Types.Liveries)
+            {
+                ToggleBuffers(livery.prefab, livery, visible);
+            }
+        }
+        else
+        {
+            // Keep logs quiet but indicate a refresh for instances when debug logging is on
+            Main.DebugLog(() => $"Refreshing buffer visibility for live cars (state unchanged: {(visible ? "on" : "off")})");
         }
 
-        Main.DebugLog(() => "Toggling buffer visibility " + (visible ? "on" : "off"));
-        _lastVisibilityState = visible;
-
-        foreach (TrainCarLivery livery in Globals.G.Types.Liveries)
+        var spawner = SingletonBehaviour<CarSpawner>.Instance;
+        if (spawner != null)
         {
-            ToggleBuffers(livery.prefab, livery, visible);
+            foreach (TrainCar allCar in spawner.allCars)
+            {
+                ToggleBuffers(allCar.gameObject, allCar.carLivery, visible);
+            }
+            ForceGlobalRenderingUpdate();
         }
-        if (SingletonBehaviour<CarSpawner>.Instance == null)
-        {
-            return;
-        }
-        foreach (TrainCar allCar in SingletonBehaviour<CarSpawner>.Instance.allCars)
-        {
-            ToggleBuffers(allCar.gameObject, allCar.carLivery, visible);
-        }
-        ForceGlobalRenderingUpdate();
     }
 
     /// <summary>
