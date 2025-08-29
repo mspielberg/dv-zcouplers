@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using HarmonyLib;
 
 using UnityEngine;
+using DvMod.ZCouplers.Integrations.Multiplayer;
 
 namespace DvMod.ZCouplers
 {
@@ -20,6 +21,11 @@ namespace DvMod.ZCouplers
         {
             public static bool Prefix(Coupler __instance)
             {
+                // In MP client, never create joints locally unless we're replaying host commands.
+                if (Integrations.Multiplayer.MultiplayerIntegration.IsClientActive && !Integrations.Multiplayer.MultiplayerIntegration.ClientAllowsJointOps)
+                {
+                    return true; // let vanilla run, but our other client guards will prevent joint creation in JointManager
+                }
                 // Allow tender joints to use original behavior
                 if (__instance.train.GetComponent<DV.SteamTenderAutoCoupleMechanism>() != null && !__instance.isFrontCoupler)
                 {

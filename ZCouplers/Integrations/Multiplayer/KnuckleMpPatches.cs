@@ -11,6 +11,24 @@ namespace DvMod.ZCouplers.Integrations.Multiplayer
     [HarmonyPatch]
     public static class KnuckleMpPatches
     {
+        // Ensure host replicates uncoupling even if JointManager.DestroyTensionJoint isn't the path taken
+        [HarmonyPatch(typeof(Coupler), nameof(Coupler.Uncouple))]
+        private static class ReplicateUncouple
+        {
+            public static void Prefix(Coupler __instance, out Coupler __state)
+            {
+                __state = __instance?.coupledTo; // remember partner before uncouple
+            }
+            public static void Postfix(Coupler __instance, Coupler __state)
+            {
+                if (!MultiplayerIntegration.IsHost || __instance == null)
+                    return;
+                if (!__instance.IsCoupled() && __state != null)
+                {
+                    MultiplayerIntegration.HostBroadcastJointDestroy(__instance, __state, JointKind.Tension);
+                }
+            }
+        }
         // Intercept button press path to route through MP when client
         [HarmonyPatch(typeof(HookManager), methodName: "OnButtonPressed")]
         private static class HookButtonPatch
@@ -127,17 +145,19 @@ namespace DvMod.ZCouplers.Integrations.Multiplayer
         [HarmonyPatch(typeof(JointManager), nameof(JointManager.DestroyTensionJoint))]
         private static class ReplicateTensionJointDestroy
         {
-            public static void Prefix(Coupler coupler, out bool __state)
+            public static void Prefix(Coupler coupler, out (bool had, Coupler partner) __state)
             {
-                __state = coupler != null && JointManager.HasTensionJoint(coupler);
+                var had = coupler != null && JointManager.HasTensionJoint(coupler);
+                var partner = coupler?.coupledTo;
+                __state = (had, partner);
             }
-            public static void Postfix(Coupler coupler, bool __state)
+            public static void Postfix(Coupler coupler, (bool had, Coupler partner) __state)
             {
                 if (!MultiplayerIntegration.IsHost || coupler == null)
                     return;
-                if (__state && !JointManager.HasTensionJoint(coupler))
+                if (__state.had && !JointManager.HasTensionJoint(coupler))
                 {
-                    var other = coupler.coupledTo;
+                    var other = __state.partner;
                     if (other != null)
                         MultiplayerIntegration.HostBroadcastJointDestroy(coupler, other, JointKind.Tension);
                 }

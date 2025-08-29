@@ -398,24 +398,40 @@ namespace DvMod.ZCouplers.Integrations.Multiplayer
                 var set = packet.Kind == JointKind.Tension ? clientKnownTensionPairs : clientKnownCompressionPairs;
                 if (set.Contains(key)) return; // already applied
                 set.Add(key);
-                ClientAllowsJointOps = true;
-                switch (packet.Kind)
+                // For Tension (i.e., actual coupling), prefer invoking the game's CoupleTo so TrainSets match host
+                if (packet.Kind == JointKind.Tension)
                 {
-                    case JointKind.Tension:
-                        JointManager.CreateTensionJoint(a);
-                        break;
-                    case JointKind.Compression:
+                    // If not already coupled to the intended partner, perform a local couple
+                    if (a == null || b == null || a.coupledTo != b)
+                    {
+                        ClientAllowsJointOps = true; // allow joint creation triggered by CoupleTo
+                        try
+                        {
+                            a?.CoupleTo(b, viaChainInteraction: true);
+                        }
+                        finally
+                        {
+                            ClientAllowsJointOps = false;
+                        }
+                    }
+                }
+                else
+                {
+                    // Compression joints don't affect TrainSet membership; just mirror host
+                    ClientAllowsJointOps = true;
+                    try
+                    {
                         JointManager.CreateCompressionJoint(a, b);
-                        break;
+                    }
+                    finally
+                    {
+                        ClientAllowsJointOps = false;
+                    }
                 }
             }
             catch (Exception e)
             {
                 Main.ErrorLog(() => $"[MP] Client joint create failed: {e.Message}");
-            }
-            finally
-            {
-                ClientAllowsJointOps = false;
             }
         }
 
@@ -428,25 +444,40 @@ namespace DvMod.ZCouplers.Integrations.Multiplayer
                 var key = PairKey(packet.ACarNetId, packet.AIsFront, packet.BCarNetId, packet.BIsFront);
                 var set = packet.Kind == JointKind.Tension ? clientKnownTensionPairs : clientKnownCompressionPairs;
                 if (!set.Contains(key)) return; // already removed / unknown
-                ClientAllowsJointOps = true;
-                switch (packet.Kind)
+                if (packet.Kind == JointKind.Tension)
                 {
-                    case JointKind.Tension:
-                        JointManager.DestroyTensionJoint(a);
-                        break;
-                    case JointKind.Compression:
+                    // Prefer native Uncouple to ensure TrainSets are split identically to host
+                    if (a != null)
+                    {
+                        // Uncouple will remove joints; allow any joint ops during this call
+                        ClientAllowsJointOps = true;
+                        try
+                        {
+                            a.Uncouple(playAudio: false, calledOnOtherCoupler: false, dueToBrokenCouple: false, viaChainInteraction: true);
+                        }
+                        finally
+                        {
+                            ClientAllowsJointOps = false;
+                        }
+                    }
+                }
+                else
+                {
+                    ClientAllowsJointOps = true;
+                    try
+                    {
                         JointManager.DestroyCompressionJoint(a, caller: "MP");
-                        break;
+                    }
+                    finally
+                    {
+                        ClientAllowsJointOps = false;
+                    }
                 }
                 set.Remove(key);
             }
             catch (Exception e)
             {
                 Main.ErrorLog(() => $"[MP] Client joint destroy failed: {e.Message}");
-            }
-            finally
-            {
-                ClientAllowsJointOps = false;
             }
         }
 

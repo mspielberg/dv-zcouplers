@@ -27,6 +27,9 @@ namespace DvMod.ZCouplers
         {
             public static void Postfix(RemoteControllerModule __instance)
             {
+                // Only host should apply auto hose/MU/joint side effects
+                if (Integrations.Multiplayer.MultiplayerIntegration.IsClientActive)
+                    return;
                 var car = __instance.car.trainset.firstCar;
                 var coupler = car.frontCoupler.IsCoupled() ? car.frontCoupler : car.rearCoupler;
                 KnuckleCouplers.ReadyCoupler(coupler.GetOppositeCoupler());
@@ -67,8 +70,15 @@ namespace DvMod.ZCouplers
                 var coupler = selectedCoupler > 0
                     ? CouplerLogic.GetNthCouplerFrom(__instance.car.frontCoupler, selectedCoupler - 1)
                     : CouplerLogic.GetNthCouplerFrom(__instance.car.rearCoupler, -selectedCoupler - 1);
-                if (coupler != null)
-                    KnuckleCouplers.UnlockCoupler(coupler, viaChainInteraction: false);
+                if (coupler == null)
+                    return;
+                if (Integrations.Multiplayer.MultiplayerIntegration.IsClientActive)
+                {
+                    // Ask host to unlock this coupler; don't uncouple locally
+                    Integrations.Multiplayer.MultiplayerIntegration.SendCouplerToggleRequest(coupler, locked: false);
+                    return;
+                }
+                KnuckleCouplers.UnlockCoupler(coupler, viaChainInteraction: false);
             }
         }
     }

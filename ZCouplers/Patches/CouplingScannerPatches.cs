@@ -3,6 +3,7 @@ using System.Collections;
 using HarmonyLib;
 
 using UnityEngine;
+using DvMod.ZCouplers.Integrations.Multiplayer;
 
 namespace DvMod.ZCouplers
 {
@@ -356,6 +357,12 @@ namespace DvMod.ZCouplers
                 }
                 else
                 {
+                    // In Multiplayer client mode, do not self-couple. Host will drive coupling and TrainSet merges.
+                    if (MultiplayerIntegration.IsClientActive)
+                    {
+                        __instance.masterCoro = null;
+                        yield break;
+                    }
                     // Omit routine start logs
 
                     // Check if both couplers are in Attached_Tight state but not actually coupled (save loading case)
