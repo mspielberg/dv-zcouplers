@@ -55,9 +55,11 @@ public static class Main
         CouplerProfiles.Register(new SchakuProfile());
 
         KnuckleCouplers.Initialize();
-        mod.Logger.Log($"Loaded {Main.settings.couplerType}");
-        return true;
-    }
+        // Initialize Multiplayer integration (safe if MP not installed)
+        try { Integrations.Multiplayer.MultiplayerIntegration.Initialize(); } catch { }
+            mod.Logger.Log($"Loaded {Main.settings.couplerType}");
+            return true;
+        }
 
     public static void DebugLog(TrainCar car, Func<string> message)
     {
