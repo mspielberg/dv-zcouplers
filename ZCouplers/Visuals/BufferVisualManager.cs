@@ -103,7 +103,12 @@ public static class BufferVisualManager
         MeshRenderer[] componentsInChildren = buffers.GetComponentsInChildren<MeshRenderer>();
         foreach (MeshRenderer renderer in componentsInChildren)
         {
-            if (!IsZCouplersObject(renderer.transform) && !(renderer.name == "BuffersAndChainRig") && (renderer.name.StartsWith("CabooseExteriorBufferStems") || renderer.name.StartsWith("Buffer_") || renderer.name.Replace("_", "").ToLowerInvariant().Contains("bufferstem")))
+            if (!IsZCouplersObject(renderer.transform)
+                && renderer.name != "BuffersAndChainRig"
+                && (HasBufferNameInAncestry(renderer.transform)
+                    || renderer.name.StartsWith("CabooseExteriorBufferStems")
+                    || renderer.name.StartsWith("Buffer_")
+                    || renderer.name.Replace("_", "").ToLowerInvariant().Contains("bufferstem")))
             {
                 renderer.enabled = visible;
                 ForceRendererUpdate(renderer);
@@ -431,6 +436,33 @@ public static class BufferVisualManager
 
         return count;
     }
+
+    private static bool HasBufferNameInAncestry(Transform t)
+    {
+	    var cur = t;
+	    while (cur != null)
+	    {
+		    string n = cur.name;
+		    // Skip generic rig container; we care about specific buffer nodes above/below it.
+		    if (string.Equals(n, "BuffersAndChainRig", StringComparison.Ordinal))
+		    {
+			    cur = cur.parent;
+			    continue;
+		    }
+
+		    // Common buffer naming patterns
+		    if (n.StartsWith("Buffer_", StringComparison.OrdinalIgnoreCase))
+			    return true;
+		    if (n.Replace("_", "").ToLowerInvariant().Contains("bufferstem"))
+			    return true;
+		    if (n.StartsWith("CabooseExteriorBufferStems", StringComparison.OrdinalIgnoreCase))
+			    return true;
+
+		    cur = cur.parent;
+	    }
+	    return false;
+    }
+
 
     private static void ForceRendererUpdate(Renderer renderer)
     {
