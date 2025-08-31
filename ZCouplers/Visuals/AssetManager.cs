@@ -75,7 +75,7 @@ namespace DvMod.ZCouplers.Visuals
 
         public static void LoadAssets()
         {
-            var bundleStream = typeof(AssetManager).Assembly.GetManifestResourceStream(typeof(Main), "zcouplers");
+            var bundleStream = typeof(AssetManager).Assembly.GetManifestResourceStream("DvMod.ZCouplers.zcouplers");
             if (bundleStream == null)
             {
                 Main.ErrorLog(() => "Failed to load AssetBundle - stream is null");
