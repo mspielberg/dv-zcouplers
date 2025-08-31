@@ -1,9 +1,10 @@
-using HarmonyLib;
-using DV;
-using DV.CabControls;
+using System;
 using System.Collections;
+using DvMod.ZCouplers.Physics;
+using DvMod.ZCouplers.Visuals;
+using HarmonyLib;
 
-namespace DvMod.ZCouplers.Integrations.Multiplayer
+namespace DvMod.ZCouplers
 {
     /// <summary>
     /// Harmony patches that bridge ZCouplers behavior to Multiplayer without touching core files.
@@ -12,25 +13,24 @@ namespace DvMod.ZCouplers.Integrations.Multiplayer
     public static class KnuckleMpPatches
     {
         // Ensure host replicates uncoupling even if JointManager.DestroyTensionJoint isn't the path taken
-        [HarmonyPatch(typeof(Coupler), nameof(Coupler.Uncouple))]
+        [HarmonyPatch(typeof(Coupler), nameof(Coupler.Uncouple), new Type[] { typeof(bool), typeof(bool), typeof(bool), typeof(bool) })]
         private static class ReplicateUncouple
         {
-            public static void Prefix(Coupler __instance, out Coupler __state)
-            {
-                __state = __instance?.coupledTo; // remember partner before uncouple
-            }
-            public static void Postfix(Coupler __instance, Coupler __state)
-            {
-                if (!MultiplayerIntegration.IsHost || __instance == null)
-                    return;
-                if (!__instance.IsCoupled() && __state != null)
-                {
-                    MultiplayerIntegration.HostBroadcastJointDestroy(__instance, __state, JointKind.Tension);
-                }
+	        public static void Prefix(Coupler __instance, out Coupler? __state)
+	        {
+		        __state = __instance?.coupledTo; // remember partner before uncouple
+	        }
+
+	        public static void Postfix(Coupler __instance, Coupler? __state)
+	        {
+		        if (!MultiplayerIntegration.IsHost || __instance == null)
+			        return;
+				if (!__instance.IsCoupled() && __state != null)
+					MultiplayerIntegration.HostBroadcastJointDestroy(__instance, __state, JointKind.Tension);
             }
         }
         // Intercept button press path to route through MP when client
-        [HarmonyPatch(typeof(HookManager), methodName: "OnButtonPressed")]
+        [HarmonyPatch(typeof(HookManager), "OnButtonPressed", MethodType.Normal)]
         private static class HookButtonPatch
         {
             public static bool Prefix(ChainCouplerInteraction chainScript)
@@ -42,10 +42,9 @@ namespace DvMod.ZCouplers.Integrations.Multiplayer
                     return true; // let core handle SP/Host
 
                 var coupler = chainScript.couplerAdapter.coupler;
-                bool isParked = coupler.state == ChainCouplerInteraction.State.Parked;
-                bool desiredLocked = isParked; // parked -> lock; else unlock
+                var isParked = coupler.state == ChainCouplerInteraction.State.Parked;
 
-                MultiplayerIntegration.SendCouplerToggleRequest(coupler, desiredLocked);
+                MultiplayerIntegration.SendCouplerToggleRequest(coupler, isParked);
                 return false; // handled on client
             }
 
@@ -60,7 +59,7 @@ namespace DvMod.ZCouplers.Integrations.Multiplayer
                         return;
 
                     // For unlocks, state flips to Parked after Uncouple completes; wait one frame.
-                    chainScript.StartCoroutine(ReplicateNextFrame(chainScript));
+                    chainScript?.StartCoroutine(ReplicateNextFrame(chainScript));
                 }
 
                 private static IEnumerator ReplicateNextFrame(ChainCouplerInteraction chainScript)
@@ -145,13 +144,13 @@ namespace DvMod.ZCouplers.Integrations.Multiplayer
         [HarmonyPatch(typeof(JointManager), nameof(JointManager.DestroyTensionJoint))]
         private static class ReplicateTensionJointDestroy
         {
-            public static void Prefix(Coupler coupler, out (bool had, Coupler partner) __state)
+            public static void Prefix(Coupler coupler, out (bool had, Coupler? partner) __state)
             {
                 var had = coupler != null && JointManager.HasTensionJoint(coupler);
                 var partner = coupler?.coupledTo;
                 __state = (had, partner);
             }
-            public static void Postfix(Coupler coupler, (bool had, Coupler partner) __state)
+            public static void Postfix(Coupler coupler, (bool had, Coupler? partner) __state)
             {
                 if (!MultiplayerIntegration.IsHost || coupler == null)
                     return;
@@ -167,19 +166,19 @@ namespace DvMod.ZCouplers.Integrations.Multiplayer
         [HarmonyPatch(typeof(JointManager), nameof(JointManager.DestroyCompressionJoint))]
         private static class ReplicateCompressionJointDestroy
         {
-            public static void Prefix(Coupler coupler, out Coupler __state)
+            public static void Prefix(Coupler coupler, out Coupler? __state)
             {
                 __state = null;
                 if (coupler != null && JointManager.bufferJoints.TryGetValue(coupler, out var tuple))
                     __state = tuple.otherCoupler;
             }
-            public static void Postfix(Coupler coupler, Coupler __state)
+            public static void Postfix(Coupler coupler, Coupler? __state)
             {
                 if (!MultiplayerIntegration.IsHost || coupler == null)
                     return;
                 // if it was paired before and now it's gone, broadcast destroy
-                bool had = __state != null;
-                bool hasNow = JointManager.bufferJoints.ContainsKey(coupler);
+                var had = __state != null;
+                var hasNow = JointManager.bufferJoints.ContainsKey(coupler);
                 if (had && !hasNow && __state != null)
                     MultiplayerIntegration.HostBroadcastJointDestroy(coupler, __state, JointKind.Compression);
             }

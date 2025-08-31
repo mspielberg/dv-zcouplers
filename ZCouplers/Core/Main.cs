@@ -53,12 +53,9 @@ public static class Main
 		CouplerProfiles.Register(new SA3Profile());
 		CouplerProfiles.Register(new SchakuProfile());
 
-        // Initialize Multiplayer integration (safe if MP not installed)
-        try { Integrations.Multiplayer.MultiplayerIntegration.Initialize(); } catch { }
-            mod.Logger.Log($"Loaded {Main.settings.couplerType}");
-            return true;
-        }
 		KnuckleCouplers.Initialize();
+		// Initialize optional Multiplayer integration via runtime shim (no hard dependency)
+		MpShim.TryInitialize(modEntry);
 		mod.Logger.Log($"Loaded {Main.settings.couplerType}");
 		return true;
 	}

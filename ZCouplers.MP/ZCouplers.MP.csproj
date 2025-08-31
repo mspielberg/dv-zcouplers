@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>12.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <RootNamespace>DvMod.ZCouplers</RootNamespace>
+    <AssemblyName>ZCouplers.MP</AssemblyName>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <PrivateAssets>all</PrivateAssets>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Krafs.Publicizer" Version="2.2.1" PrivateAssets="all"/>
+    <Publicize Include="Assembly-CSharp" IncludeCompilerGeneratedMembers="false"/>
+  </ItemGroup>
+  
+  <ItemGroup>
+    <Reference Include="Assembly-CSharp" Private="false" />
+    <Reference Include="0Harmony" Private="false" />
+    <Reference Include="UnityEngine.CoreModule" Private="false" />
+    <Reference Include="UnityEngine.PhysicsModule">
+      <HintPath>D:\SteamLibrary\steamapps\common\Derail Valley\DerailValley_Data\Managed\UnityEngine.PhysicsModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityModManager" Private="false" />
+  <Reference Include="DV.Utils" Private="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\References\dv-multiplayer\MultiplayerAPI\MultiplayerAPI.csproj" />
+    <ProjectReference Include="..\ZCouplers\ZCouplers.csproj" />
+  </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <!-- Copy into the main mod folder next to ZCouplers.dll -->
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="../build/"/>
+  </Target>
+</Project>

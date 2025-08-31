@@ -1,38 +1,34 @@
 using System;
 using System.Collections.Generic;
-
-using DV;
-using DvMod.ZCouplers;
-
-using HarmonyLib;
-
+using System.Linq;
+using DvMod.ZCouplers.Core;
+using DvMod.ZCouplers.Core.Utils;
+using DvMod.ZCouplers.Physics;
+using DvMod.ZCouplers.Visuals;
 using MPAPI;
 using MPAPI.Interfaces;
-using MPAPI.Interfaces.Packets;
 using MPAPI.Types;
 
-using UnityEngine;
-
-namespace DvMod.ZCouplers.Integrations.Multiplayer
+namespace DvMod.ZCouplers
 {
     /// <summary>
     /// Bootstraps DV Multiplayer integration and provides helpers for host/client checks and broadcasting state.
     /// </summary>
     public static class MultiplayerIntegration
     {
-        private const string ModId = "ZCouplers"; // matches resources/info.json Id
+        private const string ModId = "ZCouplers"; // matches resources/info.json ID
 
         // Track last-known state per coupler on host to avoid spamming
         private static readonly Dictionary<Coupler, ChainCouplerInteraction.State> lastState = new();
 
         private static bool initialised;
 
-        public static bool IsLoaded => MultiplayerAPI.IsMultiplayerLoaded;
-        public static bool IsConnected => MultiplayerAPI.Instance?.IsConnected == true;
+        private static bool IsLoaded => MultiplayerAPI.IsMultiplayerLoaded;
+        private static bool IsConnected => MultiplayerAPI.Instance?.IsConnected == true;
         public static bool IsHost => MultiplayerAPI.Instance?.IsHost == true;
         public static bool IsClientActive => IsLoaded && IsConnected && !IsHost;
-    // When true on client, allow joint operations as they are being replayed from host.
-    internal static bool ClientAllowsJointOps { get; private set; }
+		// When true on client, allow joint operations as they are being replayed from host.
+		internal static bool ClientAllowsJointOps { get; private set; }
 
         // Pair-level dedupe: track known joints to avoid duplicate broadcasts/applications
         private static readonly HashSet<string> serverKnownTensionPairs = new();
@@ -66,6 +62,9 @@ namespace DvMod.ZCouplers.Integrations.Multiplayer
                 if (MultiplayerAPI.Instance != null)
                 {
                     MultiplayerAPI.Instance.SetModCompatibility(ModId, MultiplayerCompatibility.All);
+                    Main.DebugLog(() => "[MP] API compatibility set");
+                    Main.DebugLog(() => $"[MP] IsHost={IsHost}, IsClientActive={IsClientActive}");
+                    Main.DebugLog(() => $"[MP] Loaded API Version: {MultiplayerAPI.LoadedApiVersion}");
                 }
 
                 // Subscribe lifecycle
@@ -75,11 +74,9 @@ namespace DvMod.ZCouplers.Integrations.Multiplayer
                 MultiplayerAPI.ClientStopped += OnClientStopped;
 
                 // If already connected, wire now
-                if (IsConnected)
-                {
-                    if (IsHost) OnServerStarted(MultiplayerAPI.Server);
-                    else OnClientStarted(MultiplayerAPI.Client);
-                }
+                if (!IsConnected) return;
+                if (IsHost) OnServerStarted(MultiplayerAPI.Server);
+                else OnClientStarted(MultiplayerAPI.Client);
             }
             catch (Exception e)
             {
@@ -135,7 +132,10 @@ namespace DvMod.ZCouplers.Integrations.Multiplayer
                 serverKnownTensionPairs.Clear();
                 serverKnownCompressionPairs.Clear();
             }
-            catch { }
+            catch
+            {
+	            // ignored
+            }
         }
 
         private static void OnClientStopped()
@@ -156,104 +156,103 @@ namespace DvMod.ZCouplers.Integrations.Multiplayer
         /// </summary>
         private static void OnPlayerReady(IPlayer player)
         {
-            try
-            {
-                var server = MultiplayerAPI.Server;
-                if (server == null)
-                    return;
+	        try
+	        {
+		        var server = MultiplayerAPI.Server;
+		        if (server == null)
+			        return;
 
-                var spawner = CarSpawner.Instance;
-                if (spawner?.allCars == null)
-                    return;
+		        var spawner = CarSpawner.Instance;
+		        if (spawner?.allCars == null)
+			        return;
 
-                foreach (var car in spawner.allCars)
-                {
-                    if (car == null) continue;
+		        foreach (var car in spawner.allCars)
+		        {
+			        if (car == null) continue;
 
-                    if (car.frontCoupler != null)
-                        SendCouplerStateToPlayer(car.frontCoupler, player);
-                    if (car.rearCoupler != null)
-                        SendCouplerStateToPlayer(car.rearCoupler, player);
-                }
+			        if (car.frontCoupler != null)
+				        SendCouplerStateToPlayer(car.frontCoupler, player);
+			        if (car.rearCoupler != null)
+				        SendCouplerStateToPlayer(car.rearCoupler, player);
+		        }
 
-                // After states, sync existing joints so the client doesn't try to simulate locally.
-                var sentCompression = new HashSet<string>();
-                var sentTension = new HashSet<string>();
-                foreach (var car in spawner.allCars)
-                {
-                    if (car == null) continue;
+		        // After states, sync existing joints so the client doesn't try to simulate locally.
+		        var sentCompression = new HashSet<string>();
+		        var sentTension = new HashSet<string>();
+		        foreach (var car in spawner.allCars.OfType<TrainCar>())
+		        {
+			        TrySyncCoupler(car.frontCoupler);
+			        TrySyncCoupler(car.rearCoupler);
+			        continue;
 
-                    void TrySyncCoupler(Coupler c)
-                    {
-                        if (c == null) return;
+			        void TrySyncCoupler(Coupler c)
+			        {
+				        if (c == null) return;
 
-                        // Tension joint
-                        if (c.coupledTo != null && JointManager.HasTensionJoint(c))
-                        {
-                            if (TryGetCarNetId(c.train, out var aId) && TryGetCarNetId(c.coupledTo.train, out var bId))
-                            {
-                                var key = PairKey(aId, c.isFrontCoupler, bId, c.coupledTo.isFrontCoupler);
-                                if (!sentTension.Contains(key))
-                                {
-                                    sentTension.Add(key);
-                                    SendJointCreateToPlayer(c, c.coupledTo, JointKind.Tension, player);
-                                }
-                            }
-                        }
+				        // Tension joint
+				        if (c.coupledTo != null && JointManager.HasTensionJoint(c))
+				        {
+					        if (TryGetCarNetId(c.train, out var aId) && TryGetCarNetId(c.coupledTo.train, out var bId))
+					        {
+						        var key = PairKey(aId, c.isFrontCoupler, bId, c.coupledTo.isFrontCoupler);
+						        if (sentTension.Add(key))
 
-                        // Compression joint (dedupe pairs)
-                        if (JointManager.HasCompressionJoint(c) && JointManager.bufferJoints.TryGetValue(c, out var tup))
-                        {
-                            var other = tup.otherCoupler;
-                            if (other != null && TryGetCarNetId(c.train, out var aId) && TryGetCarNetId(other.train, out var bId))
-                            {
-                                var key = PairKey(aId, c.isFrontCoupler, bId, other.isFrontCoupler);
-                                if (!sentCompression.Contains(key))
-                                {
-                                    sentCompression.Add(key);
-                                    SendJointCreateToPlayer(c, other, JointKind.Compression, player);
-                                }
-                            }
-                        }
-                    }
+						        {
+							        SendJointCreateToPlayer(c, c.coupledTo, JointKind.Tension, player);
+						        }
+					        }
+				        }
 
-                    TrySyncCoupler(car.frontCoupler);
-                    TrySyncCoupler(car.rearCoupler);
-                }
-            }
-            catch (System.Exception e)
-            {
-                Main.ErrorLog(() => $"[MP] OnPlayerReady sync failed: {e.Message}");
-            }
+				        // Compression joint (dedupe pairs)
+				        if (JointManager.HasCompressionJoint(c) &&
+				            JointManager.bufferJoints.TryGetValue(c, out var tup))
+				        {
+					        var other = tup.otherCoupler;
+					        if (other != null && TryGetCarNetId(c.train, out var aId) &&
+					            TryGetCarNetId(other.train, out var bId))
+					        {
+						        var key = PairKey(aId, c.isFrontCoupler, bId, other.isFrontCoupler);
+						        if (sentCompression.Add(key))
+						        {
+							        SendJointCreateToPlayer(c, other, JointKind.Compression, player);
+						        }
+					        }
+				        }
+			        }
+		        }
+	        }
+
+	        catch (Exception e)
+	        {
+		        Main.ErrorLog(() => $"[MP] OnPlayerReady sync failed: {e.Message}");
+	        }
         }
 
-        /// <summary>
-        /// Called on server when a client requests a lock/unlock change.
-        /// </summary>
-    private static void OnServerCouplerStateChangeRequest(CouplerStateChangeRequest packet, IPlayer sender)
-        {
-            // Resolve the requested coupler
-            if (!TryResolveCoupler(packet.CarNetId, packet.IsFront, out var coupler))
-                return;
 
-            try
-            {
-                // Apply requested action authoritatively
-                if (packet.Locked)
-                {
-                    // Only change if actually parked
-                    if (coupler.state == ChainCouplerInteraction.State.Parked)
-                        KnuckleCouplerState.ReadyCoupler(coupler);
-                }
-                else
-                {
+        private static void OnServerCouplerStateChangeRequest(CouplerStateChangeRequest packet, IPlayer sender)
+        {
+	        // Resolve the requested coupler
+	        if (!TryResolveCoupler(packet.CarNetId, packet.IsFront, out var coupler))
+		        return;
+
+	        try
+	        {
+		        // Apply requested action authoritatively
+		        if (packet.Locked)
+		        {
+			        // Only change if actually parked
+			        if (coupler.state == ChainCouplerInteraction.State.Parked)
+				        KnuckleCouplerState.ReadyCoupler(coupler);
+		        }
+		        else
+		        {
                     // Unlock always allowed; will uncouple if necessary
                     KnuckleCouplerState.UnlockCoupler(coupler, viaChainInteraction: true);
-                }
+		        }
 
                 // Broadcast the resulting state to all clients
                 BroadcastCouplerState(coupler);
-            }
+	        }
             catch (Exception e)
             {
                 Main.ErrorLog(() => $"[MP] Server apply request failed: {e.Message}");
