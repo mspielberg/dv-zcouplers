@@ -1,4 +1,4 @@
-namespace DvMod.ZCouplers;
+namespace DvMod.ZCouplers.Core.Helpers;
 
 public enum CouplerType
 {

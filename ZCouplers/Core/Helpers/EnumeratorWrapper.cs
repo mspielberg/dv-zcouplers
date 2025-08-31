@@ -1,7 +1,7 @@
 using System;
 using System.Collections;
 
-namespace DvMod.ZCouplers
+namespace DvMod.ZCouplers.Core.Helpers
 {
     public class EnumeratorWrapper : IEnumerator
     {

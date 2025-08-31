@@ -1,8 +1,9 @@
 using System;
-
+using DvMod.ZCouplers.Core;
+using DvMod.ZCouplers.Physics;
 using HarmonyLib;
 
-namespace DvMod.ZCouplers;
+namespace DvMod.ZCouplers.Patches;
 
 [HarmonyPatch(typeof(CarSpawner), "PrepareTrainCarForDeleting")]
 public static class PrepareTrainCarForDeletingPatch

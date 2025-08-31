@@ -1,14 +1,13 @@
 using System;
 using System.Linq;
-
 using DV;
 using DV.ThingTypes;
 using DV.Utils;
-
+using DvMod.ZCouplers.Core;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-namespace DvMod.ZCouplers;
+namespace DvMod.ZCouplers.Visuals;
 
 public static class BufferVisualManager
 {

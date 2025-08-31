@@ -1,533 +1,534 @@
 using System.Collections;
-
+using DvMod.ZCouplers.Core;
+using DvMod.ZCouplers.Core.Helpers;
+using DvMod.ZCouplers.Core.Utils;
+using DvMod.ZCouplers.Physics;
 using HarmonyLib;
-
 using UnityEngine;
-using DvMod.ZCouplers.Integrations.Multiplayer;
 
-namespace DvMod.ZCouplers
+namespace DvMod.ZCouplers.Patches
 {
-    /// <summary>
-    /// Handles coupling scanner functionality and Harmony patches.
-    /// </summary>
-    public static class CouplingScannerPatches
-    {
-        /// <summary>
-        /// Helper method to check if couplers should be considered ready based on settings
-        /// </summary>
-        private static bool ShouldCouplersBeReady(Coupler coupler, Coupler? otherCoupler)
-        {
-            if (coupler == null || otherCoupler == null)
-                return false;
-                
-            if (Main.settings.autoCouplingMode)
-            {
-                // In auto coupling mode, skip ready checks - always allow coupling
-                return true;
-            }
-            
-            // Normal mode: both couplers must be ready
-            return KnuckleCouplers.IsReadyToCouple(coupler) && KnuckleCouplers.IsReadyToCouple(otherCoupler);
-        }
-        /// <summary>
-        /// Get the coupling scanner component from a coupler.
-        /// </summary>
-        public static CouplingScanner? GetScanner(Coupler coupler)
-        {
-            try
-            {
-                return coupler?.visualCoupler?.GetComponent<CouplingScanner>();
-            }
-            catch (System.Exception)
-            {
-                // Return null if any exception occurs during component access
-                return null;
-            }
-        }
+	/// <summary>
+	/// Handles coupling scanner functionality and Harmony patches.
+	/// </summary>
+	public static class CouplingScannerPatches
+	{
+		/// <summary>
+		/// Helper method to check if couplers should be considered ready based on settings
+		/// </summary>
+		private static bool ShouldCouplersBeReady(Coupler coupler, Coupler? otherCoupler)
+		{
+			if (coupler == null || otherCoupler == null)
+				return false;
 
-        /// <summary>
-        /// Stop and kill a coupling scanner safely.
-        /// </summary>
-        public static void KillCouplingScanner(Coupler coupler)
-        {
-            if (coupler == null)
-                return;
+			if (Main.settings.autoCouplingMode)
+			{
+				// In auto coupling mode, skip ready checks - always allow coupling
+				return true;
+			}
 
-            try
-            {
-                var scanner = GetScanner(coupler);
-                if (scanner?.masterCoro != null)
-                {
-                    scanner.StopCoroutine(scanner.masterCoro);
-                    scanner.masterCoro = null;
-                }
-            }
-            catch (System.Exception ex)
-            {
-                Main.ErrorLog(() => $"Error killing coupling scanner: {ex.Message}");
-            }
-        }
+			// Normal mode: both couplers must be ready
+			return KnuckleCouplers.IsReadyToCouple(coupler) && KnuckleCouplers.IsReadyToCouple(otherCoupler);
+		}
+		/// <summary>
+		/// Get the coupling scanner component from a coupler.
+		/// </summary>
+		public static CouplingScanner? GetScanner(Coupler coupler)
+		{
+			try
+			{
+				return coupler?.visualCoupler?.GetComponent<CouplingScanner>();
+			}
+			catch (System.Exception)
+			{
+				// Return null if any exception occurs during component access
+				return null;
+			}
+		}
 
-        /// <summary>
-        /// Restart a coupling scanner safely.
-        /// </summary>
-        public static void RestartCouplingScanner(Coupler coupler)
-        {
-            if (coupler == null)
-                return;
+		/// <summary>
+		/// Stop and kill a coupling scanner safely.
+		/// </summary>
+		public static void KillCouplingScanner(Coupler coupler)
+		{
+			if (coupler == null)
+				return;
 
-            try
-            {
-                var scanner = GetScanner(coupler);
-                if (scanner != null && scanner.masterCoro == null && scanner.isActiveAndEnabled)
-                {
-                    scanner.masterCoro = scanner.StartCoroutine(scanner.MasterCoro());
-                }
-            }
-            catch (System.Exception ex)
-            {
-                Main.ErrorLog(() => $"Error restarting coupling scanner: {ex.Message}");
-            }
-        }
+			try
+			{
+				var scanner = GetScanner(coupler);
+				if (scanner?.masterCoro != null)
+				{
+					scanner.StopCoroutine(scanner.masterCoro);
+					scanner.masterCoro = null;
+				}
+			}
+			catch (System.Exception ex)
+			{
+				Main.ErrorLog(() => $"Error killing coupling scanner: {ex.Message}");
+			}
+		}
 
-        /// <summary>
-        /// Separate cars after uncoupling with temporary scanner disable.
-        /// </summary>
-        public static void SeparateCarsAfterUncoupling(Coupler coupler1, Coupler coupler2)
-        {
-            if (coupler1?.train?.gameObject == null || coupler2?.train?.gameObject == null)
-                return;
+		/// <summary>
+		/// Restart a coupling scanner safely.
+		/// </summary>
+		public static void RestartCouplingScanner(Coupler coupler)
+		{
+			if (coupler == null)
+				return;
 
-            try
-            {
-                // Temporarily disable coupling scanners to prevent immediate recoupling
-                var scanner1 = GetScanner(coupler1);
-                var scanner2 = GetScanner(coupler2);
+			try
+			{
+				var scanner = GetScanner(coupler);
+				if (scanner != null && scanner.masterCoro == null && scanner.isActiveAndEnabled)
+				{
+					scanner.masterCoro = scanner.StartCoroutine(scanner.MasterCoro());
+				}
+			}
+			catch (System.Exception ex)
+			{
+				Main.ErrorLog(() => $"Error restarting coupling scanner: {ex.Message}");
+			}
+		}
 
-                if (scanner1 != null)
-                {
-                    scanner1.enabled = false;
-                    scanner1.StartCoroutine(ReEnableScanner(scanner1, coupler1.train.ID, 0.2f));
-                }
-                if (scanner2 != null)
-                {
-                    scanner2.enabled = false;
-                    scanner2.StartCoroutine(ReEnableScanner(scanner2, coupler2.train.ID, 0.2f));
-                }
-            }
-            catch (System.Exception ex)
-            {
-                Main.ErrorLog(() => $"Error in uncoupling cleanup: {ex.Message}");
-            }
-        }
+		/// <summary>
+		/// Separate cars after uncoupling with temporary scanner disable.
+		/// </summary>
+		public static void SeparateCarsAfterUncoupling(Coupler coupler1, Coupler coupler2)
+		{
+			if (coupler1?.train?.gameObject == null || coupler2?.train?.gameObject == null)
+				return;
 
-        private static IEnumerator ReEnableScanner(CouplingScanner scanner, string trainId, float delay)
-        {
-            yield return new WaitForSeconds(delay);
+			try
+			{
+				// Temporarily disable coupling scanners to prevent immediate recoupling
+				var scanner1 = GetScanner(coupler1);
+				var scanner2 = GetScanner(coupler2);
 
-            if (scanner != null)
-            {
-                scanner.enabled = true;
-            }
-        }
+				if (scanner1 != null)
+				{
+					scanner1.enabled = false;
+					scanner1.StartCoroutine(ReEnableScanner(scanner1, coupler1.train.ID, 0.2f));
+				}
+				if (scanner2 != null)
+				{
+					scanner2.enabled = false;
+					scanner2.StartCoroutine(ReEnableScanner(scanner2, coupler2.train.ID, 0.2f));
+				}
+			}
+			catch (System.Exception ex)
+			{
+				Main.ErrorLog(() => $"Error in uncoupling cleanup: {ex.Message}");
+			}
+		}
 
-        /// <summary>
-        /// Patches for coupling scanner behavior.
-        /// </summary>
-        [HarmonyPatch(typeof(Coupler), nameof(Coupler.AutoCouple))]
-        public static class AutoCouplePatch
-        {
-            public static void Postfix(Coupler __instance, ref IEnumerator __result)
-            {
-                var scanner = GetScanner(__instance);
-                if (scanner == null)
-                    return;
+		private static IEnumerator ReEnableScanner(CouplingScanner scanner, string trainId, float delay)
+		{
+			yield return new WaitForSeconds(delay);
 
-                scanner.enabled = false;
+			if (scanner != null)
+			{
+				scanner.enabled = true;
+			}
+		}
 
-                __result = new EnumeratorWrapper(__result, () => scanner.enabled = true);
-            }
-        }
+		/// <summary>
+		/// Patches for coupling scanner behavior.
+		/// </summary>
+		[HarmonyPatch(typeof(Coupler), nameof(Coupler.AutoCouple))]
+		public static class AutoCouplePatch
+		{
+			public static void Postfix(Coupler __instance, ref IEnumerator __result)
+			{
+				var scanner = GetScanner(__instance);
+				if (scanner == null)
+					return;
 
-        /// <summary>
-        /// Ensure CouplingScanners stay active when not in view.
-        /// </summary>
-        [HarmonyPatch(typeof(ChainCouplerVisibilityOptimizer), nameof(ChainCouplerVisibilityOptimizer.Disable))]
-        public static class ChainCouplerVisibilityOptimizerDisablePatch
-        {
-            public static bool Prefix(ChainCouplerVisibilityOptimizer __instance)
-            {
-                if (!__instance.enabled)
-                    return false;
-                __instance.enabled = false;
-                // Do NOT deactivate the chain root; audio (and some logic) lives under it.
-                // Visual hiding is handled elsewhere by disabling child renderers on Enable.
-                return false;
-            }
-        }
+				scanner.enabled = false;
 
-        /// <summary>
-        /// Handle coupling scanner initialization.
-        /// </summary>
-        [HarmonyPatch(typeof(CouplingScanner), nameof(CouplingScanner.Start))]
-        public static class CouplingScannerStartPatch
-        {
-            public static void Postfix(CouplingScanner __instance)
-            {
-                var scanner = __instance;
-                __instance.ScanStateChanged += (CouplingScanner otherScanner) =>
-                {
-                    if (scanner == null)
-                        return;
-                    var car = TrainCar.Resolve(scanner.gameObject);
-                    if (car == null)
-                        return;
-                    var coupler = scanner.transform.localPosition.z > 0 ? car.frontCoupler : car.rearCoupler;
-                    if (coupler == null)
-                        return;
+				__result = new EnumeratorWrapper(__result, () => scanner.enabled = true);
+			}
+		}
 
-                    if (otherScanner != null)
-                    {
-                        var otherCar = TrainCar.Resolve(otherScanner.gameObject);
-                        if (otherCar == null)
-                            return;
-                        var otherCoupler = otherScanner.transform.localPosition.z > 0 ? otherCar.frontCoupler : otherCar.rearCoupler;
-                        if (otherCoupler == null)
-                            return;
+		/// <summary>
+		/// Ensure CouplingScanners stay active when not in view.
+		/// </summary>
+		[HarmonyPatch(typeof(ChainCouplerVisibilityOptimizer), nameof(ChainCouplerVisibilityOptimizer.Disable))]
+		public static class ChainCouplerVisibilityOptimizerDisablePatch
+		{
+			public static bool Prefix(ChainCouplerVisibilityOptimizer __instance)
+			{
+				if (!__instance.enabled)
+					return false;
+				__instance.enabled = false;
+				// Do NOT deactivate the chain root; audio (and some logic) lives under it.
+				// Visual hiding is handled elsewhere by disabling child renderers on Enable.
+				return false;
+			}
+		}
 
-                        // Create a compression joint only if both couplers are ready and not during save loading.
-                        if (!JointManager.HasCompressionJoint(coupler) && !JointManager.HasCompressionJoint(otherCoupler)
-                            && ShouldCouplersBeReady(coupler, otherCoupler)
-                            && !SaveManager.IsLoadingFromSave)
-                        {
-                            Main.DebugLog(() => $"Creating compression joint between {coupler.train.ID} and {otherCoupler.train.ID} - couplers ready (auto mode: {Main.settings.autoCouplingMode})");
-                            JointManager.CreateCompressionJoint(coupler, otherCoupler);
-                        }
-                        else if (SaveManager.IsLoadingFromSave)
-                        {
-                            Main.DebugLog(() => $"Skipping compression joint creation during save loading between {coupler.train.ID} and {otherCoupler.train.ID}");
-                        }
-                        else if (coupler.rigidCJ == null && otherCoupler.rigidCJ == null)
-                        {
-                            Main.DebugLog(() => $"Skipping compression joint creation between {coupler.train.ID} and {otherCoupler.train.ID} - couplers not ready (coupler ready: {KnuckleCouplers.IsReadyToCouple(coupler)}, other ready: {KnuckleCouplers.IsReadyToCouple(otherCoupler)}, auto mode: {Main.settings.autoCouplingMode})");
-                        }
-                    }
-                    else
-                    {
-                        // Preserve compression joints when scanners lose contact; buffer physics should persist until proper uncoupling or car deletion.
-                        Main.DebugLog(() => $"Scanner lost contact - preserving compression joint for {coupler.train.ID} to maintain buffer physics");
-                    }
-                };
-            }
-        }
+		/// <summary>
+		/// Handle coupling scanner initialization.
+		/// </summary>
+		[HarmonyPatch(typeof(CouplingScanner), nameof(CouplingScanner.Start))]
+		public static class CouplingScannerStartPatch
+		{
+			public static void Postfix(CouplingScanner __instance)
+			{
+				var scanner = __instance;
+				__instance.ScanStateChanged += (CouplingScanner otherScanner) =>
+				{
+					if (scanner == null)
+						return;
+					var car = TrainCar.Resolve(scanner.gameObject);
+					if (car == null)
+						return;
+					var coupler = scanner.transform.localPosition.z > 0 ? car.frontCoupler : car.rearCoupler;
+					if (coupler == null)
+						return;
 
-        /// <summary>
-        /// Custom coupling scanner master coroutine.
-        /// </summary>
-        [HarmonyPatch(typeof(CouplingScanner), nameof(CouplingScanner.MasterCoro))]
-        public static class CouplerScannerMasterCoroPatch
-        {
-            public static bool Prefix(CouplingScanner __instance, ref IEnumerator __result)
-            {
-                __result = ReplacementCoro(__instance);
-                return false;
-            }
+					if (otherScanner != null)
+					{
+						var otherCar = TrainCar.Resolve(otherScanner.gameObject);
+						if (otherCar == null)
+							return;
+						var otherCoupler = otherScanner.transform.localPosition.z > 0 ? otherCar.frontCoupler : otherCar.rearCoupler;
+						if (otherCoupler == null)
+							return;
 
-            private static Coupler? GetCoupler(CouplingScanner scanner)
-            {
-                try
-                {
-                    if (scanner?.gameObject == null || scanner.transform == null)
-                        return null;
+						// Create a compression joint only if both couplers are ready and not during save loading.
+						if (!JointManager.HasCompressionJoint(coupler) && !JointManager.HasCompressionJoint(otherCoupler)
+							&& ShouldCouplersBeReady(coupler, otherCoupler)
+							&& !SaveManager.IsLoadingFromSave)
+						{
+							Main.DebugLog(() => $"Creating compression joint between {coupler.train.ID} and {otherCoupler.train.ID} - couplers ready (auto mode: {Main.settings.autoCouplingMode})");
+							JointManager.CreateCompressionJoint(coupler, otherCoupler);
+						}
+						else if (SaveManager.IsLoadingFromSave)
+						{
+							Main.DebugLog(() => $"Skipping compression joint creation during save loading between {coupler.train.ID} and {otherCoupler.train.ID}");
+						}
+						else if (coupler.rigidCJ == null && otherCoupler.rigidCJ == null)
+						{
+							Main.DebugLog(() => $"Skipping compression joint creation between {coupler.train.ID} and {otherCoupler.train.ID} - couplers not ready (coupler ready: {KnuckleCouplers.IsReadyToCouple(coupler)}, other ready: {KnuckleCouplers.IsReadyToCouple(otherCoupler)}, auto mode: {Main.settings.autoCouplingMode})");
+						}
+					}
+					else
+					{
+						// Preserve compression joints when scanners lose contact; buffer physics should persist until proper uncoupling or car deletion.
+						Main.DebugLog(() => $"Scanner lost contact - preserving compression joint for {coupler.train.ID} to maintain buffer physics");
+					}
+				};
+			}
+		}
 
-                    var car = TrainCar.Resolve(scanner.gameObject);
-                    if (car == null)
-                        return null;
+		/// <summary>
+		/// Custom coupling scanner master coroutine.
+		/// </summary>
+		[HarmonyPatch(typeof(CouplingScanner), nameof(CouplingScanner.MasterCoro))]
+		public static class CouplerScannerMasterCoroPatch
+		{
+			public static bool Prefix(CouplingScanner __instance, ref IEnumerator __result)
+			{
+				__result = ReplacementCoro(__instance);
+				return false;
+			}
 
-                    return scanner.transform.localPosition.z > 0 ? car.frontCoupler : car.rearCoupler;
-                }
-                catch (System.Exception)
-                {
-                    // Return null if any exception occurs
-                    return null;
-                }
-            }
+			private static Coupler? GetCoupler(CouplingScanner scanner)
+			{
+				try
+				{
+					if (scanner?.gameObject == null || scanner.transform == null)
+						return null;
 
-            private static void TryCouple(Coupler coupler)
-            {
-                if (coupler.IsCoupled() || coupler.train.derailed)
-                    return;
-                var otherCoupler = coupler.GetFirstCouplerInRange();
-                if (otherCoupler == null || otherCoupler.train.derailed)
-                    return;
+					var car = TrainCar.Resolve(scanner.gameObject);
+					if (car == null)
+						return null;
 
-                // In auto coupling mode, automatically ready both couplers if they're not already
-                if (Main.settings.autoCouplingMode)
-                {
-                    if (!KnuckleCouplers.IsReadyToCouple(coupler))
-                    {
-                        Main.DebugLog(() => $"Auto coupling mode: readying coupler {coupler.train.ID} {coupler.Position()}");
-                        KnuckleCouplers.ReadyCoupler(coupler);
-                    }
-                    if (!KnuckleCouplers.IsReadyToCouple(otherCoupler))
-                    {
-                        Main.DebugLog(() => $"Auto coupling mode: readying coupler {otherCoupler.train.ID} {otherCoupler.Position()}");
-                        KnuckleCouplers.ReadyCoupler(otherCoupler);
-                    }
-                }
+					return scanner.transform.localPosition.z > 0 ? car.frontCoupler : car.rearCoupler;
+				}
+				catch (System.Exception)
+				{
+					// Return null if any exception occurs
+					return null;
+				}
+			}
 
-                coupler.CoupleTo(otherCoupler, viaChainInteraction: true);
+			private static void TryCouple(Coupler coupler)
+			{
+				if (coupler.IsCoupled() || coupler.train.derailed)
+					return;
+				var otherCoupler = coupler.GetFirstCouplerInRange();
+				if (otherCoupler == null || otherCoupler.train.derailed)
+					return;
 
-                // Automatic coupling modes: handle air and MU connections.
-                if (coupler.IsCoupled() && otherCoupler.IsCoupled() && Main.settings.EffectiveAutoAirAndMuMode)
-                {
-                    TryConnectAirSystemsAutomatically(coupler, otherCoupler);
-                    AirSystemAutomation.TryAutoConnectMU(coupler, otherCoupler);
-                }
-            }
+				// In auto coupling mode, automatically ready both couplers if they're not already
+				if (Main.settings.autoCouplingMode)
+				{
+					if (!KnuckleCouplers.IsReadyToCouple(coupler))
+					{
+						Main.DebugLog(() => $"Auto coupling mode: readying coupler {coupler.train.ID} {coupler.Position()}");
+						KnuckleCouplers.ReadyCoupler(coupler);
+					}
+					if (!KnuckleCouplers.IsReadyToCouple(otherCoupler))
+					{
+						Main.DebugLog(() => $"Auto coupling mode: readying coupler {otherCoupler.train.ID} {otherCoupler.Position()}");
+						KnuckleCouplers.ReadyCoupler(otherCoupler);
+					}
+				}
 
-            private static void TryConnectAirSystemsAutomatically(Coupler coupler, Coupler otherCoupler)
-            {
-                try
-                {
-                    // Connect air hoses if both have them and they're not already connected.
-                    var hoseAndCock1 = coupler.hoseAndCock;
-                    var hoseAndCock2 = otherCoupler.hoseAndCock;
+				coupler.CoupleTo(otherCoupler, viaChainInteraction: true);
 
-                    if (hoseAndCock1 != null && hoseAndCock2 != null)
-                    {
-                        // Open brake valves (angle cocks) on both sides first.
-                        if (!coupler.IsCockOpen)
-                        {
-                            coupler.IsCockOpen = true;
-                            Main.DebugLog(() => $"Auto-opened brake valve on {coupler.train.ID} {(coupler.isFrontCoupler ? "front" : "rear")}");
-                        }
+				// Automatic coupling modes: handle air and MU connections.
+				if (coupler.IsCoupled() && otherCoupler.IsCoupled() && Main.settings.EffectiveAutoAirAndMuMode)
+				{
+					TryConnectAirSystemsAutomatically(coupler, otherCoupler);
+					AirSystemAutomation.TryAutoConnectMU(coupler, otherCoupler);
+				}
+			}
 
-                        if (!otherCoupler.IsCockOpen)
-                        {
-                            otherCoupler.IsCockOpen = true;
-                            Main.DebugLog(() => $"Auto-opened brake valve on {otherCoupler.train.ID} {(otherCoupler.isFrontCoupler ? "front" : "rear")}");
-                        }
+			private static void TryConnectAirSystemsAutomatically(Coupler coupler, Coupler otherCoupler)
+			{
+				try
+				{
+					// Connect air hoses if both have them and they're not already connected.
+					var hoseAndCock1 = coupler.hoseAndCock;
+					var hoseAndCock2 = otherCoupler.hoseAndCock;
 
-                        // Connect air hoses if not already connected.
-                        if (!hoseAndCock1.IsHoseConnected && !hoseAndCock2.IsHoseConnected)
-                        {
-                            // Use the game's native connection system and log the method used
-                            try
-                            {
-                                coupler.ConnectAirHose(otherCoupler, playAudio: true);
-                                Main.DebugLog(() => $"Invoked Coupler.ConnectAirHose(Coupler, bool) for Air -> {coupler.train.ID} <-> {otherCoupler.train.ID}");
-                            }
-                            catch (System.MissingMethodException)
-                            {
-                                // Fallback signature without named arg
-                                coupler.ConnectAirHose(otherCoupler, true);
-                                Main.DebugLog(() => $"Invoked Coupler.ConnectAirHose(Coupler, bool) [fallback] for Air -> {coupler.train.ID} <-> {otherCoupler.train.ID}");
-                            }
-                            catch (System.Exception ex)
-                            {
-                                Main.ErrorLog(() => $"Error calling ConnectAirHose: {ex.Message}");
-                            }
-                        }
-                    }
-                }
-                catch (System.Exception ex)
-                {
-                    Main.ErrorLog(() => $"Error in automatic air system connection: {ex.Message}");
-                }
-            }
+					if (hoseAndCock1 != null && hoseAndCock2 != null)
+					{
+						// Open brake valves (angle cocks) on both sides first.
+						if (!coupler.IsCockOpen)
+						{
+							coupler.IsCockOpen = true;
+							Main.DebugLog(() => $"Auto-opened brake valve on {coupler.train.ID} {(coupler.isFrontCoupler ? "front" : "rear")}");
+						}
 
-            private const float StaticOffset = 0.5f;
-            private static IEnumerator ReplacementCoro(CouplingScanner __instance)
-            {
-                yield return null;
-                var coupler = GetCoupler(__instance);
-                if (coupler == null)
-                {
-                    // Exit early if no coupler is available.
-                    __instance.masterCoro = null;
-                    yield break;
-                }
+						if (!otherCoupler.IsCockOpen)
+						{
+							otherCoupler.IsCockOpen = true;
+							Main.DebugLog(() => $"Auto-opened brake valve on {otherCoupler.train.ID} {(otherCoupler.isFrontCoupler ? "front" : "rear")}");
+						}
 
-                if (coupler.IsCoupled())
-                {
-                    // Already coupled; stop the coroutine.
-                    __instance.masterCoro = null;
-                    yield break;
-                }
-                else
-                {
-                    // In Multiplayer client mode, do not self-couple. Host will drive coupling and TrainSet merges.
-                    if (MultiplayerIntegration.IsClientActive)
-                    {
-                        __instance.masterCoro = null;
-                        yield break;
-                    }
-                    // Omit routine start logs
+						// Connect air hoses if not already connected.
+						if (!hoseAndCock1.IsHoseConnected && !hoseAndCock2.IsHoseConnected)
+						{
+							// Use the game's native connection system and log the method used
+							try
+							{
+								coupler.ConnectAirHose(otherCoupler, playAudio: true);
+								Main.DebugLog(() => $"Invoked Coupler.ConnectAirHose(Coupler, bool) for Air -> {coupler.train.ID} <-> {otherCoupler.train.ID}");
+							}
+							catch (System.MissingMethodException)
+							{
+								// Fallback signature without named arg
+								coupler.ConnectAirHose(otherCoupler, true);
+								Main.DebugLog(() => $"Invoked Coupler.ConnectAirHose(Coupler, bool) [fallback] for Air -> {coupler.train.ID} <-> {otherCoupler.train.ID}");
+							}
+							catch (System.Exception ex)
+							{
+								Main.ErrorLog(() => $"Error calling ConnectAirHose: {ex.Message}");
+							}
+						}
+					}
+				}
+				catch (System.Exception ex)
+				{
+					Main.ErrorLog(() => $"Error in automatic air system connection: {ex.Message}");
+				}
+			}
 
-                    // Check if both couplers are in Attached_Tight state but not actually coupled (save loading case)
-                    var otherCoupler = GetCoupler(__instance.nearbyScanner);
-                    if (otherCoupler != null &&
-                        coupler.state == ChainCouplerInteraction.State.Attached_Tight &&
-                        otherCoupler.state == ChainCouplerInteraction.State.Attached_Tight &&
-                        !coupler.IsCoupled() && !otherCoupler.IsCoupled())
-                    {
-                        Main.DebugLog(() => $"Attached_Tight but not coupled -> triggering native coupling between {coupler.train.ID} and {otherCoupler.train.ID}");
-                        TryCouple(coupler);
+			private const float StaticOffset = 0.5f;
+			private static IEnumerator ReplacementCoro(CouplingScanner __instance)
+			{
+				yield return null;
+				var coupler = GetCoupler(__instance);
+				if (coupler == null)
+				{
+					// Exit early if no coupler is available.
+					__instance.masterCoro = null;
+					yield break;
+				}
 
-                        // After coupling, create tension joints if they don't exist
-                        if (coupler.IsCoupled() && otherCoupler.IsCoupled())
-                        {
-                            if (!JointManager.HasTensionJoint(coupler))
-                            {
-                                Main.DebugLog(() => $"Creating tension joint after MasterCoro coupling: {coupler.train.ID} {coupler.Position()}");
-                                JointManager.ForceCreateTensionJoint(coupler);
-                            }
+				if (coupler.IsCoupled())
+				{
+					// Already coupled; stop the coroutine.
+					__instance.masterCoro = null;
+					yield break;
+				}
+				else
+				{
+					// In Multiplayer client mode, do not self-couple. Host will drive coupling and TrainSet merges.
+					if (MpShim.IsClientActive)
+					{
+						__instance.masterCoro = null;
+						yield break;
+					}
+					// Omit routine start logs
 
-                            if (!JointManager.HasTensionJoint(otherCoupler))
-                            {
-                                Main.DebugLog(() => $"Creating tension joint after MasterCoro coupling: {otherCoupler.train.ID} {otherCoupler.Position()}");
-                                JointManager.ForceCreateTensionJoint(otherCoupler);
-                            }
+					// Check if both couplers are in Attached_Tight state but not actually coupled (save loading case)
+					var otherCoupler = GetCoupler(__instance.nearbyScanner);
+					if (otherCoupler != null &&
+						coupler.state == ChainCouplerInteraction.State.Attached_Tight &&
+						otherCoupler.state == ChainCouplerInteraction.State.Attached_Tight &&
+						!coupler.IsCoupled() && !otherCoupler.IsCoupled())
+					{
+						Main.DebugLog(() => $"Attached_Tight but not coupled -> triggering native coupling between {coupler.train.ID} and {otherCoupler.train.ID}");
+						TryCouple(coupler);
 
-                            // Handle automatic modes for already coupled cars during save loading
-                            if (Main.settings.EffectiveAutoAirAndMuMode)
-                            {
-                                TryConnectAirSystemsAutomatically(coupler, otherCoupler);
-                                AirSystemAutomation.TryAutoConnectMU(coupler, otherCoupler);
-                            }
+						// After coupling, create tension joints if they don't exist
+						if (coupler.IsCoupled() && otherCoupler.IsCoupled())
+						{
+							if (!JointManager.HasTensionJoint(coupler))
+							{
+								Main.DebugLog(() => $"Creating tension joint after MasterCoro coupling: {coupler.train.ID} {coupler.Position()}");
+								JointManager.ForceCreateTensionJoint(coupler);
+							}
 
-                            // Coupling complete; stop the coroutine.
-                            __instance.masterCoro = null;
-                            yield break;
-                        }
-                    }
+							if (!JointManager.HasTensionJoint(otherCoupler))
+							{
+								Main.DebugLog(() => $"Creating tension joint after MasterCoro coupling: {otherCoupler.train.ID} {otherCoupler.Position()}");
+								JointManager.ForceCreateTensionJoint(otherCoupler);
+							}
 
-                    // Fix mismatched save-loading states where both are ready but states differ.
-                    if (otherCoupler != null && !coupler.IsCoupled() && !otherCoupler.IsCoupled())
-                    {
-                        bool couplerReady = KnuckleCouplers.IsReadyToCouple(coupler);
-                        bool otherReady = KnuckleCouplers.IsReadyToCouple(otherCoupler);
+							// Handle automatic modes for already coupled cars during save loading
+							if (Main.settings.EffectiveAutoAirAndMuMode)
+							{
+								TryConnectAirSystemsAutomatically(coupler, otherCoupler);
+								AirSystemAutomation.TryAutoConnectMU(coupler, otherCoupler);
+							}
 
-                        // If both couplers are ready (or auto coupling mode is enabled) but have mismatched states, fix them and couple
-                        if (ShouldCouplersBeReady(coupler, otherCoupler) && (couplerReady && otherReady || Main.settings.autoCouplingMode))
-                        {
-                            bool needsFix = false;
+							// Coupling complete; stop the coroutine.
+							__instance.masterCoro = null;
+							yield break;
+						}
+					}
 
-                            // Fix scenarios like: one shows Parked/Dangling, other shows Attached_*
-                            if ((coupler.state == ChainCouplerInteraction.State.Parked || coupler.state == ChainCouplerInteraction.State.Dangling) &&
-                                (otherCoupler.state == ChainCouplerInteraction.State.Attached_Tight || otherCoupler.state == ChainCouplerInteraction.State.Attached_Loose))
-                            {
-                                needsFix = true;
-                            }
-                            else if ((otherCoupler.state == ChainCouplerInteraction.State.Parked || otherCoupler.state == ChainCouplerInteraction.State.Dangling) &&
-                                     (coupler.state == ChainCouplerInteraction.State.Attached_Tight || coupler.state == ChainCouplerInteraction.State.Attached_Loose))
-                            {
-                                needsFix = true;
-                            }
+					// Fix mismatched save-loading states where both are ready but states differ.
+					if (otherCoupler != null && !coupler.IsCoupled() && !otherCoupler.IsCoupled())
+					{
+						bool couplerReady = KnuckleCouplers.IsReadyToCouple(coupler);
+						bool otherReady = KnuckleCouplers.IsReadyToCouple(otherCoupler);
 
-                            if (needsFix)
-                            {
-                                Main.DebugLog(() => $"Fixing mismatched save states and coupling {coupler.train.ID} ({coupler.state}) <-> {otherCoupler.train.ID} ({otherCoupler.state})");
+						// If both couplers are ready (or auto coupling mode is enabled) but have mismatched states, fix them and couple
+						if (ShouldCouplersBeReady(coupler, otherCoupler) && (couplerReady && otherReady || Main.settings.autoCouplingMode))
+						{
+							bool needsFix = false;
 
-                                // Set both to Dangling state first (ready but uncoupled)
-                                coupler.state = ChainCouplerInteraction.State.Dangling;
-                                otherCoupler.state = ChainCouplerInteraction.State.Dangling;
+							// Fix scenarios like: one shows Parked/Dangling, other shows Attached_*
+							if ((coupler.state == ChainCouplerInteraction.State.Parked || coupler.state == ChainCouplerInteraction.State.Dangling) &&
+								(otherCoupler.state == ChainCouplerInteraction.State.Attached_Tight || otherCoupler.state == ChainCouplerInteraction.State.Attached_Loose))
+							{
+								needsFix = true;
+							}
+							else if ((otherCoupler.state == ChainCouplerInteraction.State.Parked || otherCoupler.state == ChainCouplerInteraction.State.Dangling) &&
+									 (coupler.state == ChainCouplerInteraction.State.Attached_Tight || coupler.state == ChainCouplerInteraction.State.Attached_Loose))
+							{
+								needsFix = true;
+							}
 
-                                TryCouple(coupler);
+							if (needsFix)
+							{
+								Main.DebugLog(() => $"Fixing mismatched save states and coupling {coupler.train.ID} ({coupler.state}) <-> {otherCoupler.train.ID} ({otherCoupler.state})");
 
-                                // After coupling, create tension joints if they don't exist
-                                if (coupler.IsCoupled() && otherCoupler.IsCoupled())
-                                {
-                                    if (!JointManager.HasTensionJoint(coupler))
-                                    {
-                                        Main.DebugLog(() => $"Creating tension joint after save-state fix: {coupler.train.ID} {coupler.Position()}");
-                                        JointManager.ForceCreateTensionJoint(coupler);
-                                    }
+								// Set both to Dangling state first (ready but uncoupled)
+								coupler.state = ChainCouplerInteraction.State.Dangling;
+								otherCoupler.state = ChainCouplerInteraction.State.Dangling;
 
-                                    if (!JointManager.HasTensionJoint(otherCoupler))
-                                    {
-                                        Main.DebugLog(() => $"Creating tension joint after save-state fix: {otherCoupler.train.ID} {otherCoupler.Position()}");
-                                        JointManager.ForceCreateTensionJoint(otherCoupler);
-                                    }
+								TryCouple(coupler);
 
-                                    // Handle automatic modes for couplers fixed from mismatched states
-                                    if (Main.settings.EffectiveAutoAirAndMuMode)
-                                    {
-                                        TryConnectAirSystemsAutomatically(coupler, otherCoupler);
-                                        AirSystemAutomation.TryAutoConnectMU(coupler, otherCoupler);
-                                    }
+								// After coupling, create tension joints if they don't exist
+								if (coupler.IsCoupled() && otherCoupler.IsCoupled())
+								{
+									if (!JointManager.HasTensionJoint(coupler))
+									{
+										Main.DebugLog(() => $"Creating tension joint after save-state fix: {coupler.train.ID} {coupler.Position()}");
+										JointManager.ForceCreateTensionJoint(coupler);
+									}
 
-                                    // Exit since coupling is complete
-                                    __instance.masterCoro = null;
-                                    yield break;
-                                }
-                            }
-                        }
-                    }
-                }
+									if (!JointManager.HasTensionJoint(otherCoupler))
+									{
+										Main.DebugLog(() => $"Creating tension joint after save-state fix: {otherCoupler.train.ID} {otherCoupler.Position()}");
+										JointManager.ForceCreateTensionJoint(otherCoupler);
+									}
 
-                var wait = WaitFor.Seconds(0.1f);
-                while (true)
-                {
-                    yield return wait;
+									// Handle automatic modes for couplers fixed from mismatched states
+									if (Main.settings.EffectiveAutoAirAndMuMode)
+									{
+										TryConnectAirSystemsAutomatically(coupler, otherCoupler);
+										AirSystemAutomation.TryAutoConnectMU(coupler, otherCoupler);
+									}
 
-                    // Safety check for null references
-                    if (__instance?.transform == null || __instance.gameObject == null)
-                    {
-                        // Exit if instance is invalid
-                        break;
-                    }
+									// Exit since coupling is complete
+									__instance.masterCoro = null;
+									yield break;
+								}
+							}
+						}
+					}
+				}
 
-                    // Additional safety check for nearby scanner
-                    if (__instance.nearbyScanner?.transform == null || __instance.nearbyScanner.gameObject == null)
-                    {
-                        // Exit if nearby scanner is invalid
-                        break;
-                    }
+				var wait = WaitFor.Seconds(0.1f);
+				while (true)
+				{
+					yield return wait;
 
-                    var offset = __instance.transform.InverseTransformPoint(__instance.nearbyScanner.transform.position);
-                    if (Mathf.Abs(offset.x) > 1.6f || Mathf.Abs(offset.z) > 2f)
-                    {
-                        break;
-                    }
-                    else
-                    {
-                        // Omit continuous offset logging
-                        var compression = StaticOffset - offset.z;
-                        var nearbyNearbyeCoupler = GetCoupler(__instance.nearbyScanner);
-                        if (__instance.nearbyScanner.isActiveAndEnabled
-                            && compression > Main.settings.autoCoupleThreshold * 1e-3f
-                            && ShouldCouplersBeReady(coupler, nearbyNearbyeCoupler)
-                            && nearbyNearbyeCoupler != null)
-                        {
-                            Main.DebugLog(() => $"{coupler.train.ID} {coupler.Position()}: auto-coupling due to compression={compression:F3} (auto mode: {Main.settings.autoCouplingMode})");
-                            TryCouple(coupler);
-                        }
-                    }
-                }
+					// Safety check for null references
+					if (__instance?.transform == null || __instance.gameObject == null)
+					{
+						// Exit if instance is invalid
+						break;
+					}
 
-                // Safely unpair with additional null checks
-                try
-                {
-                    // Only attempt Unpair if the scanner and its nearbyScanner are still valid
-                    if (__instance != null && __instance.gameObject != null && __instance.nearbyScanner != null)
-                    {
-                        __instance.Unpair(true);
-                    }
-                }
-                catch (System.Exception ex)
-                {
-                    Main.ErrorLog(() => $"Error during coupling scanner unpair: {ex.Message}");
-                }
-                finally
-                {
-                    if (__instance != null)
-                    {
-                        __instance.masterCoro = null;
-                    }
-                }
-            }
-        }
-    }
+					// Additional safety check for nearby scanner
+					if (__instance.nearbyScanner?.transform == null || __instance.nearbyScanner.gameObject == null)
+					{
+						// Exit if nearby scanner is invalid
+						break;
+					}
+
+					var offset = __instance.transform.InverseTransformPoint(__instance.nearbyScanner.transform.position);
+					if (Mathf.Abs(offset.x) > 1.6f || Mathf.Abs(offset.z) > 2f)
+					{
+						break;
+					}
+					else
+					{
+						// Omit continuous offset logging
+						var compression = StaticOffset - offset.z;
+						var nearbyNearbyeCoupler = GetCoupler(__instance.nearbyScanner);
+						if (__instance.nearbyScanner.isActiveAndEnabled
+							&& compression > Main.settings.autoCoupleThreshold * 1e-3f
+							&& ShouldCouplersBeReady(coupler, nearbyNearbyeCoupler)
+							&& nearbyNearbyeCoupler != null)
+						{
+							Main.DebugLog(() => $"{coupler.train.ID} {coupler.Position()}: auto-coupling due to compression={compression:F3} (auto mode: {Main.settings.autoCouplingMode})");
+							TryCouple(coupler);
+						}
+					}
+				}
+
+				// Safely unpair with additional null checks
+				try
+				{
+					// Only attempt Unpair if the scanner and its nearbyScanner are still valid
+					if (__instance != null && __instance.gameObject != null && __instance.nearbyScanner != null)
+					{
+						__instance.Unpair(true);
+					}
+				}
+				catch (System.Exception ex)
+				{
+					Main.ErrorLog(() => $"Error during coupling scanner unpair: {ex.Message}");
+				}
+				finally
+				{
+					if (__instance != null)
+					{
+						__instance.masterCoro = null;
+					}
+				}
+			}
+		}
+	}
 }

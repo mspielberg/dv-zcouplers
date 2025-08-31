@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace DvMod.ZCouplers
+namespace DvMod.ZCouplers.Core.Profiles
 {
     /// <summary>
     /// Tunable options describing a coupler family (visual and behavior tweaks).

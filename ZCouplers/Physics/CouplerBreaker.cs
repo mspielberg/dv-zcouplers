@@ -1,8 +1,8 @@
 using System.Linq;
-
+using DvMod.ZCouplers.Core;
 using UnityEngine;
 
-namespace DvMod.ZCouplers
+namespace DvMod.ZCouplers.Physics
 {
     public class CouplerBreaker : MonoBehaviour
     {

@@ -1,18 +1,18 @@
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
-
 using DV;
 using DV.CabControls;
-
+using DvMod.ZCouplers.Core;
+using DvMod.ZCouplers.Core.Helpers;
+using DvMod.ZCouplers.Core.Utils;
+using DvMod.ZCouplers.Physics;
+using DvMod.ZCouplers.Visuals;
 using HarmonyLib;
-
 using Stateless;
-
 using UnityEngine;
 
-namespace DvMod.ZCouplers
+namespace DvMod.ZCouplers.Patches
 {
     /// <summary>
     /// Contains all Harmony patches related to knuckle coupler functionality

@@ -1,14 +1,15 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-
-using DV;
 using DV.CabControls;
 using DV.CabControls.Spec;
-
+using DvMod.ZCouplers.Core;
+using DvMod.ZCouplers.Core.Helpers;
+using DvMod.ZCouplers.Core.Profiles;
+using DvMod.ZCouplers.Core.Utils;
 using UnityEngine;
 
-namespace DvMod.ZCouplers
+namespace DvMod.ZCouplers.Visuals
 {
     /// <summary>
     /// Manages creation and lifecycle of knuckle coupler hook visuals.

@@ -1,8 +1,7 @@
 using System.Collections;
-
 using UnityEngine;
 
-namespace DvMod.ZCouplers
+namespace DvMod.ZCouplers.Visuals
 {
     /// <summary>
     /// Ensures a GameObject and its MeshRenderers remain hidden even if re-enabled by game optimizers/LODs.

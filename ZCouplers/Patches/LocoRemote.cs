@@ -1,85 +1,86 @@
 using DV.RemoteControls;
-
+using DvMod.ZCouplers.Core;
+using DvMod.ZCouplers.Core.Utils;
 using HarmonyLib;
 
-namespace DvMod.ZCouplers
+namespace DvMod.ZCouplers.Patches
 {
-    public static class LocoRemote
-    {
-        [HarmonyPatch(typeof(RemoteControllerModule), nameof(RemoteControllerModule.IsCouplerInRange))]
-        public static class IsCouplerInRangePatch
-        {
-            public static bool Prefix(RemoteControllerModule __instance, ref bool __result)
-            {
-                var brakeset = __instance.car.brakeSystem.brakeset;
-                var trainset = __instance.car.trainset;
-                if (brakeset.cars.Count < trainset.cars.Count || KnuckleCouplers.HasUnlockedCoupler(trainset))
-                {
-                    __result = true;
-                    return false;
-                }
-                return true;
-            }
-        }
+	public static class LocoRemote
+	{
+		[HarmonyPatch(typeof(RemoteControllerModule), nameof(RemoteControllerModule.IsCouplerInRange))]
+		public static class IsCouplerInRangePatch
+		{
+			public static bool Prefix(RemoteControllerModule __instance, ref bool __result)
+			{
+				var brakeset = __instance.car.brakeSystem.brakeset;
+				var trainset = __instance.car.trainset;
+				if (brakeset.cars.Count < trainset.cars.Count || KnuckleCouplers.HasUnlockedCoupler(trainset))
+				{
+					__result = true;
+					return false;
+				}
+				return true;
+			}
+		}
 
-        [HarmonyPatch(typeof(RemoteControllerModule), nameof(RemoteControllerModule.RemoteControllerCouple))]
-        public static class RemoteControllerCouplePatch
-        {
-            public static void Postfix(RemoteControllerModule __instance)
-            {
-                // Only host should apply auto hose/MU/joint side effects
-                if (Integrations.Multiplayer.MultiplayerIntegration.IsClientActive)
-                    return;
-                var car = __instance.car.trainset.firstCar;
-                var coupler = car.frontCoupler.IsCoupled() ? car.frontCoupler : car.rearCoupler;
-                KnuckleCouplers.ReadyCoupler(coupler.GetOppositeCoupler());
+		[HarmonyPatch(typeof(RemoteControllerModule), nameof(RemoteControllerModule.RemoteControllerCouple))]
+		public static class RemoteControllerCouplePatch
+		{
+			public static void Postfix(RemoteControllerModule __instance)
+			{
+				// Only host should apply auto hose/MU/joint side effects
+				if (MpShim.IsClientActive)
+					return;
+				var car = __instance.car.trainset.firstCar;
+				var coupler = car.frontCoupler.IsCoupled() ? car.frontCoupler : car.rearCoupler;
+				KnuckleCouplers.ReadyCoupler(coupler.GetOppositeCoupler());
 
-                while (coupler.coupledTo is Coupler partner)
-                {
-                    try
-                    {
-                        coupler.ConnectAirHose(partner, true);
-                        Main.DebugLog(() => $"Invoked Coupler.ConnectAirHose(Coupler, bool) for Air via Remote -> {coupler.train.ID} <-> {partner.train.ID}");
-                    }
-                    catch (System.Exception ex)
-                    {
-                        Main.ErrorLog(() => $"Remote ConnectAirHose error: {ex.Message}");
-                    }
-                    coupler.IsCockOpen = true;
-                    partner.IsCockOpen = true;
+				while (coupler.coupledTo is Coupler partner)
+				{
+					try
+					{
+						coupler.ConnectAirHose(partner, true);
+						Main.DebugLog(() => $"Invoked Coupler.ConnectAirHose(Coupler, bool) for Air via Remote -> {coupler.train.ID} <-> {partner.train.ID}");
+					}
+					catch (System.Exception ex)
+					{
+						Main.ErrorLog(() => $"Remote ConnectAirHose error: {ex.Message}");
+					}
+					coupler.IsCockOpen = true;
+					partner.IsCockOpen = true;
 
-                    // Auto-connect MU cables in automatic mode
-                    if (Main.settings.EffectiveAutoAirAndMuMode)
-                        AirSystemAutomation.TryAutoConnectMU(coupler, partner);
+					// Auto-connect MU cables in automatic mode
+					if (Main.settings.EffectiveAutoAirAndMuMode)
+						AirSystemAutomation.TryAutoConnectMU(coupler, partner);
 
-                    // Force create joints for remote coupling
-                    Couplers.ForceCreateTensionJoint(coupler);
+					// Force create joints for remote coupling
+					Couplers.ForceCreateTensionJoint(coupler);
 
-                    coupler = partner.GetOppositeCoupler();
-                }
+					coupler = partner.GetOppositeCoupler();
+				}
 
-                KnuckleCouplers.ReadyCoupler(coupler);
-            }
-        }
+				KnuckleCouplers.ReadyCoupler(coupler);
+			}
+		}
 
-        [HarmonyPatch(typeof(RemoteControllerModule), nameof(RemoteControllerModule.Uncouple))]
-        public static class UncouplePatch
-        {
-            public static void Postfix(RemoteControllerModule __instance, int selectedCoupler)
-            {
-                var coupler = selectedCoupler > 0
-                    ? CouplerLogic.GetNthCouplerFrom(__instance.car.frontCoupler, selectedCoupler - 1)
-                    : CouplerLogic.GetNthCouplerFrom(__instance.car.rearCoupler, -selectedCoupler - 1);
-                if (coupler == null)
-                    return;
-                if (Integrations.Multiplayer.MultiplayerIntegration.IsClientActive)
-                {
-                    // Ask host to unlock this coupler; don't uncouple locally
-                    Integrations.Multiplayer.MultiplayerIntegration.SendCouplerToggleRequest(coupler, locked: false);
-                    return;
-                }
-                KnuckleCouplers.UnlockCoupler(coupler, viaChainInteraction: false);
-            }
-        }
-    }
+		[HarmonyPatch(typeof(RemoteControllerModule), nameof(RemoteControllerModule.Uncouple))]
+		public static class UncouplePatch
+		{
+			public static void Postfix(RemoteControllerModule __instance, int selectedCoupler)
+			{
+				var coupler = selectedCoupler > 0
+					? CouplerLogic.GetNthCouplerFrom(__instance.car.frontCoupler, selectedCoupler - 1)
+					: CouplerLogic.GetNthCouplerFrom(__instance.car.rearCoupler, -selectedCoupler - 1);
+				if (coupler == null)
+					return;
+				if (MpShim.IsClientActive)
+				{
+					// Ask host to unlock this coupler; don't uncouple locally
+					MpShim.TrySendCouplerToggleRequest(coupler, locked: false);
+					return;
+				}
+				KnuckleCouplers.UnlockCoupler(coupler, viaChainInteraction: false);
+			}
+		}
+	}
 }

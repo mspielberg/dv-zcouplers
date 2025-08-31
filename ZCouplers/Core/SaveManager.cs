@@ -1,13 +1,11 @@
 using System.Collections;
 using System.Collections.Generic;
-
+using DvMod.ZCouplers.Core.Utils;
 using HarmonyLib;
-
 using Newtonsoft.Json.Linq;
-
 using UnityEngine;
 
-namespace DvMod.ZCouplers
+namespace DvMod.ZCouplers.Core
 {
     /// <summary>
     /// Handles saving and loading of knuckle coupler states

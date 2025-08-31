@@ -1,11 +1,10 @@
-using System;
-
-using DV.CabControls;
-
+using DvMod.ZCouplers.Core.Profiles;
+using DvMod.ZCouplers.Core.Utils;
+using DvMod.ZCouplers.Visuals;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-namespace DvMod.ZCouplers
+namespace DvMod.ZCouplers.Core
 {
     public class KnuckleCouplers
     {

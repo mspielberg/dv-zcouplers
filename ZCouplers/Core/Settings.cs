@@ -1,6 +1,7 @@
+using DvMod.ZCouplers.Core.Helpers;
 using UnityModManagerNet;
 
-namespace DvMod.ZCouplers
+namespace DvMod.ZCouplers.Core
 {
     public class Settings : UnityModManager.ModSettings, IDrawable
     {

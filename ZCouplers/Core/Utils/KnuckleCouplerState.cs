@@ -1,10 +1,8 @@
 using System.Collections.Generic;
+using DvMod.ZCouplers.Core.Helpers;
+using DvMod.ZCouplers.Visuals;
 
-using DV;
-
-using UnityEngine;
-
-namespace DvMod.ZCouplers
+namespace DvMod.ZCouplers.Core.Utils
 {
     /// <summary>
     /// Manages knuckle coupler lock/unlock states and visual interactions

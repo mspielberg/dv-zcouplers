@@ -1,10 +1,12 @@
 using System.Collections.Generic;
-
+using DvMod.ZCouplers.Core;
+using DvMod.ZCouplers.Core.Helpers;
+using DvMod.ZCouplers.Core.Utils;
+using DvMod.ZCouplers.Physics;
 using HarmonyLib;
-
 using UnityEngine;
 
-namespace DvMod.ZCouplers;
+namespace DvMod.ZCouplers.Patches;
 
 [HarmonyPatch(typeof(Coupler), "Uncouple")]
 public static class UncouplePatch
@@ -87,7 +89,7 @@ public static class UncouplePatch
             return;
 
         // If the pair has a compression joint, leave it as-is for a short time; otherwise nothing to do
-        if (!DvMod.ZCouplers.JointManager.TryGetCompressionJoint(coupler, out var joint))
+        if (!JointManager.TryGetCompressionJoint(coupler, out var joint))
             return;
 
         var chain = coupler.visualCoupler.chainAdapter.chainScript;
@@ -99,7 +101,7 @@ public static class UncouplePatch
             // If still uncoupled and joint still tracked, destroy it now
             if (coupler != null && !coupler.IsCoupled())
             {
-                DvMod.ZCouplers.JointManager.DestroyCompressionJoint(coupler, caller: "uncouple-grace");
+                JointManager.DestroyCompressionJoint(coupler, caller: "uncouple-grace");
             }
         }
     }

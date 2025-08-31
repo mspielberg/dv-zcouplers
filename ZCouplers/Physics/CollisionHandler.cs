@@ -1,8 +1,8 @@
+using DvMod.ZCouplers.Core;
 using HarmonyLib;
-
 using UnityEngine;
 
-namespace DvMod.ZCouplers
+namespace DvMod.ZCouplers.Physics
 {
     /// <summary>
     /// Handles collision physics and buffer responses between train cars

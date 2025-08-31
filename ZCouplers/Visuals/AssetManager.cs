@@ -1,9 +1,11 @@
 using System;
 using System.IO;
 using System.Linq;
+using DvMod.ZCouplers.Core;
+using DvMod.ZCouplers.Core.Helpers;
 using UnityEngine;
 
-namespace DvMod.ZCouplers
+namespace DvMod.ZCouplers.Visuals
 {
     /// <summary>
     /// Loads and manages knuckle coupler assets.
