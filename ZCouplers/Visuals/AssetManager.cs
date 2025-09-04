@@ -16,8 +16,8 @@ namespace DvMod.ZCouplers
         private static GameObject? sa3ClosedPrefab; // For SA3 closed/ready state
         private static GameObject? sa3OpenPrefab;   // For SA3 open/parked state
         private static GameObject? sa3SocketPrefab; // For SA3 mount hardware
-        private static GameObject? schakuClosedPrefab; // For Schafenberg closed/ready state
-        private static GameObject? schakuOpenPrefab;   // For Schafenberg open/parked state
+        private static GameObject? schakuClosedPrefab; // For Scharfenberg closed/ready state
+        private static GameObject? schakuOpenPrefab;   // For Scharfenberg open/parked state
 
         public static GameObject? GetAARClosedPrefab() => aarClosedPrefab;
         public static GameObject? GetAAROpenPrefab() => aarOpenPrefab;
@@ -43,7 +43,7 @@ namespace DvMod.ZCouplers
                 case CouplerType.SA3Knuckle:
                     return isParked && sa3OpenPrefab != null ? sa3OpenPrefab : sa3ClosedPrefab;
 
-                case CouplerType.Schafenberg:
+                case CouplerType.Scharfenberg:
                     return isParked && schakuOpenPrefab != null ? schakuOpenPrefab : schakuClosedPrefab;
 
                 default:
@@ -64,7 +64,7 @@ namespace DvMod.ZCouplers
                     return aarClosedPrefab != null || aarOpenPrefab != null;
                 case CouplerType.SA3Knuckle:
                     return sa3ClosedPrefab != null || sa3OpenPrefab != null;
-                case CouplerType.Schafenberg:
+                case CouplerType.Scharfenberg:
                     return schakuClosedPrefab != null || schakuOpenPrefab != null;
                 default:
                     return aarClosedPrefab != null;
@@ -163,16 +163,16 @@ namespace DvMod.ZCouplers
                             Main.ErrorLog(() => "Failed to load 'SA3_socket' prefab for SA3 coupler mount hardware");
                         break;
 
-                    case CouplerType.Schafenberg:
-                        Main.DebugLog(() => "Loading Schafenberg assets");
+                    case CouplerType.Scharfenberg:
+                        Main.DebugLog(() => "Loading Scharfenberg assets");
                         schakuClosedPrefab = LoadPrefab("Schaku_closed");
                         schakuOpenPrefab = LoadPrefab("Schaku_open");
 
                         if (schakuClosedPrefab == null)
-                            Main.ErrorLog(() => "Failed to load 'Schaku_closed' prefab for Schafenberg coupler");
+                            Main.ErrorLog(() => "Failed to load 'Schaku_closed' prefab for Scharfenberg coupler");
 
                         if (schakuOpenPrefab == null)
-                            Main.ErrorLog(() => "Failed to load 'Schaku_open' prefab for Schafenberg coupler");
+                            Main.ErrorLog(() => "Failed to load 'Schaku_open' prefab for Scharfenberg coupler");
                         break;
 
                     default:

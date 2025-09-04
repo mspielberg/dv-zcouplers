@@ -4,10 +4,10 @@ namespace DvMod.ZCouplers
 {
     internal sealed class SchakuProfile : ICouplerProfile
     {
-        public CouplerType Type => CouplerType.Schafenberg;
+        public CouplerType Type => CouplerType.Scharfenberg;
         public CouplerOptions Options { get; } = new CouplerOptions
         {
-            Name = "Schafenberg",
+            Name = "Scharfenberg",
             HookLateralOffsetX = 0f,
             SupportsVerticalArticulation = true,
             AlwaysHideAirHoses = true,

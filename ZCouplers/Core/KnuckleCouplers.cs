@@ -132,14 +132,14 @@ namespace DvMod.ZCouplers
         }
 
         /// <summary>
-        /// Deactivate all air hoses on all trains when using Schafenberg couplers.
+        /// Deactivate all air hoses on all trains when using Scharfenberg couplers.
         /// </summary>
         private static void DeactivateAllAirHoses()
         {
             if (CarSpawner.Instance?.allCars == null)
                 return;
 
-            Main.DebugLog(() => "Deactivating all air hoses for Schafenberg couplers");
+            Main.DebugLog(() => "Deactivating all air hoses for Scharfenberg couplers");
 
             int processedCars = 0;
             int processedCouplers = 0;

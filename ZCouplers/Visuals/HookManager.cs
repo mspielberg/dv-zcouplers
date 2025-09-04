@@ -62,7 +62,7 @@ namespace DvMod.ZCouplers
         /// <summary>
         /// Toggle air hoses and coupler mounting hardware for disabled couplers.
         /// Also toggles the coupler component functionality.
-        /// For Schafenberg couplers, air hoses are always deactivated.
+        /// For Scharfenberg couplers, air hoses are always deactivated.
         /// </summary>
         public static void ToggleCouplerHardware(Coupler coupler, bool visible)
         {
@@ -115,7 +115,7 @@ namespace DvMod.ZCouplers
 
         /// <summary>
         /// Toggle air hose visibility for a specific coupler.
-        /// For Schafenberg couplers, air hoses are always hidden on all trains.
+        /// For Scharfenberg couplers, air hoses are always hidden on all trains.
         /// For steam locomotives, air hoses are hidden only on front couplers when the disable setting is enabled.
         /// </summary>
         public static void ToggleAirHose(Coupler coupler, bool visible)
@@ -148,7 +148,7 @@ namespace DvMod.ZCouplers
         }
 
         /// <summary>
-        /// Toggle air hose visibility on all train types (for Schafenberg couplers).
+        /// Toggle air hose visibility on all train types (for Scharfenberg couplers).
         /// Uses the same proven approach as steam locomotive air hose handling.
         /// </summary>
         private static void ToggleAirHoseOnAllTrainTypes(GameObject trainGameObject, Coupler coupler, bool visible)
@@ -421,7 +421,7 @@ namespace DvMod.ZCouplers
 
                 var parentTransform = original.parent;
                 var originalLocalPos = original.localPosition;
-                
+
                 // Type-specific local offset relative to the stock HookPlate position
                 Vector3 offset = Vector3.zero;
                 Quaternion prefabLocalRot = socketPrefab.transform.localRotation; // Default to prefab rotation
@@ -863,7 +863,7 @@ namespace DvMod.ZCouplers
                 // Vertical articulation is profile-driven
                 if (CouplerProfiles.Current?.Options.SupportsVerticalArticulation == true)
                 {
-                    // Calculate vertical rotation (pitch) for Schafenberg couplers
+                    // Calculate vertical rotation (pitch) for Scharfenberg couplers
                     var horizontalDistance = Mathf.Sqrt(offset.x * offset.x + offset.z * offset.z);
                     var verticalAngle = -Mathf.Atan2(offset.y, horizontalDistance) * Mathf.Rad2Deg;
 
@@ -1165,7 +1165,7 @@ namespace DvMod.ZCouplers
             {
                 // Check if we need to swap the hook visual for couplers that support multiple states
                 var couplerType = Main.settings.couplerType;
-                if (couplerType == CouplerType.AARKnuckle || couplerType == CouplerType.SA3Knuckle || couplerType == CouplerType.Schafenberg)
+                if (couplerType == CouplerType.AARKnuckle || couplerType == CouplerType.SA3Knuckle || couplerType == CouplerType.Scharfenberg)
                 {
                     SwapHookVisualImmediately(chainScript, coupler);
                 }

@@ -656,8 +656,8 @@ namespace DvMod.ZCouplers
                 // Delay the check to ensure the train car is fully set up
                 __result.StartCoroutine(HookManager.DelayedSpawnKnuckleCouplerCheck(__result, KnuckleCouplers.GetHookPrefab()));
 
-                // If using Schafenberg couplers, also deactivate air hoses on the newly spawned car
-                if (Main.settings.couplerType == CouplerType.Schafenberg)
+                // If using Scharfenberg couplers, also deactivate air hoses on the newly spawned car
+                if (Main.settings.couplerType == CouplerType.Scharfenberg)
                 {
                     __result.StartCoroutine(DelayedAirHoseDeactivationForCar(__result));
                 }
@@ -779,7 +779,7 @@ namespace DvMod.ZCouplers
             }
 
             /// <summary>
-            /// Coroutine to deactivate air hoses on a newly spawned car when using Schafenberg couplers.
+            /// Coroutine to deactivate air hoses on a newly spawned car when using Scharfenberg couplers.
             /// </summary>
             private static System.Collections.IEnumerator DelayedAirHoseDeactivationForCar(TrainCar trainCar)
             {
