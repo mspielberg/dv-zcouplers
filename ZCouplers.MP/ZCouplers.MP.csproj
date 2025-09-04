@@ -13,20 +13,22 @@
     <PackageReference Include="Krafs.Publicizer" Version="2.2.1" PrivateAssets="all"/>
     <Publicize Include="Assembly-CSharp" IncludeCompilerGeneratedMembers="false"/>
   </ItemGroup>
-  
+
   <ItemGroup>
     <Reference Include="Assembly-CSharp" Private="false" />
     <Reference Include="0Harmony" Private="false" />
     <Reference Include="UnityEngine.CoreModule" Private="false" />
-    <Reference Include="UnityEngine.PhysicsModule">
-      <HintPath>D:\SteamLibrary\steamapps\common\Derail Valley\DerailValley_Data\Managed\UnityEngine.PhysicsModule.dll</HintPath>
-    </Reference>
+    <Reference Include="UnityEngine.PhysicsModule"/>
     <Reference Include="UnityModManager" Private="false" />
-  <Reference Include="DV.Utils" Private="false" />
+  	<Reference Include="DV.Utils" Private="false" />
+	  <Reference Include="MultiplayerAPI" Private="false">
+		  <Private>false</Private>
+		  <CopyLocal>false</CopyLocal>
+	  </Reference>
+
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\References\dv-multiplayer\MultiplayerAPI\MultiplayerAPI.csproj" />
     <ProjectReference Include="..\ZCouplers\ZCouplers.csproj" />
   </ItemGroup>
 
