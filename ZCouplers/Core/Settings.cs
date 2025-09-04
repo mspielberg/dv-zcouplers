@@ -18,10 +18,10 @@ namespace DvMod.ZCouplers
         [Draw("Auto couple threshold (mm)", Min = 0f)]
         public float autoCoupleThreshold = 20f;
 
-        [Draw("Auto Air & MU Mode", Tooltip = "Automatically connect air hoses, open brake valves, and connect MU cables when coupling")]
+        [Draw("Auto Air & MU Mode", Tooltip = "Automatically connect air hoses, open brake valves, and connect MU cables when coupling. Enforced by Scharfenberg couplers.")]
         public bool autoAirAndMuMode = false;
 
-        [Draw("Auto Coupling Mode", Tooltip = "Automatically couple even when couplers are not ready (parked state)")]
+        [Draw("Auto Coupling Mode", Tooltip = "Automatically couple even when couplers are not ready. Enforced by Scharfenberg couplers.")]
         public bool autoCouplingMode = false;
 
         /// <summary>

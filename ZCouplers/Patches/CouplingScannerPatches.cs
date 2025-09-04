@@ -18,13 +18,13 @@ namespace DvMod.ZCouplers
         {
             if (coupler == null || otherCoupler == null)
                 return false;
-                
-            if (Main.settings.autoCouplingMode)
+
+            if (Main.settings.autoCouplingMode || Main.settings.couplerType == CouplerType.Scharfenberg)
             {
                 // In auto coupling mode, skip ready checks - always allow coupling
                 return true;
             }
-            
+
             // Normal mode: both couplers must be ready
             return KnuckleCouplers.IsReadyToCouple(coupler) && KnuckleCouplers.IsReadyToCouple(otherCoupler);
         }
