@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using UnityEngine;
 
 namespace DvMod.ZCouplers
@@ -18,6 +19,18 @@ namespace DvMod.ZCouplers
         private static GameObject? sa3SocketPrefab; // For SA3 mount hardware
         private static GameObject? schakuClosedPrefab; // For Scharfenberg closed/ready state
         private static GameObject? schakuOpenPrefab;   // For Scharfenberg open/parked state
+
+        private static readonly string assetsFolder = GetAssetsFolder();
+
+        /// <summary>
+        /// Gets the path to the Assets folder next to the DLL.
+        /// </summary>
+        private static string GetAssetsFolder()
+        {
+            string assemblyLocation = Assembly.GetExecutingAssembly().Location;
+            string? dllDirectory = Path.GetDirectoryName(assemblyLocation);
+            return Path.Combine(dllDirectory ?? string.Empty, "Assets");
+        }
 
         public static GameObject? GetAARClosedPrefab() => aarClosedPrefab;
         public static GameObject? GetAAROpenPrefab() => aarOpenPrefab;
@@ -71,130 +84,67 @@ namespace DvMod.ZCouplers
             }
         }
 
+        /// <summary>
+        /// Loads assets for the specified coupler type from separate asset bundle files.
+        /// </summary>
         public static void LoadAssets()
         {
-            var bundleStream = typeof(AssetManager).Assembly.GetManifestResourceStream(typeof(Main), "zcouplers");
-            if (bundleStream == null)
+            if (!Directory.Exists(assetsFolder))
             {
-                Main.ErrorLog(() => "Failed to load AssetBundle - stream is null");
+                Main.ErrorLog(() => $"Assets folder not found: {assetsFolder}");
                 return;
             }
 
-            var bundle = AssetBundle.LoadFromStream(bundleStream);
-            if (bundle == null)
+            CouplerType couplerType = Main.settings.couplerType;
+            Main.DebugLog(() => $"Loading assets for coupler type: {couplerType}");
+
+            // Load assets based on coupler type
+            switch (couplerType)
             {
-                Main.ErrorLog(() => "Failed to load AssetBundle from stream");
-                return;
+                case CouplerType.AARKnuckle:
+                    LoadAARAssets();
+                    break;
+
+                case CouplerType.SA3Knuckle:
+                    LoadSA3Assets();
+                    break;
+
+                case CouplerType.Scharfenberg:
+                    LoadScharfenbergAssets();
+                    break;
+
+                default:
+                    Main.ErrorLog(() => $"Unknown coupler type: {couplerType}");
+                    // Fallback to AAR
+                    LoadAARAssets();
+                    break;
             }
+        }
+
+        /// <summary>
+        /// Loads AAR coupler assets from AAR.assetbundle.
+        /// </summary>
+        private static void LoadAARAssets()
+        {
+            string bundlePath = Path.Combine(assetsFolder, "AAR.assetbundle");
+            var bundle = LoadAssetBundle(bundlePath);
+            if (bundle == null) return;
 
             try
             {
-                CouplerType couplerType = Main.settings.couplerType;
+                Main.DebugLog(() => "Loading AAR assets");
+                aarClosedPrefab = LoadPrefabFromBundle(bundle, "AAR_closed");
+                aarOpenPrefab = LoadPrefabFromBundle(bundle, "AAR_open");
+                aarSocketPrefab = LoadPrefabFromBundle(bundle, "AAR_socket");
 
-                // Helper to load a prefab by name regardless of folder path within the bundle
-                GameObject? LoadPrefab(string desiredName)
-                {
-                    // Try direct name first (works if asset was explicitly named)
-                    var go = bundle.LoadAsset<GameObject>(desiredName);
-                    if (go != null)
-                        return go;
+                if (aarClosedPrefab == null)
+                    Main.ErrorLog(() => "Failed to load 'AAR_closed' prefab for AAR coupler");
 
-                    // Scan all asset names (lowercased paths like "assets/prefabs/foo.prefab")
-                    string[] names;
-                    try { names = bundle.GetAllAssetNames(); }
-                    catch { names = Array.Empty<string>(); }
+                if (aarOpenPrefab == null)
+                    Main.ErrorLog(() => "Failed to load 'AAR_open' prefab for AAR coupler");
 
-                    if (names.Length == 0)
-                        return null;
-
-                    // Match by filename without extension, then by path ending, then by contains
-                    var match = names.FirstOrDefault(p => string.Equals(Path.GetFileNameWithoutExtension(p), desiredName, StringComparison.OrdinalIgnoreCase))
-                             ?? names.FirstOrDefault(p => p.EndsWith("/" + desiredName + ".prefab", StringComparison.OrdinalIgnoreCase))
-                             ?? names.FirstOrDefault(p => p.IndexOf(desiredName, StringComparison.OrdinalIgnoreCase) >= 0 && p.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase));
-
-                    if (match != null)
-                    {
-                        var loaded = bundle.LoadAsset<GameObject>(match);
-                        if (loaded != null)
-                        {
-                            Main.DebugLog(() => $"Loaded '{desiredName}' via asset path '{match}'");
-                            return loaded;
-                        }
-                    }
-                    else if (Main.settings.enableLogging)
-                    {
-                        Main.ErrorLog(() => $"Asset '{desiredName}' not found in bundle.");
-                    }
-                    return null;
-                }
-
-                // Load assets based on coupler type
-                switch (couplerType)
-                {
-                    case CouplerType.AARKnuckle:
-                        Main.DebugLog(() => "Loading AAR assets");
-                        aarClosedPrefab = LoadPrefab("AAR_closed");
-                        aarOpenPrefab = LoadPrefab("AAR_open");
-                        aarSocketPrefab = LoadPrefab("AAR_socket");
-
-                        if (aarClosedPrefab == null)
-                            Main.ErrorLog(() => "Failed to load 'AAR_closed' prefab for AAR coupler");
-
-                        if (aarOpenPrefab == null)
-                            Main.ErrorLog(() => "Failed to load 'AAR_open' prefab for AAR coupler");
-
-                        if (aarSocketPrefab == null)
-                            Main.ErrorLog(() => "Failed to load 'AAR_socket' prefab for AAR coupler mount hardware");
-                        break;
-
-                    case CouplerType.SA3Knuckle:
-                        Main.DebugLog(() => "Loading SA3 assets");
-                        sa3ClosedPrefab = LoadPrefab("SA3_closed");
-                        sa3OpenPrefab = LoadPrefab("SA3_open");
-                        sa3SocketPrefab = LoadPrefab("SA3_socket");
-
-                        if (sa3ClosedPrefab == null)
-                            Main.ErrorLog(() => "Failed to load 'SA3_closed' prefab for SA3 coupler");
-
-                        if (sa3OpenPrefab == null)
-                            Main.ErrorLog(() => "Failed to load 'SA3_open' prefab for SA3 coupler");
-
-                        if (sa3SocketPrefab == null)
-                            Main.ErrorLog(() => "Failed to load 'SA3_socket' prefab for SA3 coupler mount hardware");
-                        break;
-
-                    case CouplerType.Scharfenberg:
-                        Main.DebugLog(() => "Loading Scharfenberg assets");
-                        schakuClosedPrefab = LoadPrefab("Schaku_closed");
-                        schakuOpenPrefab = LoadPrefab("Schaku_open");
-
-                        if (schakuClosedPrefab == null)
-                            Main.ErrorLog(() => "Failed to load 'Schaku_closed' prefab for Scharfenberg coupler");
-
-                        if (schakuOpenPrefab == null)
-                            Main.ErrorLog(() => "Failed to load 'Schaku_open' prefab for Scharfenberg coupler");
-                        break;
-
-                    default:
-                        // Fallback - try to load by enum name
-                        string assetName = couplerType.ToString();
-                        Main.DebugLog(() => $"Loading fallback asset '{assetName}' ({couplerType})");
-                        aarClosedPrefab = LoadPrefab(assetName);
-
-                        if (aarClosedPrefab == null)
-                        {
-                            Main.ErrorLog(() => $"Failed to load hook prefab for asset name: {assetName} ({couplerType})");
-                        }
-                        else
-                        {
-                            Main.DebugLog(() => $"Loaded hook prefab: {assetName} ({couplerType})");
-                        }
-                        break;
-                }
-            }
-            catch (System.Exception ex)
-            {
-                Main.ErrorLog(() => $"Exception while loading assets: {ex.Message}");
+                if (aarSocketPrefab == null)
+                    Main.ErrorLog(() => "Failed to load 'AAR_socket' prefab for AAR coupler mount hardware");
             }
             finally
             {
@@ -202,5 +152,143 @@ namespace DvMod.ZCouplers
             }
         }
 
+        /// <summary>
+        /// Loads SA3 coupler assets from SA3.assetbundle.
+        /// </summary>
+        private static void LoadSA3Assets()
+        {
+            string bundlePath = Path.Combine(assetsFolder, "SA3.assetbundle");
+            var bundle = LoadAssetBundle(bundlePath);
+            if (bundle == null) return;
+
+            try
+            {
+                Main.DebugLog(() => "Loading SA3 assets");
+                sa3ClosedPrefab = LoadPrefabFromBundle(bundle, "SA3_closed");
+                sa3OpenPrefab = LoadPrefabFromBundle(bundle, "SA3_open");
+                sa3SocketPrefab = LoadPrefabFromBundle(bundle, "SA3_socket");
+
+                if (sa3ClosedPrefab == null)
+                    Main.ErrorLog(() => "Failed to load 'SA3_closed' prefab for SA3 coupler");
+
+                if (sa3OpenPrefab == null)
+                    Main.ErrorLog(() => "Failed to load 'SA3_open' prefab for SA3 coupler");
+
+                if (sa3SocketPrefab == null)
+                    Main.ErrorLog(() => "Failed to load 'SA3_socket' prefab for SA3 coupler mount hardware");
+            }
+            finally
+            {
+                bundle.Unload(false);
+            }
+        }
+
+        /// <summary>
+        /// Loads Scharfenberg coupler assets from Scharfenberg.assetbundle.
+        /// </summary>
+        private static void LoadScharfenbergAssets()
+        {
+            string bundlePath = Path.Combine(assetsFolder, "Scharfenberg.assetbundle");
+            var bundle = LoadAssetBundle(bundlePath);
+            if (bundle == null) return;
+
+            try
+            {
+                Main.DebugLog(() => "Loading Scharfenberg assets");
+                schakuClosedPrefab = LoadPrefabFromBundle(bundle, "Schaku_closed");
+                schakuOpenPrefab = LoadPrefabFromBundle(bundle, "Schaku_open");
+
+                if (schakuClosedPrefab == null)
+                    Main.ErrorLog(() => "Failed to load 'Schaku_closed' prefab for Scharfenberg coupler");
+
+                if (schakuOpenPrefab == null)
+                    Main.ErrorLog(() => "Failed to load 'Schaku_open' prefab for Scharfenberg coupler");
+            }
+            finally
+            {
+                bundle.Unload(false);
+            }
+        }
+
+        /// <summary>
+        /// Loads an asset bundle from the specified file path.
+        /// </summary>
+        private static AssetBundle? LoadAssetBundle(string bundlePath)
+        {
+            if (!File.Exists(bundlePath))
+            {
+                Main.ErrorLog(() => $"Asset bundle not found: {bundlePath}");
+                return null;
+            }
+
+            try
+            {
+                var bundle = AssetBundle.LoadFromFile(bundlePath);
+                if (bundle == null)
+                {
+                    Main.ErrorLog(() => $"Failed to load AssetBundle from file: {bundlePath}");
+                    return null;
+                }
+
+                Main.DebugLog(() => $"Successfully loaded asset bundle: {bundlePath}");
+                return bundle;
+            }
+            catch (Exception ex)
+            {
+                Main.ErrorLog(() => $"Exception loading asset bundle '{bundlePath}': {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Loads a prefab by name from the specified asset bundle.
+        /// </summary>
+        private static GameObject? LoadPrefabFromBundle(AssetBundle bundle, string desiredName)
+        {
+            try
+            {
+                // Try direct name first (works if asset was explicitly named)
+                var go = bundle.LoadAsset<GameObject>(desiredName);
+                if (go != null)
+                {
+                    Main.DebugLog(() => $"Loaded '{desiredName}' directly");
+                    return go;
+                }
+
+                // Scan all asset names (lowercased paths like "assets/prefabs/foo.prefab")
+                string[] names;
+                try { names = bundle.GetAllAssetNames(); }
+                catch { names = Array.Empty<string>(); }
+
+                if (names.Length == 0)
+                {
+                    Main.ErrorLog(() => $"No assets found in bundle for '{desiredName}'");
+                    return null;
+                }
+
+                // Match by filename without extension, then by path ending, then by contains
+                var match = names.FirstOrDefault(p => string.Equals(Path.GetFileNameWithoutExtension(p), desiredName, StringComparison.OrdinalIgnoreCase))
+                         ?? names.FirstOrDefault(p => p.EndsWith("/" + desiredName + ".prefab", StringComparison.OrdinalIgnoreCase))
+                         ?? names.FirstOrDefault(p => p.IndexOf(desiredName, StringComparison.OrdinalIgnoreCase) >= 0 && p.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase));
+
+                if (match != null)
+                {
+                    var loaded = bundle.LoadAsset<GameObject>(match);
+                    if (loaded != null)
+                    {
+                        Main.DebugLog(() => $"Loaded '{desiredName}' via asset path '{match}'");
+                        return loaded;
+                    }
+                }
+
+                Main.ErrorLog(() => $"Asset '{desiredName}' not found in bundle. Available assets: {string.Join(", ", names)}");
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Main.ErrorLog(() => $"Exception loading prefab '{desiredName}': {ex.Message}");
+                return null;
+            }
+        }
     }
 }
