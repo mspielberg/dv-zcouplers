@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 using DV.CabControls;
 
@@ -10,7 +11,10 @@ namespace DvMod.ZCouplers
     public class KnuckleCouplers
     {
         public static KnuckleCouplers? Instance { get; private set; }
-    private static bool sceneLoadHooked = false;
+        private static bool sceneLoadHooked;
+
+        // Cache for tracking deactivated air hoses to avoid redundant operations
+        private static readonly HashSet<int> deactivatedAirHoses = new HashSet<int>();
 
         // Temporarily match the old working code exactly
         public static bool enabled => true; // Always enabled like the old code
@@ -177,20 +181,35 @@ namespace DvMod.ZCouplers
             if (coupler?.train?.gameObject == null)
                 return;
 
-            // Deterministic: only disable both direct "hoses" children under the interior
             var interior = coupler.train.interior;
             if (interior == null)
                 return;
 
-            for (int i = 0; i < interior.childCount; i++)
+            // Use interior instance ID as cache key to track already processed interiors
+            int interiorId = interior.GetInstanceID();
+
+            // Early exit if we've already processed this interior
+            if (deactivatedAirHoses.Contains(interiorId))
+                return;
+
+            // Mark as processed before doing the work
+            deactivatedAirHoses.Add(interiorId);
+
+            // Use Transform.Find for direct lookup instead of iterating all children
+            var hosesTransform = interior.Find("hoses");
+            if (hosesTransform != null)
             {
-                var child = interior.GetChild(i);
-                if (child != null && child.name == "hoses")
-                {
-                    child.gameObject.SetActive(false);
-                    GameObjHider.Attach(child);
-                }
+                hosesTransform.gameObject.SetActive(false);
+                GameObjHider.Attach(hosesTransform);
             }
+        }
+
+        /// <summary>
+        /// Clear the air hose deactivation cache. Call when cars are spawned/despawned.
+        /// </summary>
+        public static void ClearAirHoseCache()
+        {
+            deactivatedAirHoses.Clear();
         }
 
         /// <summary>
@@ -245,7 +264,18 @@ namespace DvMod.ZCouplers
 
         private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
-            // Only do the immediate call, remove redundant delayed call
+            // Only clear air hose cache for meaningful scene changes that could affect car spawning
+            // Don't clear on UI scene loads or other non-gameplay scenes
+            if (mode == LoadSceneMode.Single)
+            {
+                ClearAirHoseCache();
+                Main.DebugLog(() => "Cleared air hose cache for scene load " + scene.name);
+            }
+            else
+            {
+	            Main.DebugLog(() => $"Not clearing air hose cache for scene load {scene.name} with mode {mode}");
+            }
+
             BufferVisualManager.ToggleBuffers(Main.settings.showBuffersWithKnuckles);
 
             if (CouplerProfiles.Current?.Options.AlwaysHideAirHoses == true)
