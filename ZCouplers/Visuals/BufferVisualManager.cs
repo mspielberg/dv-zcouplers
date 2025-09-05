@@ -43,7 +43,7 @@ public static class BufferVisualManager
             {
                 ToggleBuffers(allCar.gameObject, allCar.carLivery, visible);
             }
-            ForceGlobalRenderingUpdate();
+            //ForceGlobalRenderingUpdate();
         }
     }
 
@@ -83,7 +83,6 @@ public static class BufferVisualManager
                 if (!IsZCouplersObject(renderer.transform) && (renderer.name.StartsWith("Buffer_") || renderer.name.Replace("_", "").ToLowerInvariant().Contains("bufferstem")))
                 {
                     renderer.enabled = visible;
-                    ForceRendererUpdate(renderer);
                     num++;
                 }
             }
@@ -111,7 +110,6 @@ public static class BufferVisualManager
                     || renderer.name.Replace("_", "").ToLowerInvariant().Contains("bufferstem")))
             {
                 renderer.enabled = visible;
-                ForceRendererUpdate(renderer);
                 int num = toggledVisuals;
                 toggledVisuals = num + 1;
             }
@@ -172,7 +170,6 @@ public static class BufferVisualManager
                                 if (component != null)
                                 {
                                     component.enabled = visible;
-                                    ForceRendererUpdate(component);
                                 }
                             }
                             Transform transform3 = root.transform.Find("[colliders]/LocoS282B_Body/LOD0/s282_tender_buffer_stems");
@@ -184,13 +181,11 @@ public static class BufferVisualManager
                                 if (component2 != null)
                                 {
                                     component2.enabled = visible;
-                                    ForceRendererUpdate(component2);
                                 }
                                 SkinnedMeshRenderer component3 = transform3.GetComponent<SkinnedMeshRenderer>();
                                 if (component3 != null)
                                 {
                                     component3.enabled = visible;
-                                    ForceRendererUpdate(component3);
                                 }
                                 MeshRenderer[] componentsInChildren = transform3.GetComponentsInChildren<MeshRenderer>();
                                 SkinnedMeshRenderer[] componentsInChildren2 = transform3.GetComponentsInChildren<SkinnedMeshRenderer>();
@@ -200,7 +195,6 @@ public static class BufferVisualManager
                                     if (childRenderer.transform != transform3)
                                     {
                                         childRenderer.enabled = visible;
-                                        ForceRendererUpdate(childRenderer);
                                     }
                                 }
                                 array2 = componentsInChildren2;
@@ -209,7 +203,6 @@ public static class BufferVisualManager
                                     if (childRenderer2.transform != transform3)
                                     {
                                         childRenderer2.enabled = visible;
-                                        ForceRendererUpdate(childRenderer2);
                                     }
                                 }
                             }
@@ -222,13 +215,11 @@ public static class BufferVisualManager
                             if (component4 != null)
                             {
                                 component4.enabled = visible;
-                                ForceRendererUpdate(component4);
                             }
                             SkinnedMeshRenderer component5 = transform4.GetComponent<SkinnedMeshRenderer>();
                             if (component5 != null)
                             {
                                 component5.enabled = visible;
-                                ForceRendererUpdate(component5);
                             }
                             MeshRenderer[] componentsInChildren3 = transform4.GetComponentsInChildren<MeshRenderer>();
                             SkinnedMeshRenderer[] componentsInChildren4 = transform4.GetComponentsInChildren<SkinnedMeshRenderer>();
@@ -238,7 +229,6 @@ public static class BufferVisualManager
                                 if (childRenderer3.transform != transform4)
                                 {
                                     childRenderer3.enabled = visible;
-                                    ForceRendererUpdate(childRenderer3);
                                 }
                             }
                             array2 = componentsInChildren4;
@@ -247,7 +237,6 @@ public static class BufferVisualManager
                                 if (childRenderer4.transform != transform4)
                                 {
                                     childRenderer4.enabled = visible;
-                                    ForceRendererUpdate(childRenderer4);
                                 }
                             }
                             break;
@@ -343,13 +332,11 @@ public static class BufferVisualManager
             if (component6 != null)
             {
                 component6.enabled = visible;
-                ForceRendererUpdate(component6);
             }
             SkinnedMeshRenderer component7 = transform.GetComponent<SkinnedMeshRenderer>();
             if (component7 != null)
             {
                 component7.enabled = visible;
-                ForceRendererUpdate(component7);
             }
             MeshRenderer[] componentsInChildren5 = transform.GetComponentsInChildren<MeshRenderer>();
             SkinnedMeshRenderer[] componentsInChildren6 = transform.GetComponentsInChildren<SkinnedMeshRenderer>();
@@ -359,7 +346,6 @@ public static class BufferVisualManager
                 if (childRenderer5.transform != transform)
                 {
                     childRenderer5.enabled = visible;
-                    ForceRendererUpdate(childRenderer5);
                 }
             }
             SkinnedMeshRenderer[] array2 = componentsInChildren6;
@@ -368,7 +354,6 @@ public static class BufferVisualManager
                 if (childRenderer6.transform != transform)
                 {
                     childRenderer6.enabled = visible;
-                    ForceRendererUpdate(childRenderer6);
                 }
             }
         }
@@ -415,7 +400,6 @@ public static class BufferVisualManager
                 if (!IsZCouplersObject(r.transform))
                 {
                     r.enabled = visible;
-                    ForceRendererUpdate(r);
                     count++;
                 }
             }
@@ -424,7 +408,6 @@ public static class BufferVisualManager
                 if (!IsZCouplersObject(r.transform))
                 {
                     r.enabled = visible;
-                    ForceRendererUpdate(r);
                     count++;
                 }
             }
@@ -463,27 +446,6 @@ public static class BufferVisualManager
 	    return false;
     }
 
-
-    private static void ForceRendererUpdate(Renderer renderer)
-    {
-        if (renderer == null)
-        {
-            return;
-        }
-        try
-        {
-            bool enabled = renderer.enabled;
-            renderer.enabled = false;
-            renderer.enabled = enabled;
-            renderer.transform.hasChanged = true;
-        }
-        catch (Exception ex)
-        {
-            Exception ex2 = ex;
-            Exception ex3 = ex2;
-            Main.ErrorLog(() => "Error in ForceRendererUpdate: " + ex3.Message);
-        }
-    }
 
     private static void ForceGlobalRenderingUpdate()
     {
