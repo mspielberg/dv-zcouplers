@@ -22,7 +22,7 @@ public static class UncouplePatch
     {
         // Wait a frame to allow any pending interaction events to complete
         yield return null;
-        
+
         // Update visual state
         KnuckleCouplers.UpdateCouplerVisualState(coupler, locked: false);
         Main.DebugLog(() => "Updated visual state for uncoupled coupler: " + coupler.train.ID + " " + coupler.Position());
@@ -91,6 +91,11 @@ public static class UncouplePatch
             return;
 
         var chain = coupler.visualCoupler.chainAdapter.chainScript;
+
+        // Check if the GameObject is active before starting the coroutine
+        if (!chain.gameObject.activeInHierarchy)
+            return;
+
         chain.StartCoroutine(GraceDisable());
 
         System.Collections.IEnumerator GraceDisable()
