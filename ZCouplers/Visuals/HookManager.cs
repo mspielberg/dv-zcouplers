@@ -19,8 +19,8 @@ namespace DvMod.ZCouplers
         private const float PivotLength = 1.0f;
         private const float HeightOffset = -0.067f;
 
-        public static InteractionInfoType KnuckleCouplerUnlock = (InteractionInfoType)23000;
-        public static InteractionInfoType KnuckleCouplerLock = (InteractionInfoType)23001;
+        public static InteractionInfoType KnuckleCouplerReady = (InteractionInfoType)23000;
+        public static InteractionInfoType KnuckleCouplerUnlocked = (InteractionInfoType)23001;
         public static InteractionInfoType KnuckleCouplerCoupled = (InteractionInfoType)23002;
 
         /// <summary>
@@ -865,7 +865,7 @@ namespace DvMod.ZCouplers
             }
             else
             {
-                infoArea.infoType = KnuckleCouplerState.IsUnlocked(coupler) ? KnuckleCouplerLock : KnuckleCouplerUnlock;
+                infoArea.infoType = KnuckleCouplerState.IsUnlocked(coupler) ? KnuckleCouplerUnlocked : KnuckleCouplerReady;
             }
             hook.SetActive(true); // Activate after initialization completes
 
@@ -1019,7 +1019,7 @@ namespace DvMod.ZCouplers
 		                    {
 			                    infoArea.infoType = KnuckleCouplerUnlock; // Scharfenberg is always unlocked
 		                    }
-                            infoArea.infoType = KnuckleCouplerLock; // "Press to ready coupler"
+		                    infoArea.infoType = KnuckleCouplerUnlocked; // "Press to ready coupler"
                             break;
 
                         case ChainCouplerInteraction.State.Attached_Tight:
@@ -1031,7 +1031,7 @@ namespace DvMod.ZCouplers
                         case ChainCouplerInteraction.State.Being_Dragged:
                         case ChainCouplerInteraction.State.Attached_Loose:
                             // These states = coupler is ready/locked but not coupled, can be unlocked
-                            infoArea.infoType = KnuckleCouplerUnlock; // "Press to unlock coupler"
+                            infoArea.infoType = KnuckleCouplerReady; // "Press to unlock coupler"
                             break;
                     }
                 }

@@ -821,7 +821,7 @@ namespace DvMod.ZCouplers
                     return;
 
                 var partner = coupler.coupledTo;
-                
+
                 // When a tension joint is successfully created, ensure both couplers have proper visual states
                 if (partner != null && coupler.IsCoupled() && partner.IsCoupled())
                 {
@@ -937,7 +937,7 @@ namespace DvMod.ZCouplers
                 }
 
                 // Ensure both coupler state machines are synchronized for external coupling
-                // During UI coupling, only one OnCoupled event may fire, so we need to ensure 
+                // During UI coupling, only one OnCoupled event may fire, so we need to ensure
                 // both couplers have their states properly updated
                 if (!e.viaChainInteraction)
                 {
@@ -990,9 +990,9 @@ namespace DvMod.ZCouplers
                         // 1. Either coupler is in Parked state while coupled (the main teleport bug)
                         // 2. Either coupler is in Dangling state while coupled
                         // 3. States don't match between the two couplers
-                        bool thisCouplerWrongState = thisCoupler.state == ChainCouplerInteraction.State.Parked || 
+                        bool thisCouplerWrongState = thisCoupler.state == ChainCouplerInteraction.State.Parked ||
                                                     thisCoupler.state == ChainCouplerInteraction.State.Dangling;
-                        bool otherCouplerWrongState = otherCoupler.state == ChainCouplerInteraction.State.Parked || 
+                        bool otherCouplerWrongState = otherCoupler.state == ChainCouplerInteraction.State.Parked ||
                                                      otherCoupler.state == ChainCouplerInteraction.State.Dangling;
                         bool statesMismatch = thisCoupler.state != otherCoupler.state;
 
@@ -1117,7 +1117,7 @@ namespace DvMod.ZCouplers
                         {
                             var currentPartnerState = partnerCoupler.state;
                             var expectedState = ChainCouplerInteraction.State.Attached_Tight;
-                            
+
                             // If partner has wrong state while coupled, fix it
                             if (currentPartnerState != expectedState)
                             {
@@ -1302,12 +1302,12 @@ namespace DvMod.ZCouplers
                     return true; // Let original method run when knuckle couplers are disabled
 
                 // When knuckle couplers are enabled, handle knuckle coupler-specific text
-                if (infoType == HookManager.KnuckleCouplerUnlock)
+                if (infoType == HookManager.KnuckleCouplerReady)
                 {
                     __result = $"Coupler is ready\nPress {InteractionText.Instance.BtnUse} to unlock coupler";
                     return false;
                 }
-                if (infoType == HookManager.KnuckleCouplerLock)
+                if (infoType == HookManager.KnuckleCouplerUnlocked)
                 {
                     __result = $"Coupler is unlocked\nPress {InteractionText.Instance.BtnUse} to ready coupler";
                     return false;
