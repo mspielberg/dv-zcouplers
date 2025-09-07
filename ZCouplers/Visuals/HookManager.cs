@@ -1014,10 +1014,12 @@ namespace DvMod.ZCouplers
                     switch (coupler.state)
                     {
 	                    case ChainCouplerInteraction.State.Parked:
-		                    // Parked = coupler is unlocked and ready to be made ready
-		                    if (Main.settings.couplerType == CouplerType.Scharfenberg)
+		                    // Parked = coupler is unlocked; user can press to ready it
+		                    // Unless we are using autoCouplingMode, in which case we always show the ready state
+		                    if (Main.settings.couplerType == CouplerType.Scharfenberg || Main.settings.autoCouplingMode)
 		                    {
-			                    infoArea.infoType = KnuckleCouplerUnlock; // Scharfenberg is always unlocked
+			                    infoArea.infoType = KnuckleCouplerReady;
+			                    break;
 		                    }
 		                    infoArea.infoType = KnuckleCouplerUnlocked; // "Press to ready coupler"
                             break;
