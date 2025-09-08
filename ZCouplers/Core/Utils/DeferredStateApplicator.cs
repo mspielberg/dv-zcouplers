@@ -81,31 +81,16 @@ namespace DvMod.ZCouplers
                             {
                                 CouplerStateManager.ApplyCouplerState(car.frontCoupler, frontLocked);
                                 CouplerStateManager.ApplyCouplerState(car.rearCoupler, rearLocked);
+                                if (car.frontCoupler != null)
+	                                HookManager.UpdateHookVisualStateFromCouplerState(car.frontCoupler);
+                                if (car.rearCoupler != null)
+	                                HookManager.UpdateHookVisualStateFromCouplerState(car.rearCoupler);
                             }
                             catch (System.Exception ex)
                             {
                                 Main.ErrorLog(() => $"Error applying coupler states for car {car.ID}: {ex.Message}");
                             }
                         }
-                    }
-
-                    foreach (var kvp in statesToApply)
-                    {
-	                    var car = kvp.Key;
-	                    if (car != null && car.gameObject != null)
-	                    {
-		                    try
-		                    {
-			                    if (car.frontCoupler != null)
-				                    HookManager.UpdateHookVisualStateFromCouplerState(car.frontCoupler);
-			                    if (car.rearCoupler != null)
-				                    HookManager.UpdateHookVisualStateFromCouplerState(car.rearCoupler);
-		                    }
-		                    catch (System.Exception ex)
-		                    {
-			                    Main.ErrorLog(() => $"Error refreshing coupler visuals for car {car.ID}: {ex.Message}");
-		                    }
-	                    }
                     }
 
                     // Synchronize all coupling pair states after individual applications
