@@ -977,7 +977,7 @@ namespace DvMod.ZCouplers
         /// Update hook visual state based on current coupler state.
         /// Uses immediate hook swapping for proper visual synchronization during loading.
         /// </summary>
-        public static void UpdateHookVisualStateFromCouplerState(Coupler coupler)
+        public static void UpdateHookVisualStateFromCouplerState(Coupler? coupler)
         {
             if (coupler?.visualCoupler?.chainAdapter?.chainScript == null)
                 return;
@@ -1000,7 +1000,7 @@ namespace DvMod.ZCouplers
             {
                 // Check if we need to swap the hook visual for couplers that support multiple states
                 var couplerType = Main.settings.couplerType;
-                if (couplerType == CouplerType.AARKnuckle || couplerType == CouplerType.SA3Knuckle || couplerType == CouplerType.Scharfenberg)
+                if (couplerType is CouplerType.AARKnuckle or CouplerType.SA3Knuckle or CouplerType.Scharfenberg)
                 {
                     SwapHookVisualImmediately(chainScript, coupler);
                 }
@@ -1014,14 +1014,15 @@ namespace DvMod.ZCouplers
                     switch (coupler.state)
                     {
 	                    case ChainCouplerInteraction.State.Parked:
-		                    // Parked = coupler is unlocked; user can press to ready it
-		                    // Unless we are using autoCouplingMode, in which case we always show the ready state
+		                    // Parked = coupler is unlocked, but for Scharfenberg or auto-coupling mode, show "ready"
 		                    if (Main.settings.couplerType == CouplerType.Scharfenberg || Main.settings.autoCouplingMode)
 		                    {
-			                    infoArea.infoType = KnuckleCouplerReady;
-			                    break;
+			                    infoArea.infoType = KnuckleCouplerReady; // "Coupler is ready"
 		                    }
-		                    infoArea.infoType = KnuckleCouplerUnlocked; // "Press to ready coupler"
+		                    else
+		                    {
+			                    infoArea.infoType = KnuckleCouplerUnlocked; // "Coupler is unlocked"
+		                    }
                             break;
 
                         case ChainCouplerInteraction.State.Attached_Tight:
@@ -1030,10 +1031,8 @@ namespace DvMod.ZCouplers
                             break;
 
                         case ChainCouplerInteraction.State.Dangling:
-                        case ChainCouplerInteraction.State.Being_Dragged:
-                        case ChainCouplerInteraction.State.Attached_Loose:
-                            // These states = coupler is ready/locked but not coupled, can be unlocked
-                            infoArea.infoType = KnuckleCouplerReady; // "Press to unlock coupler"
+                            // Dangling = coupler is ready but not coupled
+                            infoArea.infoType = KnuckleCouplerReady; // "Coupler is ready"
                             break;
                     }
                 }
@@ -1255,11 +1254,7 @@ namespace DvMod.ZCouplers
 
             if (trainCar != null)
             {
-                int created = EnsureKnuckleCouplersForTrain(trainCar, hookPrefab);
-                if (created > 0)
-                {
-                    // Removed routine spawning log
-                }
+                EnsureKnuckleCouplersForTrain(trainCar, hookPrefab);
             }
         }
     }
