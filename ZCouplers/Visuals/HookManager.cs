@@ -1186,6 +1186,7 @@ namespace DvMod.ZCouplers
                     KnuckleCouplerState.UnlockCoupler(coupler, viaChainInteraction: true);
                     break;
             }
+            UpdateHookVisualStateFromCouplerState(coupler);
         }
 
         /// Ensures a specific train car has knuckle couplers on both ends.
