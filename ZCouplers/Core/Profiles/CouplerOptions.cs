@@ -23,7 +23,7 @@ namespace DvMod.ZCouplers
         public Vector3 HookAdditionalOffset { get; set; } = Vector3.zero;
 
         /// Names used for instantiated hook children (used for lookups during swaps/updates).
-        public string HookClosedChildName { get; set; } = "hook";
+        public string HookClosedChildName { get; set; } = "hook_closed";
         public string HookOpenChildName { get; set; } = "hook_open";
 
         /// Whether this coupler has distinct open/closed prefabs.

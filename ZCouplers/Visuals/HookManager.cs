@@ -996,6 +996,13 @@ namespace DvMod.ZCouplers
             if (chainScript == null || coupler == null)
                 return;
 
+            // Get pivot and hook
+            var pivot = GetPivot(chainScript);
+            var options = CouplerProfiles.Current?.Options;
+            var hookOpen = pivot?.Find(options?.HookOpenChildName);
+            var hookClosed = pivot?.Find(options?.HookClosedChildName);
+            var hook = hookOpen ?? hookClosed;
+
             try
             {
                 // Check if we need to swap the hook visual for couplers that support multiple states
@@ -1006,8 +1013,6 @@ namespace DvMod.ZCouplers
                 }
 
                 // Determine the correct interaction text based on coupler state
-                var pivot = GetPivot(chainScript);
-                var hook = pivot?.Find("hook") ?? pivot?.Find("hook_open") ?? pivot?.Find("SA3_closed") ?? pivot?.Find("SA3_open") ?? pivot?.Find("Schaku_closed") ?? pivot?.Find("Schaku_open");
                 if (hook?.GetComponent<InfoArea>() is InfoArea infoArea)
                 {
                     // Base the text on the actual coupler state, not just the locked flag
@@ -1051,7 +1056,6 @@ namespace DvMod.ZCouplers
 
                             // Start with base position and apply profile offsets
                             var finalPosition = basePosition;
-                            var options = CouplerProfiles.Current?.Options;
                             if (options != null)
                                 finalPosition += new Vector3(options.HookLateralOffsetX, 0f, 0f) + options.HookAdditionalOffset;
 
@@ -1094,12 +1098,10 @@ namespace DvMod.ZCouplers
                 return;
             }
 
-            // Find hook by name - use profile names with fallbacks
+            // Find hook by name
             var options = CouplerProfiles.Current?.Options;
-            var openName = options?.HookOpenChildName ?? "hook_open";
-            var closedName = options?.HookClosedChildName ?? "hook";
-            var hookOpen = pivot.Find(openName) ?? pivot.Find("hook_open") ?? pivot.Find("SA3_open") ?? pivot.Find("Schaku_open");
-            var hookClosed = pivot.Find(closedName) ?? pivot.Find("hook") ?? pivot.Find("SA3_closed") ?? pivot.Find("Schaku_closed");
+            var hookOpen = pivot.Find(options?.HookOpenChildName);
+            var hookClosed = pivot.Find(options?.HookClosedChildName);
             var hook = hookOpen ?? hookClosed;
 
             if (hook == null)
@@ -1128,12 +1130,12 @@ namespace DvMod.ZCouplers
             {
                 // Prefetch the replacement prefab; if unavailable (e.g., assets not yet loaded), skip swapping
                 GameObject? newHookPrefab = null;
-                string desiredName = "";
+                string? desiredName = "";
                 var profile = CouplerProfiles.Current;
                 if (profile != null)
                 {
                     newHookPrefab = shouldUseOpenHook ? profile.GetOpenPrefab() : profile.GetClosedPrefab();
-                    desiredName = shouldUseOpenHook ? (options?.HookOpenChildName ?? "hook_open") : (options?.HookClosedChildName ?? "hook");
+                    desiredName = shouldUseOpenHook ? (options?.HookOpenChildName) : (options?.HookClosedChildName);
                 }
 
                 if (newHookPrefab == null || pivot == null)
@@ -1166,7 +1168,7 @@ namespace DvMod.ZCouplers
                 oldGo.SetActive(false);
 
                 // Create replacement immediately so visuals update this frame
-                CreateHookInstance(pivot, newHookPrefab, chainScript, coupler, desiredName);
+                if (desiredName != null) CreateHookInstance(pivot, newHookPrefab, chainScript, coupler, desiredName);
 
                 // Destroy old after this frame; safe vs. ButtonBase.Use stack
                 GameObject.Destroy(oldGo);
