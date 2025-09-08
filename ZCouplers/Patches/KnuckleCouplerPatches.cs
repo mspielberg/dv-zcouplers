@@ -309,31 +309,8 @@ namespace DvMod.ZCouplers
         /// </summary>
         private static void SynchronizeCouplerVisuals(Coupler coupler1, Coupler coupler2)
         {
-            if (coupler1?.visualCoupler?.chainAdapter?.chainScript == null ||
-                coupler2?.visualCoupler?.chainAdapter?.chainScript == null)
-                return;
-
-            var chainScript1 = coupler1.visualCoupler.chainAdapter.chainScript;
-            var chainScript2 = coupler2.visualCoupler.chainAdapter.chainScript;
-
-            // Force visual update for both couplers
             HookManager.UpdateHookVisualStateFromCouplerState(coupler1);
             HookManager.UpdateHookVisualStateFromCouplerState(coupler2);
-        }
-
-        /// <summary>
-        /// Synchronize visual states of both couplers when they become coupled.
-        /// Ensures both couplers show the correct visual state immediately after coupling.
-        /// </summary>
-        private static void SynchronizeCoupledVisualStates(Coupler thisCoupler, Coupler otherCoupler)
-        {
-            // Update both couplers' visual states
-            KnuckleCouplerState.UpdateCouplerVisualState(thisCoupler, locked: true);
-            KnuckleCouplerState.UpdateCouplerVisualState(otherCoupler, locked: true);
-
-            // Additional explicit visual synchronization
-            HookManager.UpdateHookVisualStateFromCouplerState(thisCoupler);
-            HookManager.UpdateHookVisualStateFromCouplerState(otherCoupler);
         }
 
         /// Patch to catch train cars when they're being set up, including teleported trains.
@@ -457,10 +434,6 @@ namespace DvMod.ZCouplers
                     }
 
                     // Force visual state update for both couplers
-                    KnuckleCouplerState.UpdateCouplerVisualState(coupler1, locked: true);
-                    KnuckleCouplerState.UpdateCouplerVisualState(coupler2, locked: true);
-
-                    // Additional explicit visual synchronization
                     HookManager.UpdateHookVisualStateFromCouplerState(coupler1);
                     HookManager.UpdateHookVisualStateFromCouplerState(coupler2);
                 }
@@ -527,31 +500,13 @@ namespace DvMod.ZCouplers
 
                 // Third pass with even longer delay: ensure visual states are synchronized
                 yield return new WaitForSeconds(1.0f);
-                EnsureVisualSynchronizationForCoupledCars(car);
-            }
-
-            /// <summary>
-            /// Final pass to ensure visual states are properly synchronized for coupled couplers.
-            /// This catches cases where the visual swapping didn't happen during earlier phases.
-            /// </summary>
-            private static void EnsureVisualSynchronizationForCoupledCars(TrainCar car)
-            {
-                if (car.frontCoupler != null && car.frontCoupler.IsCoupled())
+                var couplers = new[]
                 {
-                    var partner = car.frontCoupler.coupledTo;
-                    if (partner != null)
-                    {
-                        SynchronizeCouplerVisuals(car.frontCoupler, partner);
-                    }
-                }
-
-                if (car.rearCoupler != null && car.rearCoupler.IsCoupled())
+	                car.frontCoupler, car.frontCoupler?.coupledTo, car.rearCoupler, car.rearCoupler?.coupledTo
+                };
+                foreach (var coupler in couplers)
                 {
-                    var partner = car.rearCoupler.coupledTo;
-                    if (partner != null)
-                    {
-                        SynchronizeCouplerVisuals(car.rearCoupler, partner);
-                    }
+	                HookManager.UpdateHookVisualStateFromCouplerState(coupler);
                 }
             }
 
@@ -630,11 +585,7 @@ namespace DvMod.ZCouplers
                     Main.DebugLog(() => $"Fixed teleported train state: {partner.train.ID} {partner.Position()} set to Attached_Tight");
                 }
 
-                // Update visual states for both couplers - this is crucial for teleport fixes
-                KnuckleCouplerState.UpdateCouplerVisualState(coupler, locked: true);
-                KnuckleCouplerState.UpdateCouplerVisualState(partner, locked: true);
-
-                // Additional explicit visual synchronization to ensure both hooks get swapped
+                // Update visual states for both couplers
                 SynchronizeCouplerVisuals(coupler, partner);
             }
         }
@@ -765,10 +716,6 @@ namespace DvMod.ZCouplers
                     }
 
                     // Force visual state update for both couplers
-                    KnuckleCouplerState.UpdateCouplerVisualState(coupler1, locked: true);
-                    KnuckleCouplerState.UpdateCouplerVisualState(coupler2, locked: true);
-
-                    // Additional explicit visual synchronization
                     HookManager.UpdateHookVisualStateFromCouplerState(coupler1);
                     HookManager.UpdateHookVisualStateFromCouplerState(coupler2);
                 }
@@ -862,9 +809,6 @@ namespace DvMod.ZCouplers
                         }
 
                         // Force visual updates
-                        KnuckleCouplerState.UpdateCouplerVisualState(coupler1, locked: true);
-                        KnuckleCouplerState.UpdateCouplerVisualState(coupler2, locked: true);
-
                         HookManager.UpdateHookVisualStateFromCouplerState(coupler1);
                         HookManager.UpdateHookVisualStateFromCouplerState(coupler2);
                     }
@@ -902,7 +846,7 @@ namespace DvMod.ZCouplers
 
                 // Update knuckle coupler visual state to show coupled (locked) without triggering uncoupling
                 // Use explicit visual synchronization to ensure both couplers get updated
-                SynchronizeCoupledVisualStates(e.thisCoupler, e.otherCoupler);
+                SynchronizeCouplerVisuals(e.thisCoupler, e.otherCoupler);
 
                 // Directly update coupler states after coupling
                 var thisChainScript = e.thisCoupler.visualCoupler?.chain?.GetComponent<ChainCouplerInteraction>();
@@ -971,6 +915,9 @@ namespace DvMod.ZCouplers
 
                 // Force a state update check after a short delay to catch any missed state updates
                 __instance.StartCoroutine(DelayedStateUpdateCheck(e.thisCoupler, e.otherCoupler));
+
+                // Update visual states for both couplers
+                SynchronizeCouplerVisuals(e.thisCoupler, e.otherCoupler);
             }
 
             private static IEnumerator DelayedStateUpdateCheck(Coupler thisCoupler, Coupler otherCoupler)
@@ -1029,8 +976,8 @@ namespace DvMod.ZCouplers
                             }
 
                             // Also ensure visual states are consistent (both should be locked/ready now)
-                            KnuckleCouplerState.UpdateCouplerVisualState(thisCoupler, locked: true);
-                            KnuckleCouplerState.UpdateCouplerVisualState(otherCoupler, locked: true);
+                            HookManager.UpdateHookVisualStateFromCouplerState(thisCoupler);
+                            HookManager.UpdateHookVisualStateFromCouplerState(otherCoupler);
 
                             // If this was the final attempt, do a more aggressive sync
                             if (attempt == 2)

@@ -40,6 +40,8 @@ namespace DvMod.ZCouplers
                 {
                     coupler.state = newState;
                     Main.DebugLog(() => $"Set coupled state: {coupler.train.ID} {coupler.Position()} -> {newState}");
+                    // Reflect state change in visuals
+                    HookManager.UpdateHookVisualStateFromCouplerState(coupler);
                 }
 
                 // Force create tension joint to ensure proper physics connection
@@ -64,6 +66,8 @@ namespace DvMod.ZCouplers
                 {
                     coupler.state = newState;
                     Main.DebugLog(() => $"Set uncoupled state: {coupler.train.ID} {coupler.Position()} -> {newState}");
+                    // Reflect state change in visuals
+                    HookManager.UpdateHookVisualStateFromCouplerState(coupler);
                 }
 
                 // Force trigger DetermineNextState to ensure state machine is updated correctly
@@ -104,8 +108,6 @@ namespace DvMod.ZCouplers
                         processedCouplers.Add(car.rearCoupler.coupledTo);
                 }
             }
-
-            // Removed verbose synchronization summary log
         }
 
         /// <summary>
@@ -123,11 +125,13 @@ namespace DvMod.ZCouplers
             if (!thisLocked)
             {
                 KnuckleCouplers.SetCouplerLocked(coupler, true);
+                HookManager.UpdateHookVisualStateFromCouplerState(coupler);
                 Main.DebugLog(() => $"Forced {coupler.train.ID} {coupler.Position()} to ready state during sync");
             }
             if (!partnerLocked)
             {
                 KnuckleCouplers.SetCouplerLocked(coupler.coupledTo, true);
+                HookManager.UpdateHookVisualStateFromCouplerState(coupler.coupledTo);
                 Main.DebugLog(() => $"Forced {coupler.coupledTo.train.ID} {coupler.coupledTo.Position()} to ready state during sync");
             }
 
@@ -143,6 +147,8 @@ namespace DvMod.ZCouplers
                 changed = true;
                 // Only log when debug logging is explicitly enabled
                 Main.DebugLog(() => $"Synchronized {coupler.train.ID} {coupler.Position()} to {desiredState}");
+                // Reflect state change in visuals
+                HookManager.UpdateHookVisualStateFromCouplerState(coupler);
             }
 
             if (coupler.coupledTo.IsCoupled() && coupler.coupledTo.state != desiredState)
@@ -151,6 +157,8 @@ namespace DvMod.ZCouplers
                 changed = true;
                 // Only log when debug logging is explicitly enabled
                 Main.DebugLog(() => $"Synchronized {coupler.coupledTo.train.ID} {coupler.coupledTo.Position()} to {desiredState}");
+                // Reflect state change in visuals
+                HookManager.UpdateHookVisualStateFromCouplerState(coupler.coupledTo);
             }
 
             return changed;
@@ -190,8 +198,6 @@ namespace DvMod.ZCouplers
                         }
                     }
                 }
-
-                // Removed verbose validation summary log
             }
         }
 
@@ -204,11 +210,7 @@ namespace DvMod.ZCouplers
                 return;
 
             // Check if tension joint already exists
-            if (Couplers.HasTensionJoint(coupler))
-            {
-                // Removed verbose tension joint exists log
-                return;
-            }
+            if (Couplers.HasTensionJoint(coupler)) return;
 
             // Create tension joint using the Couplers system
             Main.DebugLog(() => $"Creating missing tension joint for {coupler.train.ID} {coupler.Position()} -> {coupler.coupledTo.train.ID} {coupler.coupledTo.Position()}");
@@ -242,6 +244,8 @@ namespace DvMod.ZCouplers
                     // Update the coupler state to match the determined state
                     coupler.state = newState;
                     Main.DebugLog(() => $"Triggered state update for {coupler.train.ID} {coupler.Position()}: -> {newState}");
+                    // Reflect state change in visuals
+                    HookManager.UpdateHookVisualStateFromCouplerState(coupler);
                 }
             }
             catch (System.Exception ex)

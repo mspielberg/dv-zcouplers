@@ -34,57 +34,12 @@ namespace DvMod.ZCouplers
                         break;
                     }
                 }
-
-                // If we can't find any specific GameObject, create our own
-                if (host == null)
-                {
-                    host = new GameObject("ZCouplers_DeferredApplier");
-                    UnityEngine.Object.DontDestroyOnLoad(host);
-                    Main.DebugLog(() => "Created host GameObject for deferred application");
-                }
-
                 if (host != null)
                 {
                     var deferredApplier = host.AddComponent<DeferredCouplerApplier>();
                     deferredApplier.Initialize(statesToApply);
                 }
-                else
-                {
-                    Main.DebugLog(() => "No host for deferred application; applying immediately");
-                    // Fallback: apply immediately if we can't create a host
-                    ApplyStatesImmediately(statesToApply);
-                }
             }
-        }
-
-        /// <summary>
-        /// Apply coupler states immediately as a fallback
-        /// </summary>
-        private static void ApplyStatesImmediately(Dictionary<TrainCar, (bool frontLocked, bool rearLocked)> statesToApply)
-        {
-            Main.DebugLog(() => "Applying coupler states immediately (fallback)");
-
-            foreach (var kvp in statesToApply)
-            {
-                var car = kvp.Key;
-                var (frontLocked, rearLocked) = kvp.Value;
-
-                if (car != null && car.gameObject != null)
-                {
-                    try
-                    {
-                        CouplerStateManager.ApplyCouplerState(car.frontCoupler, frontLocked);
-                        CouplerStateManager.ApplyCouplerState(car.rearCoupler, rearLocked);
-                        // Removed verbose state application log
-                    }
-                    catch (System.Exception ex)
-                    {
-                        Main.ErrorLog(() => $"Error applying coupler states for car {car.ID}: {ex.Message}");
-                    }
-                }
-            }
-
-            // Removed verbose completion log
         }
 
         /// <summary>
@@ -126,14 +81,31 @@ namespace DvMod.ZCouplers
                             {
                                 CouplerStateManager.ApplyCouplerState(car.frontCoupler, frontLocked);
                                 CouplerStateManager.ApplyCouplerState(car.rearCoupler, rearLocked);
-
-                                // Removed verbose state application log
                             }
                             catch (System.Exception ex)
                             {
                                 Main.ErrorLog(() => $"Error applying coupler states for car {car.ID}: {ex.Message}");
                             }
                         }
+                    }
+
+                    foreach (var kvp in statesToApply)
+                    {
+	                    var car = kvp.Key;
+	                    if (car != null && car.gameObject != null)
+	                    {
+		                    try
+		                    {
+			                    if (car.frontCoupler != null)
+				                    HookManager.UpdateHookVisualStateFromCouplerState(car.frontCoupler);
+			                    if (car.rearCoupler != null)
+				                    HookManager.UpdateHookVisualStateFromCouplerState(car.rearCoupler);
+		                    }
+		                    catch (System.Exception ex)
+		                    {
+			                    Main.ErrorLog(() => $"Error refreshing coupler visuals for car {car.ID}: {ex.Message}");
+		                    }
+	                    }
                     }
 
                     // Synchronize all coupling pair states after individual applications
@@ -175,9 +147,6 @@ namespace DvMod.ZCouplers
                     yield return new WaitForSeconds(0.5f);
                     SynchronizeAllCouplerVisualStates();
                 }
-
-                // Removed verbose completion log
-
                 // Self-destruct after completion
                 Destroy(this);
             }
@@ -193,7 +162,6 @@ namespace DvMod.ZCouplers
                     if (CarSpawner.Instance?.allCars == null)
                         return;
 
-                    int synchronizedPairs = 0;
                     var processedCouplers = new HashSet<Coupler>();
 
                     foreach (var car in CarSpawner.Instance.allCars)
@@ -206,10 +174,9 @@ namespace DvMod.ZCouplers
                             var partner = car.frontCoupler.coupledTo;
                             if (partner != null && !processedCouplers.Contains(partner))
                             {
-                                SynchronizeCouplerPairVisuals(car.frontCoupler, partner);
+                                SynchronizeCoupledPairVisuals(car.frontCoupler, partner);
                                 processedCouplers.Add(car.frontCoupler);
                                 processedCouplers.Add(partner);
-                                synchronizedPairs++;
                             }
                         }
 
@@ -219,10 +186,9 @@ namespace DvMod.ZCouplers
                             var partner = car.rearCoupler.coupledTo;
                             if (partner != null && !processedCouplers.Contains(partner))
                             {
-                                SynchronizeCouplerPairVisuals(car.rearCoupler, partner);
+                                SynchronizeCoupledPairVisuals(car.rearCoupler, partner);
                                 processedCouplers.Add(car.rearCoupler);
                                 processedCouplers.Add(partner);
-                                synchronizedPairs++;
                             }
                         }
                     }
@@ -236,35 +202,15 @@ namespace DvMod.ZCouplers
             /// <summary>
             /// Synchronize the visual states of a specific coupler pair.
             /// </summary>
-            private void SynchronizeCouplerPairVisuals(Coupler coupler1, Coupler coupler2)
+            private static void SynchronizeCoupledPairVisuals(Coupler coupler1, Coupler coupler2)
             {
                 try
                 {
                     // Ensure both couplers are in the correct state (should be Attached_Tight when coupled)
-                    if (coupler1.state != ChainCouplerInteraction.State.Attached_Tight)
-                    {
-                        coupler1.state = ChainCouplerInteraction.State.Attached_Tight;
-                    }
-                    if (coupler2.state != ChainCouplerInteraction.State.Attached_Tight)
-                    {
-                        coupler2.state = ChainCouplerInteraction.State.Attached_Tight;
-                    }
+                    coupler1.state = ChainCouplerInteraction.State.Attached_Tight;
+                    coupler2.state = ChainCouplerInteraction.State.Attached_Tight;
 
-                    // Ensure both couplers are ready/locked (knuckle couplers should be ready when coupled)
-                    if (!KnuckleCouplers.IsReadyToCouple(coupler1))
-                    {
-                        KnuckleCouplers.SetCouplerLocked(coupler1, true);
-                    }
-                    if (!KnuckleCouplers.IsReadyToCouple(coupler2))
-                    {
-                        KnuckleCouplers.SetCouplerLocked(coupler2, true);
-                    }
-
-                    // Force visual state update for both couplers
-                    KnuckleCouplerState.UpdateCouplerVisualState(coupler1, locked: true);
-                    KnuckleCouplerState.UpdateCouplerVisualState(coupler2, locked: true);
-
-                    // Additional explicit visual synchronization
+                    // Visual update
                     HookManager.UpdateHookVisualStateFromCouplerState(coupler1);
                     HookManager.UpdateHookVisualStateFromCouplerState(coupler2);
                 }

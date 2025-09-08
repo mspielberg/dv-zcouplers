@@ -426,6 +426,9 @@ namespace DvMod.ZCouplers
                                 // Set both to Dangling state first (ready but uncoupled)
                                 coupler.state = ChainCouplerInteraction.State.Dangling;
                                 otherCoupler.state = ChainCouplerInteraction.State.Dangling;
+                                // Reflect state changes in visuals immediately
+                                HookManager.UpdateHookVisualStateFromCouplerState(coupler);
+                                HookManager.UpdateHookVisualStateFromCouplerState(otherCoupler);
 
                                 TryCouple(coupler);
 

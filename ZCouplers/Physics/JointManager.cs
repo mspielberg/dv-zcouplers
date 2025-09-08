@@ -263,13 +263,13 @@ namespace DvMod.ZCouplers
                     if (aWasDangling)
                     {
                         a.state = ChainCouplerInteraction.State.Attached_Tight;
-                        // Removed verbose state update log
+                        HookManager.UpdateHookVisualStateFromCouplerState(a);
                     }
 
                     if (bWasDangling)
                     {
                         b.state = ChainCouplerInteraction.State.Attached_Tight;
-                        // Removed verbose state update log
+                        HookManager.UpdateHookVisualStateFromCouplerState(b);
                     }
                 }
             }

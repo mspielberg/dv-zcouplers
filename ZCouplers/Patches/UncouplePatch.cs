@@ -24,7 +24,7 @@ public static class UncouplePatch
         yield return null;
 
         // Update visual state
-        KnuckleCouplers.UpdateCouplerVisualState(coupler, locked: false);
+        HookManager.UpdateHookVisualStateFromCouplerState(coupler);
         Main.DebugLog(() => "Updated visual state for uncoupled coupler: " + coupler.train.ID + " " + coupler.Position());
     }
 
