@@ -1158,8 +1158,20 @@ namespace DvMod.ZCouplers
                 }
 
                 // Remove old hook and create replacement immediately
-                GameObject.DestroyImmediate(hook.gameObject);
+                // Don't destroy the currently-used Button GameObject inside its Use() call.
+                // Rename and deactivate it to hide and avoid name collisions, create the new hook now,
+                // and destroy the old one deferred (end of frame) to prevent NREs.
+                var oldGo = hook.gameObject;
+                oldGo.name = oldGo.name + "__old";
+                oldGo.SetActive(false);
+
+                // Create replacement immediately so visuals update this frame
                 CreateHookInstance(pivot, newHookPrefab, chainScript, coupler, desiredName);
+
+                // Destroy old after this frame; safe vs. ButtonBase.Use stack
+                GameObject.Destroy(oldGo);
+
+                UpdateHookVisualStateFromCouplerState(coupler);
             }
         }
 
