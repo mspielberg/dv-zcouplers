@@ -184,27 +184,27 @@ public static class UncouplePatch
                 }
                 coros.Remove(partnerCoupler);
             }
-        // Update visual state for partner coupler too - defer to avoid NRE
-        if (partnerCoupler.visualCoupler?.chainAdapter?.chainScript != null)
-        {
-            partnerCoupler.visualCoupler.chainAdapter.chainScript.StartCoroutine(DelayedVisualStateUpdate(partnerCoupler));
-        }
             if (!partnerCoupler.IsCoupled())
             {
                 partnerCoupler.state = ChainCouplerInteraction.State.Parked;
                 Main.DebugLog(() => "Reset partner coupler state to Parked: " + partnerCoupler.train.ID + " " + partnerCoupler.Position());
             }
+            // Update visual state for partner coupler too - defer to avoid NRE
+            if (partnerCoupler.visualCoupler?.chainAdapter?.chainScript != null)
+            {
+	            partnerCoupler.visualCoupler.chainAdapter.chainScript.StartCoroutine(DelayedVisualStateUpdate(partnerCoupler));
+            }
             partnerCouplers.Remove(__instance);
-        }
-        // Update visual state with deferred approach to avoid NRE during button-triggered uncoupling
-        if (__instance.visualCoupler?.chainAdapter?.chainScript != null)
-        {
-            __instance.visualCoupler.chainAdapter.chainScript.StartCoroutine(DelayedVisualStateUpdate(__instance));
         }
         if (!__instance.IsCoupled())
         {
             __instance.state = ChainCouplerInteraction.State.Parked;
             Main.DebugLog(() => "Reset coupler state to Parked: " + __instance.train.ID + " " + __instance.Position());
+        }
+        // Update visual state with deferred approach to avoid NRE during button-triggered uncoupling
+        if (__instance.visualCoupler?.chainAdapter?.chainScript != null)
+        {
+	        __instance.visualCoupler.chainAdapter.chainScript.StartCoroutine(DelayedVisualStateUpdate(__instance));
         }
     }
 }
