@@ -269,16 +269,10 @@ namespace DvMod.ZCouplers
             {
                 ClearAirHoseCache();
                 Main.DebugLog(() => "Cleared air hose cache for scene load " + scene.name);
+                BufferVisualManager.ToggleBuffers(Main.settings.showBuffersWithKnuckles);
+                if (CouplerProfiles.Current?.Options.AlwaysHideAirHoses == true)
+	                UnityEngine.Object.FindObjectOfType<CarSpawner>()?.StartCoroutine(DelayedAirHoseDeactivation());
             }
-            else
-            {
-	            Main.DebugLog(() => $"Not clearing air hose cache for scene load {scene.name} with mode {mode}");
-            }
-
-            BufferVisualManager.ToggleBuffers(Main.settings.showBuffersWithKnuckles);
-
-            if (CouplerProfiles.Current?.Options.AlwaysHideAirHoses == true)
-                UnityEngine.Object.FindObjectOfType<CarSpawner>()?.StartCoroutine(DelayedAirHoseDeactivation());
         }
 
     }
