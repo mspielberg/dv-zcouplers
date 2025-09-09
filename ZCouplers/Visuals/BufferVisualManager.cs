@@ -13,6 +13,8 @@ namespace DvMod.ZCouplers;
 public static class BufferVisualManager
 {
     private static bool? _lastVisibilityState = null;
+    // Exposed (internal) read helper so helper components can query current state
+    internal static bool BuffersCurrentlyVisible => _lastVisibilityState ?? true;
 
     public static void ToggleBuffers(bool visible)
     {
@@ -43,7 +45,6 @@ public static class BufferVisualManager
             {
                 ToggleBuffers(allCar.gameObject, allCar.carLivery, visible);
             }
-            //ForceGlobalRenderingUpdate();
         }
     }
 
@@ -92,8 +93,9 @@ public static class BufferVisualManager
             }
         }
         ToggleSpecialLocoBufferStems(root, livery, visible);
-    // CCL: additionally support markers named "[BufferStems]" anywhere under the car hierarchy
-    ToggleCCLBufferStemsByMarker(root, livery, visible);
+		// CCL: additionally support markers named "[BufferStems]" anywhere under the car hierarchy
+		ToggleCCLBufferStemsByMarker(root, livery, visible);
+		ToggleDamageBufferStems(root, livery, visible);
     }
 
     private static void ToggleBufferVisuals(Transform buffers, TrainCarLivery livery, bool visible)
@@ -447,22 +449,58 @@ public static class BufferVisualManager
     }
 
 
-    private static void ForceGlobalRenderingUpdate()
+    // Disable anything named like "*BufferStems_damage*" under a "{car}Exploded" variant in the given wagon root
+    /// <summary>
+    /// Toggle damage buffer stems (nodes containing "BufferStems_damage") for a given car root.
+    /// Made internal so explosion patches can refresh visuals right after an explosion model swap.
+    /// </summary>
+    internal static void ToggleDamageBufferStems(GameObject root, TrainCarLivery livery, bool visible)
     {
-        try
-        {
-            SceneManager.GetActiveScene();
-            Camera main = Camera.main;
-            if (main != null)
-            {
-                main.Render();
-            }
-        }
-        catch (Exception ex)
-        {
-            Exception ex2 = ex;
-            Exception ex3 = ex2;
-            Main.ErrorLog(() => "Error in ForceGlobalRenderingUpdate: " + ex3.Message);
-        }
+	    try
+	    {
+		    var all = root.GetComponentsInChildren<Transform>(includeInactive: true);
+		    if (all == null || all.Length == 0)
+			    return;
+
+		    // First try to find exploded variants under the livery structure
+		    Transform liveryTransform = root.transform.Find(livery.id);
+		    Transform[] searchRoots;
+
+		    if (liveryTransform != null)
+		    {
+			    // Search within the livery hierarchy
+			    searchRoots = liveryTransform.GetComponentsInChildren<Transform>(includeInactive: true);
+		    }
+		    else
+		    {
+			    // Fallback to searching the entire car hierarchy
+			    searchRoots = all;
+		    }
+
+		    foreach (var searchRoot in searchRoots)
+		    {
+			    if (searchRoot == null) continue;
+			    var subtree = searchRoot.GetComponentsInChildren<Transform>(includeInactive: true);
+			    var targets = subtree.Where(t => t != null && NameContains(t.name, "BufferStems_damage"));
+			    foreach (var target in targets)
+			    {
+				    var r = target.GetComponent<MeshRenderer>();
+				    if (r != null)
+					    r.enabled = visible;
+				    var s = target.GetComponent<SkinnedMeshRenderer>();
+				    if (s != null)
+					    s.enabled = visible;
+			    }
+		    }
+	    }
+	    catch (Exception ex)
+	    {
+		    Main.ErrorLog(() => "Error in ToggleDamageBufferStems: " + ex.Message);
+	    }
+    }
+
+    private static bool NameContains(string name, string needle)
+    {
+	    return name.IndexOf(needle, StringComparison.OrdinalIgnoreCase) >= 0;
     }
 }
