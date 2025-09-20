@@ -90,47 +90,6 @@ namespace DvMod.ZCouplers
         }
 
         /// <summary>
-        /// Separate cars after uncoupling with temporary scanner disable.
-        /// </summary>
-        public static void SeparateCarsAfterUncoupling(Coupler coupler1, Coupler coupler2)
-        {
-            if (coupler1?.train?.gameObject == null || coupler2?.train?.gameObject == null)
-                return;
-
-            try
-            {
-                // Temporarily disable coupling scanners to prevent immediate recoupling
-                var scanner1 = GetScanner(coupler1);
-                var scanner2 = GetScanner(coupler2);
-
-                if (scanner1 != null)
-                {
-                    scanner1.enabled = false;
-                    scanner1.StartCoroutine(ReEnableScanner(scanner1, coupler1.train.ID, 0.2f));
-                }
-                if (scanner2 != null)
-                {
-                    scanner2.enabled = false;
-                    scanner2.StartCoroutine(ReEnableScanner(scanner2, coupler2.train.ID, 0.2f));
-                }
-            }
-            catch (System.Exception ex)
-            {
-                Main.ErrorLog(() => $"Error in uncoupling cleanup: {ex.Message}");
-            }
-        }
-
-        private static IEnumerator ReEnableScanner(CouplingScanner scanner, string trainId, float delay)
-        {
-            yield return new WaitForSeconds(delay);
-
-            if (scanner != null)
-            {
-                scanner.enabled = true;
-            }
-        }
-
-        /// <summary>
         /// Patches for coupling scanner behavior.
         /// </summary>
         [HarmonyPatch(typeof(Coupler), nameof(Coupler.AutoCouple))]
@@ -259,6 +218,12 @@ namespace DvMod.ZCouplers
                 var otherCoupler = coupler.GetFirstCouplerInRange();
                 if (otherCoupler == null || otherCoupler.train.derailed)
                     return;
+
+                // Check distance-based recoupling prevention
+                if (!RecouplingPrevention.CanRecouple(coupler, otherCoupler))
+                {
+                    return; // Blocked due to insufficient separation since last uncoupling
+                }
 
                 // In auto coupling mode, automatically ready both couplers if they're not already
                 if (Main.settings.autoCouplingMode)

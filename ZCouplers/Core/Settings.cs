@@ -17,6 +17,8 @@ namespace DvMod.ZCouplers
         public float drawgearDamperRate = 100f;
         [Draw("Auto couple threshold (mm)", Min = 0f)]
         public float autoCoupleThreshold = 20f;
+        [Draw("Minimum separation distance (m)", Min = 0.1f, Tooltip = "Minimum distance couplers must separate before they can recouple again")]
+        public float minimumSeparationDistance = 1.0f;
 
         [Draw("Auto Air & MU Mode", Tooltip = "Automatically connect air hoses, open brake valves, and connect MU cables when coupling. Enforced by Scharfenberg couplers.")]
         public bool autoAirAndMuMode = false;

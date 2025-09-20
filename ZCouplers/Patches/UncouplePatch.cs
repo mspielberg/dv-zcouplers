@@ -76,7 +76,8 @@ public static class UncouplePatch
         if (__instance.coupledTo != null)
         {
             CouplingScannerPatches.RestartCouplingScanner(__instance.coupledTo);
-            CouplingScannerPatches.SeparateCarsAfterUncoupling(__instance, __instance.coupledTo);
+            // Record uncoupling for distance-based recoupling prevention
+            RecouplingPrevention.RecordUncoupling(__instance, __instance.coupledTo);
         }
         Main.DebugLog(() => "Completed uncoupling cleanup for " + __instance.train.ID);
     }

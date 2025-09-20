@@ -32,5 +32,9 @@ public static class UncoupleSelfPatch
         JointManager.DestroyTensionJoint(__instance.rearCoupler);
         CouplingScannerPatches.KillCouplingScanner(__instance.frontCoupler);
         CouplingScannerPatches.KillCouplingScanner(__instance.rearCoupler);
+        
+        // Clear any recoupling prevention records for this car's couplers
+        RecouplingPrevention.CleanupOldRecords(__instance.frontCoupler);
+        RecouplingPrevention.CleanupOldRecords(__instance.rearCoupler);
     }
 }
