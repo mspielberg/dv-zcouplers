@@ -493,5 +493,43 @@ namespace DvMod.ZCouplers
                 lastJointCreationTime[coupler.coupledTo] = currentTime;
         }
 
+        /// <summary>
+        /// Clean up all joints and clear all tracking dictionaries.
+        /// Called during mod unload.
+        /// </summary>
+        public static void Cleanup()
+        {
+            // Destroy all tension joints
+            var tensionJointsToDestroy = new List<ConfigurableJoint>();
+            foreach (var joint in customTensionJoints.Values)
+            {
+                if (joint != null)
+                    tensionJointsToDestroy.Add(joint);
+            }
+            foreach (var joint in tensionJointsToDestroy)
+            {
+                if (joint != null)
+                    UnityEngine.Object.Destroy(joint);
+            }
+
+            // Destroy all compression/buffer joints
+            var bufferJointsToDestroy = new List<ConfigurableJoint>();
+            foreach (var (_, joint) in bufferJoints.Values)
+            {
+                if (joint != null)
+                    bufferJointsToDestroy.Add(joint);
+            }
+            foreach (var joint in bufferJointsToDestroy)
+            {
+                if (joint != null)
+                    UnityEngine.Object.Destroy(joint);
+            }
+
+            // Clear all tracking dictionaries
+            customTensionJoints.Clear();
+            lastJointCreationTime.Clear();
+            bufferJoints.Clear();
+        }
+
     }
 }

@@ -16,6 +16,17 @@ public static class UncouplePatch
     private static readonly Dictionary<Coupler, Coupler> partnerCouplers = new Dictionary<Coupler, Coupler>();
 
     /// <summary>
+    /// Clean up all tracking dictionaries.
+    /// Called during mod unload.
+    /// </summary>
+    public static void Cleanup()
+    {
+        compressionJoints.Clear();
+        coros.Clear();
+        partnerCouplers.Clear();
+    }
+
+    /// <summary>
     /// Delayed visual state update to avoid NRE during button interaction processing
     /// </summary>
     private static System.Collections.IEnumerator DelayedVisualStateUpdate(Coupler coupler)

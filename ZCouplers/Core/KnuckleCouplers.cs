@@ -210,9 +210,24 @@ namespace DvMod.ZCouplers
         }
 
         /// <summary>
-        /// Recursively find a transform by name.
+        /// Clean up and shutdown all systems.
+        /// Called during mod unload.
         /// </summary>
-    // No longer used: deterministic interior/hoses-only
+        public static void Cleanup()
+        {
+            // Unsubscribe from scene events
+            if (sceneLoadHooked)
+            {
+                SceneManager.sceneLoaded -= OnSceneLoaded;
+                sceneLoadHooked = false;
+            }
+
+            // Clear air hose cache
+            deactivatedAirHoses.Clear();
+
+            // Reset instance
+            Instance = null;
+        }
 
         // Called from Main.Load()
         public static void Initialize()

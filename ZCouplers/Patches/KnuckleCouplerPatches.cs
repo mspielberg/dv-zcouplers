@@ -21,6 +21,15 @@ namespace DvMod.ZCouplers
     {
         private static readonly HashSet<string> synchronizedCouplings = new HashSet<string>();
 
+        /// <summary>
+        /// Clean up tracking data.
+        /// Called during mod unload.
+        /// </summary>
+        public static void Cleanup()
+        {
+            synchronizedCouplings.Clear();
+        }
+
         [HarmonyPatch(typeof(ChainCouplerInteraction), nameof(ChainCouplerInteraction.Entry_Enabled))]
         public static class Entry_EnabledPatch
         {

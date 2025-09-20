@@ -24,6 +24,23 @@ namespace DvMod.ZCouplers
         public static InteractionInfoType KnuckleCouplerCoupled = (InteractionInfoType)23002;
 
         /// <summary>
+        /// Clean up all hook pivots and clear tracking dictionary.
+        /// Called during mod unload.
+        /// </summary>
+        public static void Cleanup()
+        {
+            // Destroy all hook pivots
+            foreach (var pivot in pivots.Values)
+            {
+                if (pivot != null)
+                    UnityEngine.Object.Destroy(pivot.gameObject);
+            }
+            
+            // Clear tracking dictionary
+            pivots.Clear();
+        }
+
+        /// <summary>
         /// Check if the given coupler is the front coupler of a LocoS282A (LocoSteamHeavy).
         /// </summary>
         private static bool IsFrontCouplerOnLocoS282A(Coupler coupler)

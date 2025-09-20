@@ -290,5 +290,21 @@ namespace DvMod.ZCouplers
                 return null;
             }
         }
+
+        /// <summary>
+        /// Clean up all asset references.
+        /// Called during mod unload.
+        /// </summary>
+        public static void Cleanup()
+        {
+            aarClosedPrefab = null;
+            aarOpenPrefab = null;
+            aarSocketPrefab = null;
+            sa3ClosedPrefab = null;
+            sa3OpenPrefab = null;
+            sa3SocketPrefab = null;
+            schakuClosedPrefab = null;
+            schakuOpenPrefab = null;
+        }
     }
 }
