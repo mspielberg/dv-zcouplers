@@ -607,6 +607,9 @@ namespace DvMod.ZCouplers
                 // Delay the check to ensure the train car is fully set up
                 __result.StartCoroutine(HookManager.DelayedSpawnKnuckleCouplerCheck(__result, KnuckleCouplers.GetHookPrefab()));
 
+                // Apply buffer collider management for newly spawned car
+                __result.StartCoroutine(DelayedBufferColliderForCar(__result));
+
                 // If using Scharfenberg couplers, also deactivate air hoses on the newly spawned car
                 if (Main.settings.couplerType == CouplerType.Scharfenberg)
                 {
@@ -761,13 +764,31 @@ namespace DvMod.ZCouplers
                 }
             }
 
-                if (trainCar.rearCoupler != null)
+            /// <summary>
+            /// Coroutine to apply buffer collider management for a newly spawned car.
+            /// </summary>
+            private static System.Collections.IEnumerator DelayedBufferColliderForCar(TrainCar trainCar)
+            {
+                // Wait longer for the car and its interior to be fully initialized
+                yield return new UnityEngine.WaitForSeconds(2.0f);
+                
+                // Additional wait for physics frames
+                for (int i = 0; i < 10; i++)
                 {
-                    KnuckleCouplers.DeactivateAirHoseForCoupler(trainCar.rearCoupler);
-                    deactivatedCouplers++;
+                    yield return new UnityEngine.WaitForFixedUpdate();
                 }
 
-                Main.DebugLog(() => $"Deactivated air hoses on newly spawned car {trainCar.ID} ({deactivatedCouplers} couplers)");
+                if (trainCar == null)
+                    yield break;
+
+                try
+                {
+                    BufferVisualManager.ApplyBufferCollidersForCar(trainCar);
+                }
+                catch (System.Exception ex)
+                {
+                    Main.ErrorLog(() => $"Error applying buffer colliders for car {trainCar.ID}: {ex.Message}");
+                }
             }
         }
 

@@ -228,6 +228,8 @@ namespace DvMod.ZCouplers
             // Also re-apply shortly after load to catch already spawned cars - use ForceRefresh here
             UnityEngine.Object.FindObjectOfType<CarSpawner>()?.StartCoroutine(DelayedBufferVisualUpdate());
 
+            // Apply buffer colliders after cars are loaded
+            UnityEngine.Object.FindObjectOfType<CarSpawner>()?.StartCoroutine(DelayedBufferColliderUpdate());
             // Ensure we re-apply on future scene loads (e.g., entering game)
             if (!sceneLoadHooked)
             {
@@ -259,6 +261,21 @@ namespace DvMod.ZCouplers
             BufferVisualManager.ForceRefreshBuffers(Main.settings.showBuffersWithKnuckles);
         }
 
+        /// <summary>
+        /// Delay to ensure cars and interior objects are fully loaded before applying buffer collider management.
+        /// </summary>
+        private static System.Collections.IEnumerator DelayedBufferColliderUpdate()
+        {
+            yield return new UnityEngine.WaitForSeconds(3.0f);
+            
+            // Additional wait for physics frames to ensure everything is stable
+            for (int i = 0; i < 30; i++)
+            {
+                yield return new UnityEngine.WaitForFixedUpdate();
+            }
+            
+            BufferVisualManager.ApplyBufferCollidersForAllCars();
+        }
         private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
             // Only clear air hose cache for meaningful scene changes that could affect car spawning
@@ -268,6 +285,10 @@ namespace DvMod.ZCouplers
                 ClearAirHoseCache();
                 Main.DebugLog(() => "Cleared air hose cache for scene load " + scene.name);
                 BufferVisualManager.ToggleBuffers(Main.settings.showBuffersWithKnuckles);
+                
+                // Apply buffer colliders after scene load
+                UnityEngine.Object.FindObjectOfType<CarSpawner>()?.StartCoroutine(DelayedBufferColliderUpdate());
+                
                 if (CouplerProfiles.Current?.Options.AlwaysHideAirHoses == true)
 	                UnityEngine.Object.FindObjectOfType<CarSpawner>()?.StartCoroutine(DelayedAirHoseDeactivation());
             }
