@@ -1022,12 +1022,9 @@ namespace DvMod.ZCouplers
 
             try
             {
-                // Check if we need to swap the hook visual for couplers that support multiple states
                 var couplerType = Main.settings.couplerType;
-                if (couplerType is CouplerType.AARKnuckle or CouplerType.SA3Knuckle or CouplerType.Scharfenberg)
-                {
-                    SwapHookVisualImmediately(chainScript, coupler);
-                }
+
+                SwapHookVisualImmediately(chainScript, coupler);
 
                 // Determine the correct interaction text based on coupler state
                 if (hook?.GetComponent<InfoArea>() is InfoArea infoArea)
@@ -1226,9 +1223,12 @@ namespace DvMod.ZCouplers
         {
             if (car?.gameObject == null)
                 return 0;
-
-            // Add ZCouplers socket plates for AAR/SA3 (destroys originals)
-            EnsureSocketPlates(car);
+            var options = CouplerProfiles.Current?.Options;
+            if (options == null || options.HasSocketPlates)
+            {
+                // Add ZCouplers socket plates for AAR/SA3 (destroys originals)
+                EnsureSocketPlates(car);
+            }
 
             int created = 0;
 
@@ -1254,9 +1254,13 @@ namespace DvMod.ZCouplers
                 var rearChainScript = car.rearCoupler.visualCoupler.chainAdapter.chainScript;
                 if (GetPivot(rearChainScript) == null && rearChainScript.enabled)
                 {
-                    // Removed routine coupler creation log
-                    CreateHook(rearChainScript, hookPrefab);
-                    created++;
+                    // Check if this coupler should be disabled
+                    if (!ShouldDisableCoupler(car.rearCoupler))
+                    {
+                        // Removed routine coupler creation log
+                        CreateHook(rearChainScript, hookPrefab);
+                        created++;
+                    }
                 }
             }
 

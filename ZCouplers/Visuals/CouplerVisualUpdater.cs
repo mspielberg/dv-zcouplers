@@ -22,9 +22,20 @@ namespace DvMod.ZCouplers
 
         private void LateUpdate()
         {
-            if (!KnuckleCouplers.enabled || chainScript == null)
+            if (!KnuckleCouplers.enabled)
                 return;
 
+            // Initialize chainScript if it's null (in case Start() wasn't called or component wasn't ready)
+            if (chainScript == null)
+            {
+                chainScript = GetComponent<ChainCouplerInteraction>();
+                if (chainScript == null)
+                {
+                    Main.ErrorLog(() => "CouplerVisualUpdater: No ChainCouplerInteraction found on this GameObject");
+                    Destroy(this);
+                    return;
+                }
+            }
             // Check if this coupler is physically coupled but state doesn't reflect it
             bool isCoupled = chainScript.couplerAdapter?.IsCoupled() == true;
 

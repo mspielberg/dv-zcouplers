@@ -524,6 +524,11 @@ namespace DvMod.ZCouplers
                 // Check for the specific teleport bug: one coupler Parked, partner Attached_Tight, but both have joints
                 CheckCouplerForTeleportIssues(car.frontCoupler);
                 CheckCouplerForTeleportIssues(car.rearCoupler);
+                
+                // Also check coupled cars to ensure the fix is applied comprehensively
+                // This is important because TrainCar.Start might only be called for one car in a teleported consist
+                var processedCars = new HashSet<TrainCar> { car };
+                CheckCoupledCarsForTeleportIssues(car, processedCars);
             }
 
             private static void CheckCouplerForTeleportIssues(Coupler coupler)
@@ -562,6 +567,41 @@ namespace DvMod.ZCouplers
                     // Fix both couplers to be consistent
                     FixCoupledState(coupler);
                     FixCoupledState(partner);
+                }
+            }
+
+            /// <summary>
+            /// Recursively check all coupled cars for teleport state issues.
+            /// This ensures that when multiple cars are teleported together, all cars get fixed.
+            /// </summary>
+            private static void CheckCoupledCarsForTeleportIssues(TrainCar car, HashSet<TrainCar> processedCars)
+            {
+                // Check front coupled car
+                if (car.frontCoupler != null && car.frontCoupler.IsCoupled())
+                {
+                    var coupledCar = car.frontCoupler.coupledTo?.train;
+                    if (coupledCar != null && !processedCars.Contains(coupledCar))
+                    {
+                        processedCars.Add(coupledCar);
+                        CheckCouplerForTeleportIssues(coupledCar.frontCoupler);
+                        CheckCouplerForTeleportIssues(coupledCar.rearCoupler);
+                        // Recursively check further coupled cars
+                        CheckCoupledCarsForTeleportIssues(coupledCar, processedCars);
+                    }
+                }
+
+                // Check rear coupled car
+                if (car.rearCoupler != null && car.rearCoupler.IsCoupled())
+                {
+                    var coupledCar = car.rearCoupler.coupledTo?.train;
+                    if (coupledCar != null && !processedCars.Contains(coupledCar))
+                    {
+                        processedCars.Add(coupledCar);
+                        CheckCouplerForTeleportIssues(coupledCar.frontCoupler);
+                        CheckCouplerForTeleportIssues(coupledCar.rearCoupler);
+                        // Recursively check further coupled cars
+                        CheckCoupledCarsForTeleportIssues(coupledCar, processedCars);
+                    }
                 }
             }
 
