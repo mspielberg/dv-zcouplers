@@ -9,6 +9,7 @@ namespace DvMod.ZCouplers
         {
             Name = "Scharfenberg",
             HookLateralOffsetX = 0f,
+            SupportsHorizontalArticulation = true,
             SupportsVerticalArticulation = true,
             AlwaysHideAirHoses = true,
             HookClosedChildName = "Schaku_closed",
@@ -18,5 +19,6 @@ namespace DvMod.ZCouplers
 
         public GameObject? GetClosedPrefab() => AssetManager.GetSchakuClosedPrefab();
         public GameObject? GetOpenPrefab() => AssetManager.GetSchakuOpenPrefab();
+        public GameObject? GetAdditionalPrefab() => null; // Scharfenberg doesn't use additional prefabs
     }
 }

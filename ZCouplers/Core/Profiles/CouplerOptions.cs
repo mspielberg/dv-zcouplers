@@ -16,6 +16,9 @@ namespace DvMod.ZCouplers
         /// Whether the hook pivot supports pitch (vertical) articulation.
         public bool SupportsVerticalArticulation { get; set; } = false;
 
+        /// Whether the hook pivot supports yaw (horizontal) articulation.
+        public bool SupportsHorizontalArticulation { get; set; } = false;
+
         /// When true, hide air hoses on all trains/couplers regardless of other settings.
         public bool AlwaysHideAirHoses { get; set; } = false;
 
@@ -28,5 +31,8 @@ namespace DvMod.ZCouplers
 
         /// Whether this coupler has distinct open/closed prefabs.
         public bool HasOpenVariant { get; set; } = true;
+
+        /// Whether this coupler type uses socket plates.
+        public bool HasSocketPlates { get; set; } = false;
     }
 }

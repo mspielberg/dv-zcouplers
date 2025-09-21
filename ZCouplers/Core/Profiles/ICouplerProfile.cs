@@ -12,5 +12,6 @@ namespace DvMod.ZCouplers
 
         GameObject? GetClosedPrefab();
         GameObject? GetOpenPrefab();
+        GameObject? GetAdditionalPrefab();
     }
 }
