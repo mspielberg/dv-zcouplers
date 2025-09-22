@@ -1,6 +1,7 @@
 using HarmonyLib;
 
 using UnityEngine;
+using System.Collections.Generic;
 
 namespace DvMod.ZCouplers
 {
@@ -9,6 +10,104 @@ namespace DvMod.ZCouplers
     /// </summary>
     public static class CollisionHandler
     {
+        // Track fake buffer colliders for each coupler
+        private static readonly Dictionary<Coupler, BoxCollider> fakeBufferColliders = new Dictionary<Coupler, BoxCollider>();
+
+        /// <summary>
+        /// Create or get fake buffer collider for a coupler (mimics game's approach)
+        /// </summary>
+        public static BoxCollider? GetOrCreateFakeBufferCollider(Coupler coupler)
+        {
+            if (coupler == null)
+                return null;
+
+            if (fakeBufferColliders.TryGetValue(coupler, out var existingCollider) && existingCollider != null)
+                return existingCollider;
+
+            try
+            {
+                // Create fake buffer collider like the game does
+                var fakeCollider = coupler.gameObject.AddComponent<BoxCollider>();
+                
+                // Use same dimensions as game: 2.178126f x 0.45f x 1f
+                fakeCollider.size = new Vector3(2.178126f, 0.45f, 1f);
+                fakeCollider.center = new Vector3(0f, 0f, -0.6f);
+                
+                // Set to Train_Big_Collider layer like the game
+                fakeCollider.gameObject.layer = LayerMask.NameToLayer("Train_Big_Collider");
+                
+                // Start disabled - will be enabled when needed
+                fakeCollider.enabled = false;
+                
+                fakeBufferColliders[coupler] = fakeCollider;
+                
+                Main.DebugLog(() => $"Created fake buffer collider for {coupler.train.ID} {coupler.Position()}");
+                return fakeCollider;
+            }
+            catch (System.Exception ex)
+            {
+                Main.ErrorLog(() => $"Error creating fake buffer collider for {coupler.train.ID}: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Enable fake buffer colliders for uncoupled couplers (like game's loose mode)
+        /// </summary>
+        public static void EnableFakeBufferColliders(Coupler coupler1, Coupler coupler2)
+        {
+            if (coupler1 != null)
+            {
+                var collider1 = GetOrCreateFakeBufferCollider(coupler1);
+                if (collider1 != null)
+                {
+                    collider1.enabled = true;
+                    Main.DebugLog(() => $"Enabled fake buffer collider for {coupler1.train.ID}");
+                }
+            }
+
+            if (coupler2 != null)
+            {
+                var collider2 = GetOrCreateFakeBufferCollider(coupler2);
+                if (collider2 != null)
+                {
+                    collider2.enabled = true;
+                    Main.DebugLog(() => $"Enabled fake buffer collider for {coupler2.train.ID}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Disable fake buffer colliders for coupled couplers (like game's tight mode)
+        /// </summary>
+        public static void DisableFakeBufferColliders(Coupler coupler1, Coupler coupler2)
+        {
+            if (coupler1 != null && fakeBufferColliders.TryGetValue(coupler1, out var collider1) && collider1 != null)
+            {
+                collider1.enabled = false;
+                Main.DebugLog(() => $"Disabled fake buffer collider for {coupler1.train.ID}");
+            }
+
+            if (coupler2 != null && fakeBufferColliders.TryGetValue(coupler2, out var collider2) && collider2 != null)
+            {
+                collider2.enabled = false;
+                Main.DebugLog(() => $"Disabled fake buffer collider for {coupler2.train.ID}");
+            }
+        }
+
+        /// <summary>
+        /// Clean up fake buffer colliders (called during mod unload)
+        /// </summary>
+        public static void CleanupFakeBufferColliders()
+        {
+            foreach (var collider in fakeBufferColliders.Values)
+            {
+                if (collider != null)
+                    UnityEngine.Object.Destroy(collider);
+            }
+            fakeBufferColliders.Clear();
+        }
+
         /// <summary>
         /// Destroy all joints between two specific cars while preserving buffer joints
         /// </summary>
@@ -147,6 +246,14 @@ namespace DvMod.ZCouplers
 
                 Main.DebugLog(() => $"Enhanced collision response: {thisCar.ID} <-> {otherCar.ID}, force={additionalForce:F1}, v={velocityMagnitude:F2}");
             }
+        }
+
+        /// <summary>
+        /// Clean up all collision handler resources
+        /// </summary>
+        public static void Cleanup()
+        {
+            CleanupFakeBufferColliders();
         }
     }
 }

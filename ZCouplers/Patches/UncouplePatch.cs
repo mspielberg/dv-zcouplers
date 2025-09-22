@@ -89,6 +89,9 @@ public static class UncouplePatch
             CouplingScannerPatches.RestartCouplingScanner(__instance.coupledTo);
             // Record uncoupling for distance-based recoupling prevention
             RecouplingPrevention.RecordUncoupling(__instance, __instance.coupledTo);
+            
+            // Enable fake buffer colliders for uncoupled cars (like game's loose mode)
+            CollisionHandler.EnableFakeBufferColliders(__instance, __instance.coupledTo);
         }
         Main.DebugLog(() => "Completed uncoupling cleanup for " + __instance.train.ID);
     }

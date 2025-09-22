@@ -182,6 +182,7 @@ namespace DvMod.ZCouplers
                 bufferCj.angularXMotion = ConfigurableJointMotion.Free;
                 bufferCj.angularYMotion = ConfigurableJointMotion.Free;
                 bufferCj.angularZMotion = ConfigurableJointMotion.Free;
+                bufferCj.enableCollision = true;
             }
             else
             {
@@ -207,14 +208,18 @@ namespace DvMod.ZCouplers
                 bufferCj.angularXMotion = ConfigurableJointMotion.Free;
                 bufferCj.angularYMotion = ConfigurableJointMotion.Free;
                 bufferCj.angularZMotion = ConfigurableJointMotion.Free;
+                bufferCj.enableCollision = false;
             }
 
-            bufferCj.enableCollision = false;
+            
             bufferCj.breakForce = float.PositiveInfinity;
             bufferCj.breakTorque = float.PositiveInfinity;
 
             bufferJoints.Add(a, (b, bufferCj));
             bufferJoints.Add(b, (a, bufferCj));
+
+            // Disable fake buffer colliders when compression joint is active (like game's tight mode)
+            CollisionHandler.DisableFakeBufferColliders(a, b);
 
             // If both couplers are ready (locked) but showing as Dangling, update them to Attached_Tight.
             // Handles compression joints created after deferred state application.
@@ -371,6 +376,9 @@ namespace DvMod.ZCouplers
 
                 bufferJoints.Remove(coupler);
                 bufferJoints.Remove(result.otherCoupler);
+
+                // Enable fake buffer colliders when compression joint is destroyed (like game's loose mode)
+                CollisionHandler.EnableFakeBufferColliders(coupler, result.otherCoupler);
             }
             catch (System.Exception ex)
             {
@@ -406,6 +414,9 @@ namespace DvMod.ZCouplers
                     // Remove from tracking
                     bufferJoints.Remove(coupler);
                     bufferJoints.Remove(result.otherCoupler);
+
+                    // Enable fake buffer colliders when using collision system instead of joints
+                    CollisionHandler.EnableFakeBufferColliders(coupler, result.otherCoupler);
                 }
                 else
                 {
@@ -529,6 +540,9 @@ namespace DvMod.ZCouplers
             customTensionJoints.Clear();
             lastJointCreationTime.Clear();
             bufferJoints.Clear();
+
+            // Clean up collision handler resources
+            CollisionHandler.Cleanup();
         }
 
     }
