@@ -188,12 +188,13 @@ namespace DvMod.ZCouplers
             var baseRotation = coupler1.transform.rotation;
             var prefabRotationCorrection = Quaternion.Euler(90f, 0f, 0f);
 
-            // Calculate direction from coupler1's pin to coupler2's pin
-            // Thanks ierdna100 for the improved direction calculation
-            var directionToOtherPin = (pin1Position + ((-pin2Position - pin1Position) / 2)) * -1;
-
+            // Calculate offset from coupler1 to coupler2 in local space for distance check
+            var pivot = coupler1.transform;
+            var target = coupler2.transform;
+            var offset = pivot.InverseTransformPoint(target.position);
+            
             // Check if couplers are too close to avoid erratic rotation
-            if (directionToOtherPin.sqrMagnitude < 1e-8f)
+            if (offset.sqrMagnitude < 1e-8f)
             {
                 // When too close, just use coupler1's orientation with prefab correction
                 linkObject.transform.rotation = Quaternion.Slerp(
@@ -204,17 +205,27 @@ namespace DvMod.ZCouplers
                 return;
             }
 
-            // Calculate a small adjustment based on the direction to the other pin
-            var localDirection = coupler1.transform.InverseTransformDirection(directionToOtherPin.normalized);
-
-            // Only apply small rotational adjustments (max ±10 degrees per axis)
-            var adjustmentX = Mathf.Clamp(-localDirection.y * 5f, -5f, 5f); // Pitch: up/down movement
-            var adjustmentY = Mathf.Clamp(localDirection.x * 15f, -30f, 30f);  // Yaw: left/right movement
-            var adjustmentZ = 0f; // No roll adjustment for LAP links
-
-            // Apply the small adjustment to the base rotation, then apply prefab correction
-            var rotationAdjustment = Quaternion.Euler(adjustmentX, adjustmentY, adjustmentZ);
-            var targetRotation = baseRotation * rotationAdjustment * prefabRotationCorrection;
+            // Use LookAt for horizontal movement only, limit vertical movement
+            // Extend the look target further behind coupler2 to prevent overrotation in curves
+            var extensionDistance = -0.5f; // Distance to extend behind coupler2
+            var coupler2Forward = coupler2.transform.forward; // Direction coupler2 is facing
+            var extendedTarget = coupler2.transform.position + (coupler2Forward * extensionDistance);
+            
+            var lookDirection = (extendedTarget - linkObject.transform.position).normalized;
+            
+            // Project the look direction onto the horizontal plane (Y=0) for horizontal-only LookAt
+            var horizontalDirection = new Vector3(lookDirection.x, 0f, lookDirection.z).normalized;
+            
+            // Calculate horizontal rotation using LookAt
+            var horizontalRotation = Quaternion.LookRotation(horizontalDirection);
+            
+            // Calculate vertical angle and clamp it to ±5°
+            var verticalAngle = Mathf.Asin(lookDirection.y) * Mathf.Rad2Deg;
+            var clampedVerticalAngle = Mathf.Clamp(verticalAngle, -5f, 5f);
+            
+            // Combine horizontal rotation with limited vertical rotation
+            var verticalRotation = Quaternion.AngleAxis(clampedVerticalAngle, Vector3.right);
+            var targetRotation = horizontalRotation * verticalRotation * prefabRotationCorrection;
 
             // Smooth the rotation to prevent jumping
             linkObject.transform.rotation = Quaternion.Slerp(
