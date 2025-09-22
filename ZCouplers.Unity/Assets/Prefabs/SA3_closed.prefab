@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 2628935948354653018}
   - component: {fileID: 1548071685547985293}
   - component: {fileID: 952068746535572060}
-  - component: {fileID: 4714885243891109540}
+  - component: {fileID: 898551442009216646}
   m_Layer: 0
   m_Name: SA3_closed
   m_TagString: Untagged
@@ -80,8 +80,8 @@ MeshRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
---- !u!65 &4714885243891109540
-BoxCollider:
+--- !u!64 &898551442009216646
+MeshCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -90,6 +90,7 @@ BoxCollider:
   m_Material: {fileID: 0}
   m_IsTrigger: 1
   m_Enabled: 1
-  serializedVersion: 2
-  m_Size: {x: 4336.7446, y: 4148.9214, z: 3920.7778}
-  m_Center: {x: -1036.5553, y: 5.4694504e-12, z: -450.61737}
+  serializedVersion: 4
+  m_Convex: 1
+  m_CookingOptions: 30
+  m_Mesh: {fileID: -5523277661179574252, guid: 2100096f24c9de848810e3d013c8e0ec, type: 3}

@@ -852,13 +852,13 @@ namespace DvMod.ZCouplers
 
             hook.transform.localPosition = finalPosition;
 
-            // Use the existing colliders from the prefab; no automatic creation
-            var interactionCollider = hook.GetComponent<BoxCollider>();
+            // Use the existing colliders from the prefab; support both BoxCollider and MeshCollider
+            var interactionCollider = hook.GetComponent<BoxCollider>() ?? (Collider)hook.GetComponent<MeshCollider>();
             if (interactionCollider != null)
             {
                 interactionCollider.isTrigger = true; // Ensure it's a trigger for interaction
 
-                // Restore solid walkable collider like v1.2.2: create a child with a non-trigger BoxCollider
+                // Restore solid walkable collider like v1.2.2: create a child with a non-trigger collider
                 // so the coupler head has physical collision for players while keeping interaction as trigger.
                 var existingWalkable = hook.transform.Find("walkable");
                 if (existingWalkable == null)
@@ -867,10 +867,21 @@ namespace DvMod.ZCouplers
                     colliderHost.layer = LayerMask.NameToLayer("Train_Walkable");
                     colliderHost.transform.SetParent(hook.transform, worldPositionStays: false);
 
-                    var walkableCollider = colliderHost.AddComponent<BoxCollider>();
-                    walkableCollider.center = interactionCollider.center;
-                    walkableCollider.size = interactionCollider.size;
-                    walkableCollider.isTrigger = false;
+                    // Create walkable collider matching the original type
+                    if (interactionCollider is BoxCollider boxCollider)
+                    {
+                        var walkableCollider = colliderHost.AddComponent<BoxCollider>();
+                        walkableCollider.center = boxCollider.center;
+                        walkableCollider.size = boxCollider.size;
+                        walkableCollider.isTrigger = false;
+                    }
+                    else if (interactionCollider is MeshCollider meshCollider)
+                    {
+                        var walkableCollider = colliderHost.AddComponent<MeshCollider>();
+                        walkableCollider.sharedMesh = meshCollider.sharedMesh;
+                        walkableCollider.convex = true; // Required for non-trigger MeshColliders
+                        walkableCollider.isTrigger = false;
+                    }
                 }
                 else
                 {
@@ -879,8 +890,22 @@ namespace DvMod.ZCouplers
                     if (existingWalkable.GetComponent<BoxCollider>() is BoxCollider wc)
                     {
                         wc.isTrigger = false;
-                        wc.center = interactionCollider.center;
-                        wc.size = interactionCollider.size;
+                        if (interactionCollider is BoxCollider bc)
+                        {
+                            wc.center = bc.center;
+                            wc.size = bc.size;
+                        }
+                    }
+                    else if (existingWalkable.GetComponent<MeshCollider>() is MeshCollider wmc)
+                    {
+                        wmc.isTrigger = false;
+                        wmc.convex = true;
+                        if (interactionCollider is MeshCollider mc)
+                        {
+                            wmc.sharedMesh = mc.sharedMesh;
+                        }
+                    }
+                }
                     }
                 }
             }
