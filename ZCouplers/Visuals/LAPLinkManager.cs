@@ -186,6 +186,7 @@ namespace DvMod.ZCouplers
 
             // Start with coupler1's orientation as the base
             var baseRotation = coupler1.transform.rotation;
+            var prefabRotationCorrection = Quaternion.Euler(90f, 0f, 0f);
 
             // Calculate direction from coupler1's pin to coupler2's pin
             // Thanks ierdna100 for the improved direction calculation
@@ -194,17 +195,14 @@ namespace DvMod.ZCouplers
             // Check if couplers are too close to avoid erratic rotation
             if (directionToOtherPin.sqrMagnitude < 1e-8f)
             {
-                // When too close, just use coupler1's orientation
+                // When too close, just use coupler1's orientation with prefab correction
                 linkObject.transform.rotation = Quaternion.Slerp(
                     linkObject.transform.rotation,
-                    baseRotation,
+                    baseRotation * prefabRotationCorrection,
                     Time.deltaTime * 5f
                 );
                 return;
             }
-
-            // Start with the base coupler orientation
-            var targetRotation = baseRotation;
 
             // Calculate a small adjustment based on the direction to the other pin
             var localDirection = coupler1.transform.InverseTransformDirection(directionToOtherPin.normalized);
@@ -214,9 +212,9 @@ namespace DvMod.ZCouplers
             var adjustmentY = Mathf.Clamp(localDirection.x * 15f, -30f, 30f);  // Yaw: left/right movement
             var adjustmentZ = 0f; // No roll adjustment for LAP links
 
-            // Apply the small adjustment to the base rotation
+            // Apply the small adjustment to the base rotation, then apply prefab correction
             var rotationAdjustment = Quaternion.Euler(adjustmentX, adjustmentY, adjustmentZ);
-            targetRotation = baseRotation * rotationAdjustment;
+            var targetRotation = baseRotation * rotationAdjustment * prefabRotationCorrection;
 
             // Smooth the rotation to prevent jumping
             linkObject.transform.rotation = Quaternion.Slerp(
