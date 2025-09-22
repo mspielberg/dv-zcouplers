@@ -25,8 +25,8 @@ namespace DvMod.ZCouplers
                 return true;
             }
 
-            // Normal mode: both couplers must be ready
-            return KnuckleCouplers.IsReadyToCouple(coupler) && KnuckleCouplers.IsReadyToCouple(otherCoupler);
+            // Normal mode: one coupler must be ready
+            return KnuckleCouplers.IsReadyToCouple(coupler) || KnuckleCouplers.IsReadyToCouple(otherCoupler);
         }
         /// <summary>
         /// Get the coupling scanner component from a coupler.
