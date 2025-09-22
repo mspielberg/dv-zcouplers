@@ -906,6 +906,51 @@ namespace DvMod.ZCouplers
                         }
                     }
                 }
+                
+                var existingItems = hook.transform.Find("items");
+                if (existingItems == null)
+                {
+                    var colliderHost = new GameObject("items");
+                    colliderHost.layer = LayerMask.NameToLayer("Train_Interior");
+                    colliderHost.transform.SetParent(hook.transform, worldPositionStays: false);
+
+                    // Create items collider matching the original type
+                    if (interactionCollider is BoxCollider boxCollider)
+                    {
+                        var itemCollider = colliderHost.AddComponent<BoxCollider>();
+                        itemCollider.center = boxCollider.center;
+                        itemCollider.size = boxCollider.size;
+                        itemCollider.isTrigger = false;
+                    }
+                    else if (interactionCollider is MeshCollider meshCollider)
+                    {
+                        var itemCollider = colliderHost.AddComponent<MeshCollider>();
+                        itemCollider.sharedMesh = meshCollider.sharedMesh;
+                        itemCollider.convex = true; // Required for non-trigger MeshColliders
+                        itemCollider.isTrigger = false;
+                    }
+                }
+                else
+                {
+                    // Ensure any existing item collider is configured properly
+                    existingItems.gameObject.layer = LayerMask.NameToLayer("Train_Interior");
+                    if (existingItems.GetComponent<BoxCollider>() is BoxCollider ic)
+                    {
+                        ic.isTrigger = false;
+                        if (interactionCollider is BoxCollider bc)
+                        {
+                            ic.center = bc.center;
+                            ic.size = bc.size;
+                        }
+                    }
+                    else if (existingItems.GetComponent<MeshCollider>() is MeshCollider imc)
+                    {
+                        imc.isTrigger = false;
+                        imc.convex = true;
+                        if (interactionCollider is MeshCollider mc)
+                        {
+                            imc.sharedMesh = mc.sharedMesh;
+                        }
                     }
                 }
             }
