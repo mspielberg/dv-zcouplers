@@ -166,30 +166,31 @@ namespace DvMod.ZCouplers.Physics
 			bufferCj.autoConfigureConnectedAnchor = false;
 			bufferCj.connectedBody = b.train.gameObject.GetComponent<Rigidbody>();
 
-			if (showBuffers)
-			{
-				// Full buffer behavior uses the historical anchor offset
-				bufferCj.anchor = a.transform.localPosition + (2 * (a.isFrontCoupler ? Vector3.forward : Vector3.back));
-				bufferCj.connectedAnchor = b.transform.localPosition;
-				bufferCj.zMotion = ConfigurableJointMotion.Limited;
-				// Full buffer behavior
-				bufferCj.linearLimit = new SoftJointLimit { limit = 2f };
-				bufferCj.linearLimitSpring = new SoftJointLimitSpring
-				{
-					spring = Main.settings.GetSpringRate(),
-					damper = Main.settings.GetDamperRate(),
-				};
-				// Keep other motions at defaults (free lateral), let tension joint manage angulars
-				bufferCj.angularXMotion = ConfigurableJointMotion.Free;
-				bufferCj.angularYMotion = ConfigurableJointMotion.Free;
-				bufferCj.angularZMotion = ConfigurableJointMotion.Free;
-			}
-			else
-			{
-				// Guard mode when buffers are hidden: spherical, tight limit about the actual coupler faces
-				// Use coupler local positions for anchors to avoid introducing a baseline offset/gap
-				bufferCj.anchor = a.transform.localPosition;
-				bufferCj.connectedAnchor = b.transform.localPosition;
+            if (showBuffers)
+            {
+                // Full buffer behavior uses the historical anchor offset
+                bufferCj.anchor = a.transform.localPosition + (2 * (a.isFrontCoupler ? Vector3.forward : Vector3.back));
+                bufferCj.connectedAnchor = b.transform.localPosition;
+                bufferCj.zMotion = ConfigurableJointMotion.Limited;
+                // Full buffer behavior
+                bufferCj.linearLimit = new SoftJointLimit { limit = 2f };
+                bufferCj.linearLimitSpring = new SoftJointLimitSpring
+                {
+                    spring = Main.settings.GetSpringRate(),
+                    damper = Main.settings.GetDamperRate(),
+                };
+                // Keep other motions at defaults (free lateral), let tension joint manage angulars
+                bufferCj.angularXMotion = ConfigurableJointMotion.Free;
+                bufferCj.angularYMotion = ConfigurableJointMotion.Free;
+                bufferCj.angularZMotion = ConfigurableJointMotion.Free;
+                bufferCj.enableCollision = true;
+            }
+            else
+            {
+                // Guard mode when buffers are hidden: spherical, tight limit about the actual coupler faces
+                // Use coupler local positions for anchors to avoid introducing a baseline offset/gap
+                bufferCj.anchor = a.transform.localPosition;
+                bufferCj.connectedAnchor = b.transform.localPosition;
 
 				// Limit only along the coupler axis (z); allow lateral (x/y) to avoid clamping in curves
 				bufferCj.xMotion = ConfigurableJointMotion.Free;
@@ -204,18 +205,22 @@ namespace DvMod.ZCouplers.Physics
 					damper = Main.settings.GetDamperRate(),
 				};
 
-				// Allow free angles; tension joint governs overall articulation
-				bufferCj.angularXMotion = ConfigurableJointMotion.Free;
-				bufferCj.angularYMotion = ConfigurableJointMotion.Free;
-				bufferCj.angularZMotion = ConfigurableJointMotion.Free;
-			}
+                // Allow free angles; tension joint governs overall articulation
+                bufferCj.angularXMotion = ConfigurableJointMotion.Free;
+                bufferCj.angularYMotion = ConfigurableJointMotion.Free;
+                bufferCj.angularZMotion = ConfigurableJointMotion.Free;
+                bufferCj.enableCollision = false;
+            }
 
-			bufferCj.enableCollision = false;
-			bufferCj.breakForce = float.PositiveInfinity;
-			bufferCj.breakTorque = float.PositiveInfinity;
+            
+            bufferCj.breakForce = float.PositiveInfinity;
+            bufferCj.breakTorque = float.PositiveInfinity;
 
-			bufferJoints.Add(a, (b, bufferCj));
-			bufferJoints.Add(b, (a, bufferCj));
+            bufferJoints.Add(a, (b, bufferCj));
+            bufferJoints.Add(b, (a, bufferCj));
+
+            // Disable fake buffer colliders when compression joint is active (like game's tight mode)
+            CollisionHandler.DisableFakeBufferColliders(a, b);
 
 			// If both couplers are ready (locked) but showing as Dangling, update them to Attached_Tight.
 			// Handles compression joints created after deferred state application.
@@ -273,22 +278,22 @@ namespace DvMod.ZCouplers.Physics
 				{
 					Main.DebugLog(() => $"Set Attached_Tight after compression joint: {a.train.ID} {a.Position()} (was {a.state}), {b.train.ID} {b.Position()} (was {b.state})");
 
-					// Update both couplers to Attached_Tight since they're both ready and have compression joints
-					// The actual coupling and tension joint creation will be handled by MasterCoro
-					if (aWasDangling)
-					{
-						a.state = ChainCouplerInteraction.State.Attached_Tight;
-						// Removed verbose state update log
-					}
+                    // Update both couplers to Attached_Tight since they're both ready and have compression joints
+                    // The actual coupling and tension joint creation will be handled by MasterCoro
+                    if (aWasDangling)
+                    {
+                        a.state = ChainCouplerInteraction.State.Attached_Tight;
+                        HookManager.UpdateHookVisualStateFromCouplerState(a);
+                    }
 
-					if (bWasDangling)
-					{
-						b.state = ChainCouplerInteraction.State.Attached_Tight;
-						// Removed verbose state update log
-					}
-				}
-			}
-		}
+                    if (bWasDangling)
+                    {
+                        b.state = ChainCouplerInteraction.State.Attached_Tight;
+                        HookManager.UpdateHookVisualStateFromCouplerState(b);
+                    }
+                }
+            }
+        }
 
 		/// <summary>
 		/// Destroy the tension joint for a coupler.
@@ -384,18 +389,21 @@ namespace DvMod.ZCouplers.Physics
 					}
 				}
 
-				bufferJoints.Remove(coupler);
-				bufferJoints.Remove(result.otherCoupler);
-			}
-			catch (System.Exception ex)
-			{
-				Main.ErrorLog(() => $"Error destroying compression joint: {ex.Message}");
-				// Clean up dictionaries to prevent memory leaks
-				bufferJoints.Remove(coupler);
-				if (result.otherCoupler != null)
-					bufferJoints.Remove(result.otherCoupler);
-			}
-		}
+                bufferJoints.Remove(coupler);
+                bufferJoints.Remove(result.otherCoupler);
+
+                // Enable fake buffer colliders when compression joint is destroyed (like game's loose mode)
+                CollisionHandler.EnableFakeBufferColliders(coupler, result.otherCoupler);
+            }
+            catch (System.Exception ex)
+            {
+                Main.ErrorLog(() => $"Error destroying compression joint: {ex.Message}");
+                // Clean up dictionaries to prevent memory leaks
+                bufferJoints.Remove(coupler);
+                if (result.otherCoupler != null)
+                    bufferJoints.Remove(result.otherCoupler);
+            }
+        }
 
 		/// <summary>
 		/// Convert compression joint to use the game's collision system instead.
@@ -418,14 +426,17 @@ namespace DvMod.ZCouplers.Physics
 						// Joint removed
 					}
 
-					// Remove from tracking
-					bufferJoints.Remove(coupler);
-					bufferJoints.Remove(result.otherCoupler);
-				}
-				else
-				{
-					// No joint found; nothing to convert
-				}
+                    // Remove from tracking
+                    bufferJoints.Remove(coupler);
+                    bufferJoints.Remove(result.otherCoupler);
+
+                    // Enable fake buffer colliders when using collision system instead of joints
+                    CollisionHandler.EnableFakeBufferColliders(coupler, result.otherCoupler);
+                }
+                else
+                {
+                    // No joint found; nothing to convert
+                }
 
 				// Clear rigidCJ references so the game doesn't think cars are rigidly coupled
 				if (coupler.rigidCJ != null)
@@ -508,5 +519,46 @@ namespace DvMod.ZCouplers.Physics
 				lastJointCreationTime[coupler.coupledTo] = currentTime;
 		}
 
-	}
+        /// <summary>
+        /// Clean up all joints and clear all tracking dictionaries.
+        /// Called during mod unload.
+        /// </summary>
+        public static void Cleanup()
+        {
+            // Destroy all tension joints
+            var tensionJointsToDestroy = new List<ConfigurableJoint>();
+            foreach (var joint in customTensionJoints.Values)
+            {
+                if (joint != null)
+                    tensionJointsToDestroy.Add(joint);
+            }
+            foreach (var joint in tensionJointsToDestroy)
+            {
+                if (joint != null)
+                    UnityEngine.Object.Destroy(joint);
+            }
+
+            // Destroy all compression/buffer joints
+            var bufferJointsToDestroy = new List<ConfigurableJoint>();
+            foreach (var (_, joint) in bufferJoints.Values)
+            {
+                if (joint != null)
+                    bufferJointsToDestroy.Add(joint);
+            }
+            foreach (var joint in bufferJointsToDestroy)
+            {
+                if (joint != null)
+                    UnityEngine.Object.Destroy(joint);
+            }
+
+            // Clear all tracking dictionaries
+            customTensionJoints.Clear();
+            lastJointCreationTime.Clear();
+            bufferJoints.Clear();
+
+            // Clean up collision handler resources
+            CollisionHandler.Cleanup();
+        }
+
+    }
 }

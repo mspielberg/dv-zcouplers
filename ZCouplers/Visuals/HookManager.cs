@@ -20,9 +20,26 @@ namespace DvMod.ZCouplers.Visuals
         private const float PivotLength = 1.0f;
         private const float HeightOffset = -0.067f;
 
-        public static InteractionInfoType KnuckleCouplerUnlock = (InteractionInfoType)23000;
-        public static InteractionInfoType KnuckleCouplerLock = (InteractionInfoType)23001;
+        public static InteractionInfoType KnuckleCouplerReady = (InteractionInfoType)23000;
+        public static InteractionInfoType KnuckleCouplerUnlocked = (InteractionInfoType)23001;
         public static InteractionInfoType KnuckleCouplerCoupled = (InteractionInfoType)23002;
+
+        /// <summary>
+        /// Clean up all hook pivots and clear tracking dictionary.
+        /// Called during mod unload.
+        /// </summary>
+        public static void Cleanup()
+        {
+            // Destroy all hook pivots
+            foreach (var pivot in pivots.Values)
+            {
+                if (pivot != null)
+                    UnityEngine.Object.Destroy(pivot.gameObject);
+            }
+            
+            // Clear tracking dictionary
+            pivots.Clear();
+        }
 
         /// <summary>
         /// Check if the given coupler is the front coupler of a LocoS282A (LocoSteamHeavy).
@@ -63,7 +80,7 @@ namespace DvMod.ZCouplers.Visuals
         /// <summary>
         /// Toggle air hoses and coupler mounting hardware for disabled couplers.
         /// Also toggles the coupler component functionality.
-        /// For Schafenberg couplers, air hoses are always deactivated.
+        /// For Scharfenberg couplers, air hoses are always deactivated.
         /// </summary>
         public static void ToggleCouplerHardware(Coupler coupler, bool visible)
         {
@@ -116,7 +133,7 @@ namespace DvMod.ZCouplers.Visuals
 
         /// <summary>
         /// Toggle air hose visibility for a specific coupler.
-        /// For Schafenberg couplers, air hoses are always hidden on all trains.
+        /// For Scharfenberg couplers, air hoses are always hidden on all trains.
         /// For steam locomotives, air hoses are hidden only on front couplers when the disable setting is enabled.
         /// </summary>
         public static void ToggleAirHose(Coupler coupler, bool visible)
@@ -149,7 +166,7 @@ namespace DvMod.ZCouplers.Visuals
         }
 
         /// <summary>
-        /// Toggle air hose visibility on all train types (for Schafenberg couplers).
+        /// Toggle air hose visibility on all train types (for Scharfenberg couplers).
         /// Uses the same proven approach as steam locomotive air hose handling.
         /// </summary>
         private static void ToggleAirHoseOnAllTrainTypes(GameObject trainGameObject, Coupler coupler, bool visible)
@@ -422,7 +439,7 @@ namespace DvMod.ZCouplers.Visuals
 
                 var parentTransform = original.parent;
                 var originalLocalPos = original.localPosition;
-                
+
                 // Type-specific local offset relative to the stock HookPlate position
                 Vector3 offset = Vector3.zero;
                 Quaternion prefabLocalRot = socketPrefab.transform.localRotation; // Default to prefab rotation
@@ -530,6 +547,75 @@ namespace DvMod.ZCouplers.Visuals
             return pivot;
         }
 
+        /// <summary>
+        /// Decide whether the visual should use the "open" hook prefab based on coupler type and current state.
+        /// AAR: Parked=closed, Dangling/Being_Dragged=open, Attached_* = closed
+        /// SA3: Parked=open, all other states=closed (unchanged)
+        /// Schaku: Parked=closed (treated like no parked), Dangling/Being_Dragged=closed, Attached_Tight=open, Attached_Loose=closed
+        /// LAP: Parked=open (no link), all other states=closed (link inserted)
+        /// </summary>
+        private static bool ShouldUseOpenHook(Coupler coupler)
+        {
+            if (coupler == null)
+                return false;
+
+            var profile = CouplerProfiles.Current;
+            if (profile == null || profile.Options.HasOpenVariant != true || profile.GetOpenPrefab() == null)
+                return false;
+
+            var type = Main.settings.couplerType;
+            var state = coupler.state;
+
+            switch (type)
+            {
+                case CouplerType.AARKnuckle:
+                    switch (state)
+                    {
+                        case ChainCouplerInteraction.State.Dangling:
+                        case ChainCouplerInteraction.State.Being_Dragged:
+                            return true; // AAR ready state visuals are open
+                        case ChainCouplerInteraction.State.Parked:
+                        case ChainCouplerInteraction.State.Attached_Loose:
+                        case ChainCouplerInteraction.State.Attached_Tight:
+                        default:
+                            return false; // closed
+                    }
+
+                case CouplerType.SA3Knuckle:
+                    // Keep previous behavior: open only when Parked
+                    return state == ChainCouplerInteraction.State.Parked;
+
+                case CouplerType.Scharfenberg:
+                    switch (state)
+                    {
+                        case ChainCouplerInteraction.State.Attached_Tight:
+                        case ChainCouplerInteraction.State.Attached_Loose:
+                            return false; // Schaku closes when attached
+                        case ChainCouplerInteraction.State.Parked:
+                        case ChainCouplerInteraction.State.Dangling:
+                        case ChainCouplerInteraction.State.Being_Dragged:
+                        default:
+                            return true; // open otherwise
+                    }
+
+                case CouplerType.LAPCoupler:
+                    switch (state)
+                    {
+                        case ChainCouplerInteraction.State.Parked:
+                            return true; // LAP open when parked (no link)
+                        case ChainCouplerInteraction.State.Dangling:
+                        case ChainCouplerInteraction.State.Being_Dragged:
+                        case ChainCouplerInteraction.State.Attached_Loose:
+                        case ChainCouplerInteraction.State.Attached_Tight:
+                        default:
+                            return false; // closed otherwise (link inserted)
+                    }
+
+                default:
+                    return false;
+            }
+        }
+
         public static void CreateHook(ChainCouplerInteraction chainScript, GameObject? fallbackHookPrefab = null)
         {
             if (chainScript == null)
@@ -579,14 +665,27 @@ namespace DvMod.ZCouplers.Visuals
             pivot.transform.parent = coupler.train.interior;
             pivots.Add(chainScript, pivot.transform);
 
-            // Determine which hook prefab to use based on coupler type and state
-            var couplerType = Main.settings.couplerType;
-            var isParked = coupler.state == ChainCouplerInteraction.State.Parked;
-            var actualHookPrefab = AssetManager.GetHookPrefabForState(couplerType, isParked) ?? fallbackHookPrefab;
+            // Determine which hook prefab to use based on coupler type and state (new mapping)
+            var profile = CouplerProfiles.Current;
+            GameObject? actualHookPrefab = null;
+            string desiredName = profile?.Options.HookClosedChildName ?? "hook";
+            bool initShouldUseOpenHook = ShouldUseOpenHook(coupler);
+            if (profile != null)
+            {
+                actualHookPrefab = initShouldUseOpenHook ? profile.GetOpenPrefab() : profile.GetClosedPrefab();
+                desiredName = initShouldUseOpenHook ? (profile.Options.HookOpenChildName ?? "hook_open")
+                                                    : (profile.Options.HookClosedChildName ?? "hook");
+            }
 
             if (actualHookPrefab == null)
             {
-                Main.ErrorLog(() => $"Hook prefab is null for coupler type {couplerType}, state parked: {isParked}, cannot create knuckle coupler hook");
+                // Fallback to provided prefab if profile-provided prefabs are missing
+                actualHookPrefab = fallbackHookPrefab;
+            }
+
+            if (actualHookPrefab == null)
+            {
+                Main.ErrorLog(() => $"Hook prefab is null for coupler type {Main.settings.couplerType}, state={coupler.state}, cannot create knuckle coupler hook");
                 return;
             }
 
@@ -596,14 +695,14 @@ namespace DvMod.ZCouplers.Visuals
                 return;
             }
 
-            // Name the initial hook child according to the state so swap detection works correctly
-            var options = CouplerProfiles.Current?.Options;
-            var profile = CouplerProfiles.Current;
-            bool initialShouldUseOpenHook = profile?.Options.HasOpenVariant == true && isParked && profile.GetOpenPrefab() != null;
-            string desiredName = initialShouldUseOpenHook ? (options?.HookOpenChildName ?? "hook_open")
-                                                          : (options?.HookClosedChildName ?? "hook");
-
+            // Name the initial hook child according to the mapped state so swap detection works correctly
             CreateHookInstance(pivot.transform, actualHookPrefab, chainScript, coupler, desiredName);
+
+            // Debug logging for successful LAP hook creation
+            if (Main.settings.couplerType == CouplerType.LAPCoupler)
+            {
+                Main.DebugLog(() => $"Successfully created LAP hook for {coupler.train.ID} {coupler.Position()}, using {(initShouldUseOpenHook ? "open" : "closed")} variant");
+            }
 
             // Add the visual updater component to ensure rotation works
             if (chainScript.gameObject.GetComponent<CouplerVisualUpdater>() == null)
@@ -629,8 +728,8 @@ namespace DvMod.ZCouplers.Visuals
             if (pivot == null)
                 return false;
 
-            // Validate the pivot still has a hook child; if it doesn’t, treat as not reboundable
-            var hook = pivot.Find("hook") ?? pivot.Find("hook_open") ?? pivot.Find("SA3_closed") ?? pivot.Find("SA3_open") ?? pivot.Find("Schaku_closed") ?? pivot.Find("Schaku_open");
+            // Validate the pivot still has a hook child; if it does not, treat as not reboundable
+            var hook = pivot.Find("hook") ?? pivot.Find("hook_open") ?? pivot.Find("SA3_closed") ?? pivot.Find("SA3_open") ?? pivot.Find("Schaku_closed") ?? pivot.Find("Schaku_open") ?? pivot.Find("LaP_closed") ?? pivot.Find("LaP_open");
             if (hook == null)
                 return false;
 
@@ -754,13 +853,13 @@ namespace DvMod.ZCouplers.Visuals
 
             hook.transform.localPosition = finalPosition;
 
-            // Use the existing colliders from the prefab; no automatic creation
-            var interactionCollider = hook.GetComponent<BoxCollider>();
+            // Use the existing colliders from the prefab; support both BoxCollider and MeshCollider
+            var interactionCollider = hook.GetComponent<BoxCollider>() ?? (Collider)hook.GetComponent<MeshCollider>();
             if (interactionCollider != null)
             {
                 interactionCollider.isTrigger = true; // Ensure it's a trigger for interaction
 
-                // Restore solid walkable collider like v1.2.2: create a child with a non-trigger BoxCollider
+                // Restore solid walkable collider like v1.2.2: create a child with a non-trigger collider
                 // so the coupler head has physical collision for players while keeping interaction as trigger.
                 var existingWalkable = hook.transform.Find("walkable");
                 if (existingWalkable == null)
@@ -769,10 +868,21 @@ namespace DvMod.ZCouplers.Visuals
                     colliderHost.layer = LayerMask.NameToLayer("Train_Walkable");
                     colliderHost.transform.SetParent(hook.transform, worldPositionStays: false);
 
-                    var walkableCollider = colliderHost.AddComponent<BoxCollider>();
-                    walkableCollider.center = interactionCollider.center;
-                    walkableCollider.size = interactionCollider.size;
-                    walkableCollider.isTrigger = false;
+                    // Create walkable collider matching the original type
+                    if (interactionCollider is BoxCollider boxCollider)
+                    {
+                        var walkableCollider = colliderHost.AddComponent<BoxCollider>();
+                        walkableCollider.center = boxCollider.center;
+                        walkableCollider.size = boxCollider.size;
+                        walkableCollider.isTrigger = false;
+                    }
+                    else if (interactionCollider is MeshCollider meshCollider)
+                    {
+                        var walkableCollider = colliderHost.AddComponent<MeshCollider>();
+                        walkableCollider.sharedMesh = meshCollider.sharedMesh;
+                        walkableCollider.convex = true; // Required for non-trigger MeshColliders
+                        walkableCollider.isTrigger = false;
+                    }
                 }
                 else
                 {
@@ -781,8 +891,67 @@ namespace DvMod.ZCouplers.Visuals
                     if (existingWalkable.GetComponent<BoxCollider>() is BoxCollider wc)
                     {
                         wc.isTrigger = false;
-                        wc.center = interactionCollider.center;
-                        wc.size = interactionCollider.size;
+                        if (interactionCollider is BoxCollider bc)
+                        {
+                            wc.center = bc.center;
+                            wc.size = bc.size;
+                        }
+                    }
+                    else if (existingWalkable.GetComponent<MeshCollider>() is MeshCollider wmc)
+                    {
+                        wmc.isTrigger = false;
+                        wmc.convex = true;
+                        if (interactionCollider is MeshCollider mc)
+                        {
+                            wmc.sharedMesh = mc.sharedMesh;
+                        }
+                    }
+                }
+                
+                var existingItems = hook.transform.Find("items");
+                if (existingItems == null)
+                {
+                    var colliderHost = new GameObject("items");
+                    colliderHost.layer = LayerMask.NameToLayer("Train_Interior");
+                    colliderHost.transform.SetParent(hook.transform, worldPositionStays: false);
+
+                    // Create items collider matching the original type
+                    if (interactionCollider is BoxCollider boxCollider)
+                    {
+                        var itemCollider = colliderHost.AddComponent<BoxCollider>();
+                        itemCollider.center = boxCollider.center;
+                        itemCollider.size = boxCollider.size;
+                        itemCollider.isTrigger = false;
+                    }
+                    else if (interactionCollider is MeshCollider meshCollider)
+                    {
+                        var itemCollider = colliderHost.AddComponent<MeshCollider>();
+                        itemCollider.sharedMesh = meshCollider.sharedMesh;
+                        itemCollider.convex = true; // Required for non-trigger MeshColliders
+                        itemCollider.isTrigger = false;
+                    }
+                }
+                else
+                {
+                    // Ensure any existing item collider is configured properly
+                    existingItems.gameObject.layer = LayerMask.NameToLayer("Train_Interior");
+                    if (existingItems.GetComponent<BoxCollider>() is BoxCollider ic)
+                    {
+                        ic.isTrigger = false;
+                        if (interactionCollider is BoxCollider bc)
+                        {
+                            ic.center = bc.center;
+                            ic.size = bc.size;
+                        }
+                    }
+                    else if (existingItems.GetComponent<MeshCollider>() is MeshCollider imc)
+                    {
+                        imc.isTrigger = false;
+                        imc.convex = true;
+                        if (interactionCollider is MeshCollider mc)
+                        {
+                            imc.sharedMesh = mc.sharedMesh;
+                        }
                     }
                 }
             }
@@ -804,7 +973,7 @@ namespace DvMod.ZCouplers.Visuals
             }
             else
             {
-                infoArea.infoType = KnuckleCouplerState.IsUnlocked(coupler) ? KnuckleCouplerLock : KnuckleCouplerUnlock;
+                infoArea.infoType = KnuckleCouplerState.IsUnlocked(coupler) ? KnuckleCouplerUnlocked : KnuckleCouplerReady;
             }
             hook.SetActive(true); // Activate after initialization completes
 
@@ -864,7 +1033,7 @@ namespace DvMod.ZCouplers.Visuals
                 // Vertical articulation is profile-driven
                 if (CouplerProfiles.Current?.Options.SupportsVerticalArticulation == true)
                 {
-                    // Calculate vertical rotation (pitch) for Schafenberg couplers
+                    // Calculate vertical rotation (pitch) for Scharfenberg couplers
                     var horizontalDistance = Mathf.Sqrt(offset.x * offset.x + offset.z * offset.z);
                     var verticalAngle = -Mathf.Atan2(offset.y, horizontalDistance) * Mathf.Rad2Deg;
 
@@ -879,7 +1048,7 @@ namespace DvMod.ZCouplers.Visuals
 
                 // Keep the Y component for distance calculation but don't zero it out for positioning
                 var distance = offset.magnitude;
-                var hook = pivot.Find("hook") ?? pivot.Find("hook_open") ?? pivot.Find("SA3_closed") ?? pivot.Find("SA3_open") ?? pivot.Find("Schaku_closed") ?? pivot.Find("Schaku_open");
+                var hook = pivot.Find("hook") ?? pivot.Find("hook_open") ?? pivot.Find("SA3_closed") ?? pivot.Find("SA3_open") ?? pivot.Find("Schaku_closed") ?? pivot.Find("Schaku_open") ?? pivot.Find("LaP_closed") ?? pivot.Find("LaP_open");
                 if (hook != null && hook.gameObject != null)
                 {
                     // Base position at half distance
@@ -912,238 +1081,11 @@ namespace DvMod.ZCouplers.Visuals
             }
         }
 
-        public static void UpdateHookVisualState(ChainCouplerInteraction chainScript, bool locked)
-        {
-            if (chainScript == null)
-                return;
-
-            var coupler = chainScript.couplerAdapter?.coupler;
-            if (coupler == null)
-                return;
-
-            try
-            {
-                // Check if we need to swap the hook visual for couplers that support multiple states
-                var couplerType = Main.settings.couplerType;
-                if (couplerType == CouplerType.AARKnuckle || couplerType == CouplerType.SA3Knuckle || couplerType == CouplerType.Schafenberg)
-                {
-                    SwapHookVisualIfNeeded(chainScript, coupler);
-                }
-
-                // Determine the correct interaction text based on coupler state
-                var pivot = GetPivot(chainScript);
-                var hook = pivot?.Find("hook") ?? pivot?.Find("hook_open") ?? pivot?.Find("SA3_closed") ?? pivot?.Find("SA3_open") ?? pivot?.Find("Schaku_closed") ?? pivot?.Find("Schaku_open");
-                if (hook?.GetComponent<InfoArea>() is InfoArea infoArea)
-                {
-                    // Base the text on the actual coupler state, not just the locked flag
-                    switch (coupler.state)
-                    {
-                        case ChainCouplerInteraction.State.Parked:
-                            // Parked = coupler is unlocked and ready to be made ready
-                            infoArea.infoType = KnuckleCouplerLock; // "Press to ready coupler"
-                            break;
-
-                        case ChainCouplerInteraction.State.Attached_Tight:
-                            // Attached_Tight = coupler is coupled to another coupler
-                            if (coupler.IsCoupled())
-                            {
-                                infoArea.infoType = KnuckleCouplerCoupled; // "Coupler is coupled"
-                            }
-                            else
-                            {
-                                infoArea.infoType = KnuckleCouplerUnlock; // "Press to unlock coupler"
-                            }
-                            break;
-
-                        case ChainCouplerInteraction.State.Dangling:
-                        case ChainCouplerInteraction.State.Being_Dragged:
-                        case ChainCouplerInteraction.State.Attached_Loose:
-                            // These states = coupler is ready/locked but not coupled, can be unlocked
-                            infoArea.infoType = KnuckleCouplerUnlock; // "Press to unlock coupler"
-                            break;
-                    }
-                }
-
-                // Handle visual disconnection for unlocked couplers
-                if (coupler.state == ChainCouplerInteraction.State.Parked)
-                {
-                    // Manually trigger visual disconnection for knuckle couplers
-                    if (pivot != null && pivot.gameObject != null && coupler.transform != null)
-                    {
-                        pivot.localEulerAngles = coupler.transform.localEulerAngles;
-                        if (hook != null && hook.gameObject != null)
-                        {
-                            // Base position when parked/disconnected
-                            var basePosition = PivotLength * Vector3.forward;
-
-                            // Start with base position and apply profile offsets
-                            var finalPosition = basePosition;
-                            var options = CouplerProfiles.Current?.Options;
-                            if (options != null)
-                                finalPosition += new Vector3(options.HookLateralOffsetX, 0f, 0f) + options.HookAdditionalOffset;
-
-                            // Apply height offset for LocoS282A front coupler
-                            if (IsFrontCouplerOnLocoS282A(coupler))
-                            {
-                                // Move front coupler on LocoS282A down by 0.05 units
-                                finalPosition += new Vector3(0f, -0.05f, 0f);
-                            }
-
-                            hook.localPosition = finalPosition;
-                        }
-                    }
-
-                    // Clear the attached reference if it exists
-                    if (chainScript.attachedTo != null)
-                    {
-                        chainScript.attachedTo.attachedTo = null;
-                        chainScript.attachedTo = null;
-                    }
-                }
-            }
-            catch (System.Exception ex)
-            {
-                if (Main.settings.enableLogging)
-                {
-                    Main.ErrorLog(() => $"Exception in UpdateHookVisualState: {ex.Message}");
-                }
-            }
-        }
-
-        /// <summary>
-        /// Swap the hook visual for AAR couplers between normal and open states based on coupler state.
-        /// </summary>
-        private static void SwapHookVisualIfNeeded(ChainCouplerInteraction chainScript, Coupler coupler)
-        {
-            var pivot = GetPivot(chainScript);
-            if (pivot == null)
-            {
-                return;
-            }
-
-            // Find hook by name - use profile names with fallbacks
-            var options = CouplerProfiles.Current?.Options;
-            var openName = options?.HookOpenChildName ?? "hook_open";
-            var closedName = options?.HookClosedChildName ?? "hook";
-            var hookOpen = pivot.Find(openName) ?? pivot.Find("hook_open") ?? pivot.Find("SA3_open") ?? pivot.Find("Schaku_open");
-            var hookClosed = pivot.Find(closedName) ?? pivot.Find("hook") ?? pivot.Find("SA3_closed") ?? pivot.Find("Schaku_closed");
-            var hook = hookOpen ?? hookClosed;
-
-            // Collect child names for potential diagnostics
-            var childNames = new System.Collections.Generic.List<string>();
-            for (int i = 0; i < pivot.childCount; i++)
-            {
-                var child = pivot.GetChild(i);
-                if (child.name.Contains("hook") || child.name.Contains("SA3") || child.name.Contains("Schaku"))
-                    childNames.Add(child.name);
-            }
-
-            if (hook == null)
-            {
-                return;
-            }
-
-            var isParked = coupler.state == ChainCouplerInteraction.State.Parked;
-            var profile = CouplerProfiles.Current;
-            bool shouldUseOpenHook = profile?.Options.HasOpenVariant == true && isParked && profile.GetOpenPrefab() != null;
-
-            // Check if we need to swap the hook visual
-            var currentHookName = hook.name;
-            var needsSwap = false;
-            var isCurrentlyOpen = currentHookName.Contains("open");
-
-            if (shouldUseOpenHook && !isCurrentlyOpen)
-            {
-                needsSwap = true;
-            }
-            else if (!shouldUseOpenHook && isCurrentlyOpen)
-            {
-                needsSwap = true;
-            }
-
-            if (needsSwap)
-            {
-                // Prefetch the replacement prefab; if unavailable (e.g., assets not yet loaded), skip swapping
-                GameObject? newHookPrefab = null;
-                string desiredName = "";
-                if (profile != null)
-                {
-                    newHookPrefab = shouldUseOpenHook ? profile.GetOpenPrefab() : profile.GetClosedPrefab();
-                    desiredName = shouldUseOpenHook ? (options?.HookOpenChildName ?? "hook_open") : (options?.HookClosedChildName ?? "hook");
-                }
-
-                if (newHookPrefab == null || pivot == null)
-                {
-                    // Don’t destroy existing hook if we can’t replace it yet
-                    return;
-                }
-
-                // Remove old hook and create replacement - defer to avoid NRE during button interaction
-                chainScript.StartCoroutine(DelayedHookSwap(chainScript, coupler, shouldUseOpenHook));
-            }
-        }
-
-        /// <summary>
-        /// Delayed hook visual swap to avoid NRE during button interaction processing
-        /// </summary>
-        private static System.Collections.IEnumerator DelayedHookSwap(ChainCouplerInteraction chainScript, Coupler coupler, bool shouldUseOpenHook)
-        {
-            // Wait a frame to allow button interaction to complete
-            yield return null;
-
-            var pivot = GetPivot(chainScript);
-            if (pivot == null)
-                yield break;
-
-            // Re-find the hook after waiting a frame
-            var options = CouplerProfiles.Current?.Options;
-            var openName = options?.HookOpenChildName ?? "hook_open";
-            var closedName = options?.HookClosedChildName ?? "hook";
-            var hookOpen = pivot.Find(openName) ?? pivot.Find("hook_open") ?? pivot.Find("SA3_open") ?? pivot.Find("Schaku_open");
-            var hookClosed = pivot.Find(closedName) ?? pivot.Find("hook") ?? pivot.Find("SA3_closed") ?? pivot.Find("Schaku_closed");
-            var hook = hookOpen ?? hookClosed;
-
-            if (hook == null)
-                yield break;
-
-            // Prefetch the replacement prefab
-            GameObject? newHookPrefab = null;
-            string desiredName = "";
-            var profile = CouplerProfiles.Current;
-            if (profile != null)
-            {
-                newHookPrefab = shouldUseOpenHook ? profile.GetOpenPrefab() : profile.GetClosedPrefab();
-                desiredName = shouldUseOpenHook ? (options?.HookOpenChildName ?? "hook_open") : (options?.HookClosedChildName ?? "hook");
-            }
-
-            if (newHookPrefab == null || pivot == null)
-                yield break;
-
-            Main.DebugLog(() => $"Hook visual swapped for {coupler.train.ID} {coupler.Position()} -> {(shouldUseOpenHook ? "open" : "closed")} state");
-
-            // Play appropriate sound for the state change
-            var isCurrentlyOpen = hook.name.Contains("open");
-            if (!shouldUseOpenHook && isCurrentlyOpen)
-            {
-                // Swapping from open to closed - play park sound (coupler becoming ready)
-                chainScript.PlaySound(chainScript.parkSound, chainScript.transform.position);
-            }
-            else if (shouldUseOpenHook && !isCurrentlyOpen)
-            {
-                // Swapping from closed to open - play attach sound (coupler becoming unlocked)
-                chainScript.PlaySound(chainScript.attachSound, chainScript.transform.position);
-            }
-
-            // Remove old hook and create replacement
-            GameObject.DestroyImmediate(hook.gameObject);
-            CreateHookInstance(pivot, newHookPrefab, chainScript, coupler, desiredName);
-        }
-
         /// <summary>
         /// Update hook visual state based on current coupler state.
         /// Uses immediate hook swapping for proper visual synchronization during loading.
         /// </summary>
-        public static void UpdateHookVisualStateFromCouplerState(Coupler coupler)
+        public static void UpdateHookVisualStateFromCouplerState(Coupler? coupler)
         {
             if (coupler?.visualCoupler?.chainAdapter?.chainScript == null)
                 return;
@@ -1152,6 +1094,16 @@ namespace DvMod.ZCouplers.Visuals
 
             // Use immediate hook swapping instead of the deferred UpdateHookVisualState
             UpdateHookVisualStateImmediate(chainScript, coupler);
+
+            // Update LAP link visibility if using LAP couplers
+            if (Main.settings.couplerType == CouplerType.LAPCoupler && coupler.IsCoupled())
+            {
+                var otherCoupler = coupler.coupledTo;
+                if (otherCoupler != null)
+                {
+                    LAPLinkManager.CreateOrShowLink(coupler, otherCoupler);
+                }
+            }
         }
 
         /// <summary>
@@ -1162,45 +1114,45 @@ namespace DvMod.ZCouplers.Visuals
             if (chainScript == null || coupler == null)
                 return;
 
+            // Get pivot and hook
+            var pivot = GetPivot(chainScript);
+            var options = CouplerProfiles.Current?.Options;
+            var hookOpen = pivot?.Find(options?.HookOpenChildName);
+            var hookClosed = pivot?.Find(options?.HookClosedChildName);
+            var hook = hookOpen ?? hookClosed;
+
             try
             {
-                // Check if we need to swap the hook visual for couplers that support multiple states
                 var couplerType = Main.settings.couplerType;
-                if (couplerType == CouplerType.AARKnuckle || couplerType == CouplerType.SA3Knuckle || couplerType == CouplerType.Schafenberg)
-                {
-                    SwapHookVisualImmediately(chainScript, coupler);
-                }
+
+                SwapHookVisualImmediately(chainScript, coupler);
 
                 // Determine the correct interaction text based on coupler state
-                var pivot = GetPivot(chainScript);
-                var hook = pivot?.Find("hook") ?? pivot?.Find("hook_open") ?? pivot?.Find("SA3_closed") ?? pivot?.Find("SA3_open") ?? pivot?.Find("Schaku_closed") ?? pivot?.Find("Schaku_open");
                 if (hook?.GetComponent<InfoArea>() is InfoArea infoArea)
                 {
                     // Base the text on the actual coupler state, not just the locked flag
                     switch (coupler.state)
                     {
-                        case ChainCouplerInteraction.State.Parked:
-                            // Parked = coupler is unlocked and ready to be made ready
-                            infoArea.infoType = KnuckleCouplerLock; // "Press to ready coupler"
+	                    case ChainCouplerInteraction.State.Parked:
+		                    // Parked = coupler is unlocked, but for Scharfenberg or auto-coupling mode, show "ready"
+		                    if (Main.settings.couplerType == CouplerType.Scharfenberg || Main.settings.autoCouplingMode)
+		                    {
+			                    infoArea.infoType = KnuckleCouplerReady; // "Coupler is ready"
+		                    }
+		                    else
+		                    {
+			                    infoArea.infoType = KnuckleCouplerUnlocked; // "Coupler is unlocked"
+		                    }
                             break;
 
                         case ChainCouplerInteraction.State.Attached_Tight:
                             // Attached_Tight = coupler is coupled to another coupler
-                            if (coupler.IsCoupled())
-                            {
-                                infoArea.infoType = KnuckleCouplerCoupled; // "Coupler is coupled"
-                            }
-                            else
-                            {
-                                infoArea.infoType = KnuckleCouplerUnlock; // "Press to unlock coupler"
-                            }
+	                        infoArea.infoType = KnuckleCouplerCoupled; // "Coupler is coupled"
                             break;
 
                         case ChainCouplerInteraction.State.Dangling:
-                        case ChainCouplerInteraction.State.Being_Dragged:
-                        case ChainCouplerInteraction.State.Attached_Loose:
-                            // These states = coupler is ready/locked but not coupled, can be unlocked
-                            infoArea.infoType = KnuckleCouplerUnlock; // "Press to unlock coupler"
+                            // Dangling = coupler is ready but not coupled
+                            infoArea.infoType = KnuckleCouplerReady; // "Coupler is ready"
                             break;
                     }
                 }
@@ -1219,7 +1171,6 @@ namespace DvMod.ZCouplers.Visuals
 
                             // Start with base position and apply profile offsets
                             var finalPosition = basePosition;
-                            var options = CouplerProfiles.Current?.Options;
                             if (options != null)
                                 finalPosition += new Vector3(options.HookLateralOffsetX, 0f, 0f) + options.HookAdditionalOffset;
 
@@ -1262,12 +1213,10 @@ namespace DvMod.ZCouplers.Visuals
                 return;
             }
 
-            // Find hook by name - use profile names with fallbacks
+            // Find hook by name
             var options = CouplerProfiles.Current?.Options;
-            var openName = options?.HookOpenChildName ?? "hook_open";
-            var closedName = options?.HookClosedChildName ?? "hook";
-            var hookOpen = pivot.Find(openName) ?? pivot.Find("hook_open") ?? pivot.Find("SA3_open") ?? pivot.Find("Schaku_open");
-            var hookClosed = pivot.Find(closedName) ?? pivot.Find("hook") ?? pivot.Find("SA3_closed") ?? pivot.Find("Schaku_closed");
+            var hookOpen = pivot.Find(options?.HookOpenChildName);
+            var hookClosed = pivot.Find(options?.HookClosedChildName);
             var hook = hookOpen ?? hookClosed;
 
             if (hook == null)
@@ -1275,9 +1224,8 @@ namespace DvMod.ZCouplers.Visuals
                 return;
             }
 
-            var isParked = coupler.state == ChainCouplerInteraction.State.Parked;
-            var profile = CouplerProfiles.Current;
-            bool shouldUseOpenHook = profile?.Options.HasOpenVariant == true && isParked && profile.GetOpenPrefab() != null;
+            // New mapping
+            bool shouldUseOpenHook = ShouldUseOpenHook(coupler);
 
             // Check if we need to swap the hook visual
             var currentHookName = hook.name;
@@ -1297,11 +1245,12 @@ namespace DvMod.ZCouplers.Visuals
             {
                 // Prefetch the replacement prefab; if unavailable (e.g., assets not yet loaded), skip swapping
                 GameObject? newHookPrefab = null;
-                string desiredName = "";
+                string? desiredName = "";
+                var profile = CouplerProfiles.Current;
                 if (profile != null)
                 {
                     newHookPrefab = shouldUseOpenHook ? profile.GetOpenPrefab() : profile.GetClosedPrefab();
-                    desiredName = shouldUseOpenHook ? (options?.HookOpenChildName ?? "hook_open") : (options?.HookClosedChildName ?? "hook");
+                    desiredName = shouldUseOpenHook ? (options?.HookOpenChildName) : (options?.HookClosedChildName);
                 }
 
                 if (newHookPrefab == null || pivot == null)
@@ -1326,8 +1275,20 @@ namespace DvMod.ZCouplers.Visuals
                 }
 
                 // Remove old hook and create replacement immediately
-                GameObject.DestroyImmediate(hook.gameObject);
-                CreateHookInstance(pivot, newHookPrefab, chainScript, coupler, desiredName);
+                // Don't destroy the currently-used Button GameObject inside its Use() call.
+                // Rename and deactivate it to hide and avoid name collisions, create the new hook now,
+                // and destroy the old one deferred (end of frame) to prevent NREs.
+                var oldGo = hook.gameObject;
+                oldGo.name = oldGo.name + "__old";
+                oldGo.SetActive(false);
+
+                // Create replacement immediately so visuals update this frame
+                if (desiredName != null) CreateHookInstance(pivot, newHookPrefab, chainScript, coupler, desiredName);
+
+                // Destroy old after this frame; safe vs. ButtonBase.Use stack
+                GameObject.Destroy(oldGo);
+
+                UpdateHookVisualStateFromCouplerState(coupler);
             }
         }
 
@@ -1354,6 +1315,7 @@ namespace DvMod.ZCouplers.Visuals
                     KnuckleCouplerState.UnlockCoupler(coupler, viaChainInteraction: true);
                     break;
             }
+            UpdateHookVisualStateFromCouplerState(coupler);
         }
 
         /// Ensures a specific train car has knuckle couplers on both ends.
@@ -1362,9 +1324,12 @@ namespace DvMod.ZCouplers.Visuals
         {
             if (car?.gameObject == null)
                 return 0;
-
-            // Add ZCouplers socket plates for AAR/SA3 (destroys originals)
-            EnsureSocketPlates(car);
+            var options = CouplerProfiles.Current?.Options;
+            if (options == null || options.HasSocketPlates)
+            {
+                // Add ZCouplers socket plates for AAR/SA3 (destroys originals)
+                EnsureSocketPlates(car);
+            }
 
             int created = 0;
 
@@ -1390,9 +1355,13 @@ namespace DvMod.ZCouplers.Visuals
                 var rearChainScript = car.rearCoupler.visualCoupler.chainAdapter.chainScript;
                 if (GetPivot(rearChainScript) == null && rearChainScript.enabled)
                 {
-                    // Removed routine coupler creation log
-                    CreateHook(rearChainScript, hookPrefab);
-                    created++;
+                    // Check if this coupler should be disabled
+                    if (!ShouldDisableCoupler(car.rearCoupler))
+                    {
+                        // Removed routine coupler creation log
+                        CreateHook(rearChainScript, hookPrefab);
+                        created++;
+                    }
                 }
             }
 
@@ -1422,11 +1391,7 @@ namespace DvMod.ZCouplers.Visuals
 
             if (trainCar != null)
             {
-                int created = EnsureKnuckleCouplersForTrain(trainCar, hookPrefab);
-                if (created > 0)
-                {
-                    // Removed routine spawning log
-                }
+                EnsureKnuckleCouplersForTrain(trainCar, hookPrefab);
             }
         }
     }

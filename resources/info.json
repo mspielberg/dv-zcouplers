@@ -3,6 +3,7 @@
   "DisplayName": "Zeibach's Couplers",
   "Author": "Zeibach",
   "LoadAfter": ["Multiplayer"],
+  "Version": "2.2.2",
   "AssemblyName": "ZCouplers.dll",
   "EntryMethod": "DvMod.ZCouplers.Core.Main.Load",
   "ManagerVersion": "0.27.3",

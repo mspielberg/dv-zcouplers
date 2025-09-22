@@ -1,3 +1,8 @@
+using System;
+using System.Collections.Generic;
+
+using DV.CabControls;
+
 using DvMod.ZCouplers.Core.Profiles;
 using DvMod.ZCouplers.Core.Utils;
 using DvMod.ZCouplers.Visuals;
@@ -9,7 +14,10 @@ namespace DvMod.ZCouplers.Core
     public class KnuckleCouplers
     {
         public static KnuckleCouplers? Instance { get; private set; }
-    private static bool sceneLoadHooked = false;
+        private static bool sceneLoadHooked;
+
+        // Cache for tracking deactivated air hoses to avoid redundant operations
+        private static readonly HashSet<int> deactivatedAirHoses = new HashSet<int>();
 
         // Temporarily match the old working code exactly
         public static bool enabled => true; // Always enabled like the old code
@@ -32,9 +40,6 @@ namespace DvMod.ZCouplers.Core
 
         // Hook management delegation
         public static void CreateHook(ChainCouplerInteraction chainCoupler) => HookManager.CreateHook(chainCoupler, GetHookPrefab());
-        public static void DestroyHook(ChainCouplerInteraction chainCoupler) => HookManager.DestroyHook(chainCoupler);
-        public static void UpdateCouplerVisualState(Coupler coupler, bool locked) => KnuckleCouplerState.UpdateCouplerVisualState(coupler, locked);
-        public static void EnsureKnuckleCouplersForTrain(TrainCar car) => HookManager.EnsureKnuckleCouplersForTrain(car, GetHookPrefab());
 
         // Coupler state management delegation
         public static bool IsUnlocked(Coupler coupler) => KnuckleCouplerState.IsUnlocked(coupler);
@@ -131,14 +136,14 @@ namespace DvMod.ZCouplers.Core
         }
 
         /// <summary>
-        /// Deactivate all air hoses on all trains when using Schafenberg couplers.
+        /// Deactivate all air hoses on all trains when using Scharfenberg couplers.
         /// </summary>
         private static void DeactivateAllAirHoses()
         {
             if (CarSpawner.Instance?.allCars == null)
                 return;
 
-            Main.DebugLog(() => "Deactivating all air hoses for Schafenberg couplers");
+            Main.DebugLog(() => "Deactivating all air hoses for Scharfenberg couplers");
 
             int processedCars = 0;
             int processedCouplers = 0;
@@ -176,26 +181,56 @@ namespace DvMod.ZCouplers.Core
             if (coupler?.train?.gameObject == null)
                 return;
 
-            // Deterministic: only disable both direct "hoses" children under the interior
             var interior = coupler.train.interior;
             if (interior == null)
                 return;
 
-            for (int i = 0; i < interior.childCount; i++)
+            // Use interior instance ID as cache key to track already processed interiors
+            int interiorId = interior.GetInstanceID();
+
+            // Early exit if we've already processed this interior
+            if (deactivatedAirHoses.Contains(interiorId))
+                return;
+
+            // Mark as processed before doing the work
+            deactivatedAirHoses.Add(interiorId);
+
+            // Use Transform.Find for direct lookup instead of iterating all children
+            var hosesTransform = interior.Find("hoses");
+            if (hosesTransform != null)
             {
-                var child = interior.GetChild(i);
-                if (child != null && child.name == "hoses")
-                {
-                    child.gameObject.SetActive(false);
-                    GameObjHider.Attach(child);
-                }
+                hosesTransform.gameObject.SetActive(false);
+                GameObjHider.Attach(hosesTransform);
             }
         }
 
         /// <summary>
-        /// Recursively find a transform by name.
+        /// Clear the air hose deactivation cache. Call when cars are spawned/despawned.
         /// </summary>
-    // No longer used: deterministic interior/hoses-only
+        public static void ClearAirHoseCache()
+        {
+            deactivatedAirHoses.Clear();
+        }
+
+        /// <summary>
+        /// Clean up and shutdown all systems.
+        /// Called during mod unload.
+        /// </summary>
+        public static void Cleanup()
+        {
+            // Unsubscribe from scene events
+            if (sceneLoadHooked)
+            {
+                SceneManager.sceneLoaded -= OnSceneLoaded;
+                sceneLoadHooked = false;
+            }
+
+            // Clear air hose cache
+            deactivatedAirHoses.Clear();
+
+            // Reset instance
+            Instance = null;
+        }
 
         // Called from Main.Load()
         public static void Initialize()
@@ -211,6 +246,8 @@ namespace DvMod.ZCouplers.Core
             // Also re-apply shortly after load to catch already spawned cars - use ForceRefresh here
             UnityEngine.Object.FindObjectOfType<CarSpawner>()?.StartCoroutine(DelayedBufferVisualUpdate());
 
+            // Apply buffer colliders after cars are loaded
+            UnityEngine.Object.FindObjectOfType<CarSpawner>()?.StartCoroutine(DelayedBufferColliderUpdate());
             // Ensure we re-apply on future scene loads (e.g., entering game)
             if (!sceneLoadHooked)
             {
@@ -242,13 +279,37 @@ namespace DvMod.ZCouplers.Core
             BufferVisualManager.ForceRefreshBuffers(Main.settings.showBuffersWithKnuckles);
         }
 
+        /// <summary>
+        /// Delay to ensure cars and interior objects are fully loaded before applying buffer collider management.
+        /// </summary>
+        private static System.Collections.IEnumerator DelayedBufferColliderUpdate()
+        {
+            yield return new UnityEngine.WaitForSeconds(3.0f);
+            
+            // Additional wait for physics frames to ensure everything is stable
+            for (int i = 0; i < 30; i++)
+            {
+                yield return new UnityEngine.WaitForFixedUpdate();
+            }
+            
+            BufferVisualManager.ApplyBufferCollidersForAllCars();
+        }
         private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
-            // Only do the immediate call, remove redundant delayed call
-            BufferVisualManager.ToggleBuffers(Main.settings.showBuffersWithKnuckles);
-
-            if (CouplerProfiles.Current?.Options.AlwaysHideAirHoses == true)
-                UnityEngine.Object.FindObjectOfType<CarSpawner>()?.StartCoroutine(DelayedAirHoseDeactivation());
+            // Only clear air hose cache for meaningful scene changes that could affect car spawning
+            // Don't clear on UI scene loads or other non-gameplay scenes
+            if (mode == LoadSceneMode.Single)
+            {
+                ClearAirHoseCache();
+                Main.DebugLog(() => "Cleared air hose cache for scene load " + scene.name);
+                BufferVisualManager.ToggleBuffers(Main.settings.showBuffersWithKnuckles);
+                
+                // Apply buffer colliders after scene load
+                UnityEngine.Object.FindObjectOfType<CarSpawner>()?.StartCoroutine(DelayedBufferColliderUpdate());
+                
+                if (CouplerProfiles.Current?.Options.AlwaysHideAirHoses == true)
+	                UnityEngine.Object.FindObjectOfType<CarSpawner>()?.StartCoroutine(DelayedAirHoseDeactivation());
+            }
         }
 
     }

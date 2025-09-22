@@ -3,6 +3,7 @@ using UnityModManagerNet;
 
 namespace DvMod.ZCouplers.Core
 {
+    public enum strengthPreset { Custom, Recommended }
     public class Settings : UnityModManager.ModSettings, IDrawable
     {
         [Draw("Coupler type (requires restart)")]
@@ -10,26 +11,30 @@ namespace DvMod.ZCouplers.Core
 
         [Draw("Toggle Buffers Visuals", Tooltip = "Also modifies the physics to account for buffer absence")]
         public bool showBuffersWithKnuckles = false;
-        [Draw("Knuckle strength (Mn)", Min = 0.1f)]
+        [Draw(DrawType.ToggleGroup)]
+        public strengthPreset strengthValues = strengthPreset.Recommended;
+        [Draw("Knuckle strength (Mn)", VisibleOn = "strengthValues|Custom", Min = 0.1f)]
         public float knuckleStrength = 1.78f;
-        [Draw("Tension spring rate (Mn/m)", Min = 0f)]
+        [Draw("Tension spring rate (Mn/m)", VisibleOn = "strengthValues|Custom", Min = 0f)]
         public float drawgearSpringRate = 2f; // 2 MN/m = 2e6 N/m
-        [Draw("Compression damper rate (kN*s/m)", Min = 0f)]
+        [Draw("Compression damper rate (kN*s/m)", VisibleOn = "strengthValues|Custom", Min = 0f)]
         public float drawgearDamperRate = 100f;
         [Draw("Auto couple threshold (mm)", Min = 0f)]
         public float autoCoupleThreshold = 20f;
+        [Draw("Minimum separation distance (m)", Min = 0.1f, Tooltip = "Minimum distance couplers must separate before they can recouple again")]
+        public float minimumSeparationDistance = 1.0f;
 
-        [Draw("Auto Air & MU Mode", Tooltip = "Automatically connect air hoses, open brake valves, and connect MU cables when coupling")]
+        [Draw("Auto Air & MU Mode", Tooltip = "Automatically connect air hoses, open brake valves, and connect MU cables when coupling. Enforced by Scharfenberg couplers.")]
         public bool autoAirAndMuMode = false;
 
-        [Draw("Auto Coupling Mode", Tooltip = "Automatically couple even when couplers are not ready (parked state)")]
+        [Draw("Auto Coupling Mode", Tooltip = "Automatically couple even when couplers are not ready. Enforced by Scharfenberg couplers.")]
         public bool autoCouplingMode = false;
 
         /// <summary>
-        /// Gets the effective Auto Air & MU Mode setting, considering Schafenberg coupler requirements.
-        /// Schafenberg couplers automatically force Auto Air & MU Mode to be active.
+        /// Gets the effective Auto Air & MU Mode setting, considering Scharfenberg coupler requirements.
+        /// Scharfenberg couplers automatically force Auto Air & MU Mode to be active.
         /// </summary>
-        public bool EffectiveAutoAirAndMuMode => autoAirAndMuMode || couplerType == CouplerType.Schafenberg;
+        public bool EffectiveAutoAirAndMuMode => autoAirAndMuMode || couplerType == CouplerType.Scharfenberg;
 
         [Draw("Disable Front Couplers on S282")]
         public bool disableFrontCouplersOnSteamLocos = false;
@@ -54,35 +59,47 @@ namespace DvMod.ZCouplers.Core
 
         public float GetCouplerStrength()
         {
-            return couplerType switch
+            if (strengthValues == strengthPreset.Recommended)
             {
-                CouplerType.AARKnuckle => knuckleStrength * 1e6f,
-                CouplerType.SA3Knuckle => knuckleStrength * 1e6f,
-                CouplerType.Schafenberg => knuckleStrength * 1e6f,
-                _ => knuckleStrength * 1e6f // Default to knuckle strength
-            };
+                // Use profile default values
+                var profile = CouplerProfiles.Get(couplerType);
+                return profile?.Options.CouplerStrength ?? 1.78e6f;
+            }
+            else
+            {
+                // Use custom override value
+                return knuckleStrength * 1e6f; // Convert MN to N
+            }
         }
 
         public float GetSpringRate()
         {
-            return couplerType switch
+            if (strengthValues == strengthPreset.Recommended)
             {
-                CouplerType.AARKnuckle => drawgearSpringRate * 1e6f, // Convert MN/m to N/m
-                CouplerType.SA3Knuckle => drawgearSpringRate * 1e6f, // Convert MN/m to N/m
-                CouplerType.Schafenberg => drawgearSpringRate * 1e6f, // Convert MN/m to N/m
-                _ => drawgearSpringRate * 1e6f // Default to drawgear spring rate
-            };
+                // Use profile default values
+                var profile = CouplerProfiles.Get(couplerType);
+                return profile?.Options.SpringRate ?? 2e6f;
+            }
+            else
+            {
+                // Use custom override value
+                return drawgearSpringRate * 1e6f; // Convert MN/m to N/m
+            }
         }
 
         public float GetDamperRate()
         {
-            return couplerType switch
+            if (strengthValues == strengthPreset.Recommended)
             {
-                CouplerType.AARKnuckle => drawgearDamperRate * 1e3f, // Convert kN*s/m to N*s/m
-                CouplerType.SA3Knuckle => drawgearDamperRate * 1e3f, // Convert kN*s/m to N*s/m
-                CouplerType.Schafenberg => drawgearDamperRate * 1e3f, // Convert kN*s/m to N*s/m
-                _ => drawgearDamperRate * 1e3f // Default to drawgear damper rate
-            };
+                // Use profile default values
+                var profile = CouplerProfiles.Get(couplerType);
+                return profile?.Options.DamperRate ?? 100e3f;
+            }
+            else
+            {
+                // Use custom override value
+                return drawgearDamperRate * 1e3f; // Convert kN*s/m to N*s/m
+            }
         }
     }
 }

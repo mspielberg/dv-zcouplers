@@ -141,5 +141,16 @@ namespace DvMod.ZCouplers.Core
                 pendingCouplerStates.Remove(car);
             }
         }
+
+        /// <summary>
+        /// Clean up all pending states.
+        /// Called during mod unload.
+        /// </summary>
+        public static void Cleanup()
+        {
+            pendingCouplerStates.Clear();
+            isLoadingFromSave = false;
+            saveLoadStartTime = 0f;
+        }
     }
 }

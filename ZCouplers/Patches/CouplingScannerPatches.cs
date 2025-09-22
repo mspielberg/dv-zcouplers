@@ -8,43 +8,43 @@ using UnityEngine;
 
 namespace DvMod.ZCouplers.Patches
 {
-	/// <summary>
-	/// Handles coupling scanner functionality and Harmony patches.
-	/// </summary>
-	public static class CouplingScannerPatches
-	{
-		/// <summary>
-		/// Helper method to check if couplers should be considered ready based on settings
-		/// </summary>
-		private static bool ShouldCouplersBeReady(Coupler coupler, Coupler? otherCoupler)
-		{
-			if (coupler == null || otherCoupler == null)
-				return false;
+    /// <summary>
+    /// Handles coupling scanner functionality and Harmony patches.
+    /// </summary>
+    public static class CouplingScannerPatches
+    {
+        /// <summary>
+        /// Helper method to check if couplers should be considered ready based on settings
+        /// </summary>
+        private static bool ShouldCouplersBeReady(Coupler coupler, Coupler? otherCoupler)
+        {
+            if (coupler == null || otherCoupler == null)
+                return false;
 
-			if (Main.settings.autoCouplingMode)
-			{
-				// In auto coupling mode, skip ready checks - always allow coupling
-				return true;
-			}
+            if (Main.settings.autoCouplingMode || Main.settings.couplerType == CouplerType.Scharfenberg)
+            {
+                // In auto coupling mode, skip ready checks - always allow coupling
+                return true;
+            }
 
-			// Normal mode: both couplers must be ready
-			return KnuckleCouplers.IsReadyToCouple(coupler) && KnuckleCouplers.IsReadyToCouple(otherCoupler);
-		}
-		/// <summary>
-		/// Get the coupling scanner component from a coupler.
-		/// </summary>
-		public static CouplingScanner? GetScanner(Coupler coupler)
-		{
-			try
-			{
-				return coupler?.visualCoupler?.GetComponent<CouplingScanner>();
-			}
-			catch (System.Exception)
-			{
-				// Return null if any exception occurs during component access
-				return null;
-			}
-		}
+            // Normal mode: one coupler must be ready
+            return KnuckleCouplers.IsReadyToCouple(coupler) || KnuckleCouplers.IsReadyToCouple(otherCoupler);
+        }
+        /// <summary>
+        /// Get the coupling scanner component from a coupler.
+        /// </summary>
+        public static CouplingScanner? GetScanner(Coupler coupler)
+        {
+            try
+            {
+                return coupler?.visualCoupler?.GetComponent<CouplingScanner>();
+            }
+            catch (System.Exception)
+            {
+                // Return null if any exception occurs during component access
+                return null;
+            }
+        }
 
 		/// <summary>
 		/// Stop and kill a coupling scanner safely.
@@ -77,60 +77,19 @@ namespace DvMod.ZCouplers.Patches
 			if (coupler == null)
 				return;
 
-			try
-			{
-				var scanner = GetScanner(coupler);
-				if (scanner != null && scanner.masterCoro == null && scanner.isActiveAndEnabled)
-				{
-					scanner.masterCoro = scanner.StartCoroutine(scanner.MasterCoro());
-				}
-			}
-			catch (System.Exception ex)
-			{
-				Main.ErrorLog(() => $"Error restarting coupling scanner: {ex.Message}");
-			}
-		}
-
-		/// <summary>
-		/// Separate cars after uncoupling with temporary scanner disable.
-		/// </summary>
-		public static void SeparateCarsAfterUncoupling(Coupler coupler1, Coupler coupler2)
-		{
-			if (coupler1?.train?.gameObject == null || coupler2?.train?.gameObject == null)
-				return;
-
-			try
-			{
-				// Temporarily disable coupling scanners to prevent immediate recoupling
-				var scanner1 = GetScanner(coupler1);
-				var scanner2 = GetScanner(coupler2);
-
-				if (scanner1 != null)
-				{
-					scanner1.enabled = false;
-					scanner1.StartCoroutine(ReEnableScanner(scanner1, coupler1.train.ID, 0.2f));
-				}
-				if (scanner2 != null)
-				{
-					scanner2.enabled = false;
-					scanner2.StartCoroutine(ReEnableScanner(scanner2, coupler2.train.ID, 0.2f));
-				}
-			}
-			catch (System.Exception ex)
-			{
-				Main.ErrorLog(() => $"Error in uncoupling cleanup: {ex.Message}");
-			}
-		}
-
-		private static IEnumerator ReEnableScanner(CouplingScanner scanner, string trainId, float delay)
-		{
-			yield return new WaitForSeconds(delay);
-
-			if (scanner != null)
-			{
-				scanner.enabled = true;
-			}
-		}
+            try
+            {
+                var scanner = GetScanner(coupler);
+                if (scanner != null && scanner.masterCoro == null && scanner.isActiveAndEnabled)
+                {
+                    scanner.masterCoro = scanner.StartCoroutine(scanner.MasterCoro());
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Main.ErrorLog(() => $"Error restarting coupling scanner: {ex.Message}");
+            }
+        }
 
 		/// <summary>
 		/// Patches for coupling scanner behavior.
@@ -262,20 +221,26 @@ namespace DvMod.ZCouplers.Patches
 				if (otherCoupler == null || otherCoupler.train.derailed)
 					return;
 
-				// In auto coupling mode, automatically ready both couplers if they're not already
-				if (Main.settings.autoCouplingMode)
-				{
-					if (!KnuckleCouplers.IsReadyToCouple(coupler))
-					{
-						Main.DebugLog(() => $"Auto coupling mode: readying coupler {coupler.train.ID} {coupler.Position()}");
-						KnuckleCouplers.ReadyCoupler(coupler);
-					}
-					if (!KnuckleCouplers.IsReadyToCouple(otherCoupler))
-					{
-						Main.DebugLog(() => $"Auto coupling mode: readying coupler {otherCoupler.train.ID} {otherCoupler.Position()}");
-						KnuckleCouplers.ReadyCoupler(otherCoupler);
-					}
-				}
+                // Check distance-based recoupling prevention
+                if (!RecouplingPrevention.CanRecouple(coupler, otherCoupler))
+                {
+                    return; // Blocked due to insufficient separation since last uncoupling
+                }
+
+                // In auto coupling mode, automatically ready both couplers if they're not already
+                if (Main.settings.autoCouplingMode)
+                {
+                    if (!KnuckleCouplers.IsReadyToCouple(coupler))
+                    {
+                        Main.DebugLog(() => $"Auto coupling mode: readying coupler {coupler.train.ID} {coupler.Position()}");
+                        KnuckleCouplers.ReadyCoupler(coupler);
+                    }
+                    if (!KnuckleCouplers.IsReadyToCouple(otherCoupler))
+                    {
+                        Main.DebugLog(() => $"Auto coupling mode: readying coupler {otherCoupler.train.ID} {otherCoupler.Position()}");
+                        KnuckleCouplers.ReadyCoupler(otherCoupler);
+                    }
+                }
 
 				coupler.CoupleTo(otherCoupler, viaChainInteraction: true);
 
@@ -431,9 +396,12 @@ namespace DvMod.ZCouplers.Patches
 							{
 								Main.DebugLog(() => $"Fixing mismatched save states and coupling {coupler.train.ID} ({coupler.state}) <-> {otherCoupler.train.ID} ({otherCoupler.state})");
 
-								// Set both to Dangling state first (ready but uncoupled)
-								coupler.state = ChainCouplerInteraction.State.Dangling;
-								otherCoupler.state = ChainCouplerInteraction.State.Dangling;
+                                // Set both to Dangling state first (ready but uncoupled)
+                                coupler.state = ChainCouplerInteraction.State.Dangling;
+                                otherCoupler.state = ChainCouplerInteraction.State.Dangling;
+                                // Reflect state changes in visuals immediately
+                                HookManager.UpdateHookVisualStateFromCouplerState(coupler);
+                                HookManager.UpdateHookVisualStateFromCouplerState(otherCoupler);
 
 								TryCouple(coupler);
 

@@ -13,5 +13,6 @@ namespace DvMod.ZCouplers.Core.Profiles
 
         GameObject? GetClosedPrefab();
         GameObject? GetOpenPrefab();
+        GameObject? GetAdditionalPrefab();
     }
 }

@@ -47,13 +47,13 @@ namespace DvMod.ZCouplers.Patches
                 yield return new WaitForSeconds(0.2f);
 
                 // Update visual states to show correct interaction prompts
-                if (car?.frontCoupler != null && !car.frontCoupler.IsCoupled())
+                if (car?.frontCoupler != null)
                 {
-                    KnuckleCouplerState.UpdateCouplerVisualState(car.frontCoupler, locked: true);
+	                HookManager.UpdateHookVisualStateFromCouplerState(car.frontCoupler);
                 }
-                if (car?.rearCoupler != null && !car.rearCoupler.IsCoupled())
+                if (car?.rearCoupler != null)
                 {
-                    KnuckleCouplerState.UpdateCouplerVisualState(car.rearCoupler, locked: true);
+	                HookManager.UpdateHookVisualStateFromCouplerState(car.rearCoupler);
                 }
             }
 

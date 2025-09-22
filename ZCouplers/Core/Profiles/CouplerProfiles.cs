@@ -21,5 +21,14 @@ namespace DvMod.ZCouplers.Core.Profiles
         }
 
         public static ICouplerProfile? Current => Get(Main.settings.couplerType);
+
+        /// <summary>
+        /// Clean up the registry.
+        /// Called during mod unload.
+        /// </summary>
+        public static void Cleanup()
+        {
+            registry.Clear();
+        }
     }
 }

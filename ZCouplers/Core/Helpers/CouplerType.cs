@@ -4,5 +4,6 @@ public enum CouplerType
 {
     AARKnuckle = 1,
     SA3Knuckle,
-    Schafenberg
+    Scharfenberg,
+    LAPCoupler,
 }

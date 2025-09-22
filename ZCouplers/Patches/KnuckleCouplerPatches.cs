@@ -21,6 +21,15 @@ namespace DvMod.ZCouplers.Patches
     {
         private static readonly HashSet<string> synchronizedCouplings = new HashSet<string>();
 
+        /// <summary>
+        /// Clean up tracking data.
+        /// Called during mod unload.
+        /// </summary>
+        public static void Cleanup()
+        {
+            synchronizedCouplings.Clear();
+        }
+
         [HarmonyPatch(typeof(ChainCouplerInteraction), nameof(ChainCouplerInteraction.Entry_Enabled))]
         public static class Entry_EnabledPatch
         {
@@ -309,31 +318,8 @@ namespace DvMod.ZCouplers.Patches
         /// </summary>
         private static void SynchronizeCouplerVisuals(Coupler coupler1, Coupler coupler2)
         {
-            if (coupler1?.visualCoupler?.chainAdapter?.chainScript == null ||
-                coupler2?.visualCoupler?.chainAdapter?.chainScript == null)
-                return;
-
-            var chainScript1 = coupler1.visualCoupler.chainAdapter.chainScript;
-            var chainScript2 = coupler2.visualCoupler.chainAdapter.chainScript;
-
-            // Force visual update for both couplers
             HookManager.UpdateHookVisualStateFromCouplerState(coupler1);
             HookManager.UpdateHookVisualStateFromCouplerState(coupler2);
-        }
-
-        /// <summary>
-        /// Synchronize visual states of both couplers when they become coupled.
-        /// Ensures both couplers show the correct visual state immediately after coupling.
-        /// </summary>
-        private static void SynchronizeCoupledVisualStates(Coupler thisCoupler, Coupler otherCoupler)
-        {
-            // Update both couplers' visual states
-            KnuckleCouplerState.UpdateCouplerVisualState(thisCoupler, locked: true);
-            KnuckleCouplerState.UpdateCouplerVisualState(otherCoupler, locked: true);
-
-            // Additional explicit visual synchronization
-            HookManager.UpdateHookVisualStateFromCouplerState(thisCoupler);
-            HookManager.UpdateHookVisualStateFromCouplerState(otherCoupler);
         }
 
         /// Patch to catch train cars when they're being set up, including teleported trains.
@@ -457,10 +443,6 @@ namespace DvMod.ZCouplers.Patches
                     }
 
                     // Force visual state update for both couplers
-                    KnuckleCouplerState.UpdateCouplerVisualState(coupler1, locked: true);
-                    KnuckleCouplerState.UpdateCouplerVisualState(coupler2, locked: true);
-
-                    // Additional explicit visual synchronization
                     HookManager.UpdateHookVisualStateFromCouplerState(coupler1);
                     HookManager.UpdateHookVisualStateFromCouplerState(coupler2);
                 }
@@ -527,31 +509,13 @@ namespace DvMod.ZCouplers.Patches
 
                 // Third pass with even longer delay: ensure visual states are synchronized
                 yield return new WaitForSeconds(1.0f);
-                EnsureVisualSynchronizationForCoupledCars(car);
-            }
-
-            /// <summary>
-            /// Final pass to ensure visual states are properly synchronized for coupled couplers.
-            /// This catches cases where the visual swapping didn't happen during earlier phases.
-            /// </summary>
-            private static void EnsureVisualSynchronizationForCoupledCars(TrainCar car)
-            {
-                if (car.frontCoupler != null && car.frontCoupler.IsCoupled())
+                var couplers = new[]
                 {
-                    var partner = car.frontCoupler.coupledTo;
-                    if (partner != null)
-                    {
-                        SynchronizeCouplerVisuals(car.frontCoupler, partner);
-                    }
-                }
-
-                if (car.rearCoupler != null && car.rearCoupler.IsCoupled())
+	                car.frontCoupler, car.frontCoupler?.coupledTo, car.rearCoupler, car.rearCoupler?.coupledTo
+                };
+                foreach (var coupler in couplers)
                 {
-                    var partner = car.rearCoupler.coupledTo;
-                    if (partner != null)
-                    {
-                        SynchronizeCouplerVisuals(car.rearCoupler, partner);
-                    }
+	                HookManager.UpdateHookVisualStateFromCouplerState(coupler);
                 }
             }
 
@@ -560,6 +524,11 @@ namespace DvMod.ZCouplers.Patches
                 // Check for the specific teleport bug: one coupler Parked, partner Attached_Tight, but both have joints
                 CheckCouplerForTeleportIssues(car.frontCoupler);
                 CheckCouplerForTeleportIssues(car.rearCoupler);
+                
+                // Also check coupled cars to ensure the fix is applied comprehensively
+                // This is important because TrainCar.Start might only be called for one car in a teleported consist
+                var processedCars = new HashSet<TrainCar> { car };
+                CheckCoupledCarsForTeleportIssues(car, processedCars);
             }
 
             private static void CheckCouplerForTeleportIssues(Coupler coupler)
@@ -601,6 +570,41 @@ namespace DvMod.ZCouplers.Patches
                 }
             }
 
+            /// <summary>
+            /// Recursively check all coupled cars for teleport state issues.
+            /// This ensures that when multiple cars are teleported together, all cars get fixed.
+            /// </summary>
+            private static void CheckCoupledCarsForTeleportIssues(TrainCar car, HashSet<TrainCar> processedCars)
+            {
+                // Check front coupled car
+                if (car.frontCoupler != null && car.frontCoupler.IsCoupled())
+                {
+                    var coupledCar = car.frontCoupler.coupledTo?.train;
+                    if (coupledCar != null && !processedCars.Contains(coupledCar))
+                    {
+                        processedCars.Add(coupledCar);
+                        CheckCouplerForTeleportIssues(coupledCar.frontCoupler);
+                        CheckCouplerForTeleportIssues(coupledCar.rearCoupler);
+                        // Recursively check further coupled cars
+                        CheckCoupledCarsForTeleportIssues(coupledCar, processedCars);
+                    }
+                }
+
+                // Check rear coupled car
+                if (car.rearCoupler != null && car.rearCoupler.IsCoupled())
+                {
+                    var coupledCar = car.rearCoupler.coupledTo?.train;
+                    if (coupledCar != null && !processedCars.Contains(coupledCar))
+                    {
+                        processedCars.Add(coupledCar);
+                        CheckCouplerForTeleportIssues(coupledCar.frontCoupler);
+                        CheckCouplerForTeleportIssues(coupledCar.rearCoupler);
+                        // Recursively check further coupled cars
+                        CheckCoupledCarsForTeleportIssues(coupledCar, processedCars);
+                    }
+                }
+            }
+
             private static void FixCoupledState(Coupler coupler)
             {
                 var partner = coupler.coupledTo;
@@ -630,11 +634,7 @@ namespace DvMod.ZCouplers.Patches
                     Main.DebugLog(() => $"Fixed teleported train state: {partner.train.ID} {partner.Position()} set to Attached_Tight");
                 }
 
-                // Update visual states for both couplers - this is crucial for teleport fixes
-                KnuckleCouplerState.UpdateCouplerVisualState(coupler, locked: true);
-                KnuckleCouplerState.UpdateCouplerVisualState(partner, locked: true);
-
-                // Additional explicit visual synchronization to ensure both hooks get swapped
+                // Update visual states for both couplers
                 SynchronizeCouplerVisuals(coupler, partner);
             }
         }
@@ -656,8 +656,11 @@ namespace DvMod.ZCouplers.Patches
                 // Delay the check to ensure the train car is fully set up
                 __result.StartCoroutine(HookManager.DelayedSpawnKnuckleCouplerCheck(__result, KnuckleCouplers.GetHookPrefab()));
 
-                // If using Schafenberg couplers, also deactivate air hoses on the newly spawned car
-                if (Main.settings.couplerType == CouplerType.Schafenberg)
+                // Apply buffer collider management for newly spawned car
+                __result.StartCoroutine(DelayedBufferColliderForCar(__result));
+
+                // If using Scharfenberg couplers, also deactivate air hoses on the newly spawned car
+                if (Main.settings.couplerType == CouplerType.Scharfenberg)
                 {
                     __result.StartCoroutine(DelayedAirHoseDeactivationForCar(__result));
                 }
@@ -765,10 +768,6 @@ namespace DvMod.ZCouplers.Patches
                     }
 
                     // Force visual state update for both couplers
-                    KnuckleCouplerState.UpdateCouplerVisualState(coupler1, locked: true);
-                    KnuckleCouplerState.UpdateCouplerVisualState(coupler2, locked: true);
-
-                    // Additional explicit visual synchronization
                     HookManager.UpdateHookVisualStateFromCouplerState(coupler1);
                     HookManager.UpdateHookVisualStateFromCouplerState(coupler2);
                 }
@@ -779,7 +778,7 @@ namespace DvMod.ZCouplers.Patches
             }
 
             /// <summary>
-            /// Coroutine to deactivate air hoses on a newly spawned car when using Schafenberg couplers.
+            /// Coroutine to deactivate air hoses on a newly spawned car when using Scharfenberg couplers.
             /// </summary>
             private static System.Collections.IEnumerator DelayedAirHoseDeactivationForCar(TrainCar trainCar)
             {
@@ -789,22 +788,56 @@ namespace DvMod.ZCouplers.Patches
                 if (trainCar == null)
                     yield break;
 
-                int deactivatedCouplers = 0;
-
-                // Deactivate air hoses on both couplers of the new car
-                if (trainCar.frontCoupler != null)
+                try
                 {
-                    KnuckleCouplers.DeactivateAirHoseForCoupler(trainCar.frontCoupler);
-                    deactivatedCouplers++;
+                    int deactivatedCouplers = 0;
+
+                    // Deactivate air hoses on both couplers of the new car
+                    if (trainCar.frontCoupler != null)
+                    {
+                        KnuckleCouplers.DeactivateAirHoseForCoupler(trainCar.frontCoupler);
+                        deactivatedCouplers++;
+                    }
+
+                    if (trainCar.rearCoupler != null)
+                    {
+                        KnuckleCouplers.DeactivateAirHoseForCoupler(trainCar.rearCoupler);
+                        deactivatedCouplers++;
+                    }
+
+                    Main.DebugLog(() => $"Deactivated air hoses on newly spawned car {trainCar.ID} ({deactivatedCouplers} couplers)");
+                }
+                catch (System.Exception ex)
+                {
+                    Main.ErrorLog(() => $"Error deactivating air hoses for car {trainCar.ID}: {ex.Message}");
+                }
+            }
+
+            /// <summary>
+            /// Coroutine to apply buffer collider management for a newly spawned car.
+            /// </summary>
+            private static System.Collections.IEnumerator DelayedBufferColliderForCar(TrainCar trainCar)
+            {
+                // Wait longer for the car and its interior to be fully initialized
+                yield return new UnityEngine.WaitForSeconds(2.0f);
+                
+                // Additional wait for physics frames
+                for (int i = 0; i < 10; i++)
+                {
+                    yield return new UnityEngine.WaitForFixedUpdate();
                 }
 
-                if (trainCar.rearCoupler != null)
-                {
-                    KnuckleCouplers.DeactivateAirHoseForCoupler(trainCar.rearCoupler);
-                    deactivatedCouplers++;
-                }
+                if (trainCar == null)
+                    yield break;
 
-                Main.DebugLog(() => $"Deactivated air hoses on newly spawned car {trainCar.ID} ({deactivatedCouplers} couplers)");
+                try
+                {
+                    BufferVisualManager.ApplyBufferCollidersForCar(trainCar);
+                }
+                catch (System.Exception ex)
+                {
+                    Main.ErrorLog(() => $"Error applying buffer colliders for car {trainCar.ID}: {ex.Message}");
+                }
             }
         }
 
@@ -821,7 +854,7 @@ namespace DvMod.ZCouplers.Patches
                     return;
 
                 var partner = coupler.coupledTo;
-                
+
                 // When a tension joint is successfully created, ensure both couplers have proper visual states
                 if (partner != null && coupler.IsCoupled() && partner.IsCoupled())
                 {
@@ -862,9 +895,6 @@ namespace DvMod.ZCouplers.Patches
                         }
 
                         // Force visual updates
-                        KnuckleCouplerState.UpdateCouplerVisualState(coupler1, locked: true);
-                        KnuckleCouplerState.UpdateCouplerVisualState(coupler2, locked: true);
-
                         HookManager.UpdateHookVisualStateFromCouplerState(coupler1);
                         HookManager.UpdateHookVisualStateFromCouplerState(coupler2);
                     }
@@ -884,6 +914,17 @@ namespace DvMod.ZCouplers.Patches
                 if (!KnuckleCouplers.enabled)
                     return true; // Let original method run when knuckle couplers are disabled
 
+                // Handle LAP coupler link destruction before uncoupling
+                if (Main.settings.couplerType == CouplerType.LAPCoupler && __instance.couplerAdapter?.coupler != null)
+                {
+                    var thisCoupler = __instance.couplerAdapter.coupler;
+                    var otherCoupler = thisCoupler.coupledTo;
+                    if (otherCoupler != null)
+                    {
+                        LAPLinkManager.HideOrDestroyLink(thisCoupler, otherCoupler);
+                    }
+                }
+
                 // When knuckle couplers are enabled, ALL couplers are knuckle couplers
                 __instance.UncoupledExternally();
                 return false;
@@ -902,7 +943,7 @@ namespace DvMod.ZCouplers.Patches
 
                 // Update knuckle coupler visual state to show coupled (locked) without triggering uncoupling
                 // Use explicit visual synchronization to ensure both couplers get updated
-                SynchronizeCoupledVisualStates(e.thisCoupler, e.otherCoupler);
+                SynchronizeCouplerVisuals(e.thisCoupler, e.otherCoupler);
 
                 // Directly update coupler states after coupling
                 var thisChainScript = e.thisCoupler.visualCoupler?.chain?.GetComponent<ChainCouplerInteraction>();
@@ -937,7 +978,7 @@ namespace DvMod.ZCouplers.Patches
                 }
 
                 // Ensure both coupler state machines are synchronized for external coupling
-                // During UI coupling, only one OnCoupled event may fire, so we need to ensure 
+                // During UI coupling, only one OnCoupled event may fire, so we need to ensure
                 // both couplers have their states properly updated
                 if (!e.viaChainInteraction)
                 {
@@ -971,6 +1012,9 @@ namespace DvMod.ZCouplers.Patches
 
                 // Force a state update check after a short delay to catch any missed state updates
                 __instance.StartCoroutine(DelayedStateUpdateCheck(e.thisCoupler, e.otherCoupler));
+
+                // Update visual states for both couplers
+                SynchronizeCouplerVisuals(e.thisCoupler, e.otherCoupler);
             }
 
             private static IEnumerator DelayedStateUpdateCheck(Coupler thisCoupler, Coupler otherCoupler)
@@ -990,9 +1034,9 @@ namespace DvMod.ZCouplers.Patches
                         // 1. Either coupler is in Parked state while coupled (the main teleport bug)
                         // 2. Either coupler is in Dangling state while coupled
                         // 3. States don't match between the two couplers
-                        bool thisCouplerWrongState = thisCoupler.state == ChainCouplerInteraction.State.Parked || 
+                        bool thisCouplerWrongState = thisCoupler.state == ChainCouplerInteraction.State.Parked ||
                                                     thisCoupler.state == ChainCouplerInteraction.State.Dangling;
-                        bool otherCouplerWrongState = otherCoupler.state == ChainCouplerInteraction.State.Parked || 
+                        bool otherCouplerWrongState = otherCoupler.state == ChainCouplerInteraction.State.Parked ||
                                                      otherCoupler.state == ChainCouplerInteraction.State.Dangling;
                         bool statesMismatch = thisCoupler.state != otherCoupler.state;
 
@@ -1029,8 +1073,8 @@ namespace DvMod.ZCouplers.Patches
                             }
 
                             // Also ensure visual states are consistent (both should be locked/ready now)
-                            KnuckleCouplerState.UpdateCouplerVisualState(thisCoupler, locked: true);
-                            KnuckleCouplerState.UpdateCouplerVisualState(otherCoupler, locked: true);
+                            HookManager.UpdateHookVisualStateFromCouplerState(thisCoupler);
+                            HookManager.UpdateHookVisualStateFromCouplerState(otherCoupler);
 
                             // If this was the final attempt, do a more aggressive sync
                             if (attempt == 2)
@@ -1117,7 +1161,7 @@ namespace DvMod.ZCouplers.Patches
                         {
                             var currentPartnerState = partnerCoupler.state;
                             var expectedState = ChainCouplerInteraction.State.Attached_Tight;
-                            
+
                             // If partner has wrong state while coupled, fix it
                             if (currentPartnerState != expectedState)
                             {
@@ -1217,6 +1261,18 @@ namespace DvMod.ZCouplers.Patches
                             }
                             return ChainCouplerInteraction.State.Attached_Tight;
                         })
+                        .PermitDynamic(ChainCouplerInteraction.Trigger.Screw_Used, () =>
+                        {
+                            // Allow transition from Parked to Dangling when user interacts
+                            var coupler = __instance.couplerAdapter?.coupler;
+                            if (coupler != null && !coupler.IsCoupled())
+                            {
+                                KnuckleCouplerState.ReadyCoupler(coupler);
+                                Main.DebugLog(() => $"FSM: Readied coupler via Screw_Used: {coupler.train.ID} {coupler.Position()}");
+                                return ChainCouplerInteraction.State.Dangling;
+                            }
+                            return ChainCouplerInteraction.State.Parked; // Stay in current state if something went wrong
+                        })
                         .IgnoreIf(ChainCouplerInteraction.Trigger.Enable, () => true)
                         .IgnoreIf(ChainCouplerInteraction.Trigger.UpdateVisible, () => true)
                         .IgnoreIf(ChainCouplerInteraction.Trigger.Picked_Up_By_Player, () => true)
@@ -1241,6 +1297,18 @@ namespace DvMod.ZCouplers.Patches
                                 return ChainCouplerInteraction.State.Attached_Tight;
                             }
                             return ChainCouplerInteraction.State.Attached_Tight;
+                        })
+                        .PermitDynamic(ChainCouplerInteraction.Trigger.Screw_Used, () =>
+                        {
+                            // Allow transition from Dangling to Parked when user interacts
+                            var coupler = __instance.couplerAdapter?.coupler;
+                            if (coupler != null && !coupler.IsCoupled())
+                            {
+                                KnuckleCouplerState.UnlockCoupler(coupler, viaChainInteraction: true);
+                                Main.DebugLog(() => $"FSM: Unlocked coupler via Screw_Used: {coupler.train.ID} {coupler.Position()}");
+                                return ChainCouplerInteraction.State.Parked;
+                            }
+                            return ChainCouplerInteraction.State.Dangling; // Stay in current state if something went wrong
                         })
                         .IgnoreIf(ChainCouplerInteraction.Trigger.Enable, () => true)
                         .IgnoreIf(ChainCouplerInteraction.Trigger.UpdateVisible, () => true)
@@ -1301,20 +1369,21 @@ namespace DvMod.ZCouplers.Patches
                 if (!KnuckleCouplers.enabled)
                     return true; // Let original method run when knuckle couplers are disabled
 
+                
                 // When knuckle couplers are enabled, handle knuckle coupler-specific text
-                if (infoType == HookManager.KnuckleCouplerUnlock)
+                if (infoType == HookManager.KnuckleCouplerReady)
                 {
-                    __result = $"Coupler is ready\nPress {InteractionText.Instance.BtnUse} to unlock coupler";
+                    __result = CouplerProfiles.Current?.Options.GetCouplerReadyText() ?? "Coupler is ready";
                     return false;
                 }
-                if (infoType == HookManager.KnuckleCouplerLock)
+                if (infoType == HookManager.KnuckleCouplerUnlocked)
                 {
-                    __result = $"Coupler is unlocked\nPress {InteractionText.Instance.BtnUse} to ready coupler";
+                    __result = CouplerProfiles.Current?.Options.GetCouplerParkedText() ?? "Coupler is parked";
                     return false;
                 }
                 if (infoType == HookManager.KnuckleCouplerCoupled)
                 {
-                    __result = $"Coupler is coupled\nPress {InteractionText.Instance.BtnUse} to uncouple";
+                    __result = $"Coupler is coupled\nPress {InteractionText.Instance?.BtnUse ?? "[USE KEY]"} to uncouple";
                     return false;
                 }
                 return true;

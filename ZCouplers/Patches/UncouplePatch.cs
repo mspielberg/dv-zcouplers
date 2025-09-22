@@ -17,6 +17,20 @@ public static class UncouplePatch
 
     private static readonly Dictionary<Coupler, Coupler> partnerCouplers = new Dictionary<Coupler, Coupler>();
 
+    private static readonly Dictionary<Coupler, bool> wasActuallyCoupled = new Dictionary<Coupler, bool>();
+
+    /// <summary>
+    /// Clean up all tracking dictionaries.
+    /// Called during mod unload.
+    /// </summary>
+    public static void Cleanup()
+    {
+        compressionJoints.Clear();
+        coros.Clear();
+        partnerCouplers.Clear();
+        wasActuallyCoupled.Clear();
+    }
+
     /// <summary>
     /// Delayed visual state update to avoid NRE during button interaction processing
     /// </summary>
@@ -24,15 +38,18 @@ public static class UncouplePatch
     {
         // Wait a frame to allow any pending interaction events to complete
         yield return null;
-        
+
         // Update visual state
-        KnuckleCouplers.UpdateCouplerVisualState(coupler, locked: false);
+        HookManager.UpdateHookVisualStateFromCouplerState(coupler);
         Main.DebugLog(() => "Updated visual state for uncoupled coupler: " + coupler.train.ID + " " + coupler.Position());
     }
 
     public static void Prefix(Coupler __instance)
     {
-        Main.DebugLog(() => "Uncoupling " + __instance.train.ID + " from " + __instance.coupledTo?.train.ID);
+        // Track whether this coupler was actually coupled before the uncoupling attempt
+        wasActuallyCoupled[__instance] = __instance.IsCoupled();
+        
+        Main.DebugLog(() => "Uncoupling " + __instance.train.ID + " from " + __instance.coupledTo?.train.ID + " (was coupled: " + wasActuallyCoupled[__instance] + ")");
         if (__instance.coupledTo != null)
         {
             partnerCouplers[__instance] = __instance.coupledTo;
@@ -78,7 +95,11 @@ public static class UncouplePatch
         if (__instance.coupledTo != null)
         {
             CouplingScannerPatches.RestartCouplingScanner(__instance.coupledTo);
-            CouplingScannerPatches.SeparateCarsAfterUncoupling(__instance, __instance.coupledTo);
+            // Record uncoupling for distance-based recoupling prevention
+            RecouplingPrevention.RecordUncoupling(__instance, __instance.coupledTo);
+            
+            // Enable fake buffer colliders for uncoupled cars (like game's loose mode)
+            CollisionHandler.EnableFakeBufferColliders(__instance, __instance.coupledTo);
         }
         Main.DebugLog(() => "Completed uncoupling cleanup for " + __instance.train.ID);
     }
@@ -93,6 +114,11 @@ public static class UncouplePatch
             return;
 
         var chain = coupler.visualCoupler.chainAdapter.chainScript;
+
+        // Check if the GameObject is active before starting the coroutine
+        if (!chain.gameObject.activeInHierarchy)
+            return;
+
         chain.StartCoroutine(GraceDisable());
 
         System.Collections.IEnumerator GraceDisable()
@@ -181,27 +207,39 @@ public static class UncouplePatch
                 }
                 coros.Remove(partnerCoupler);
             }
-        // Update visual state for partner coupler too - defer to avoid NRE
-        if (partnerCoupler.visualCoupler?.chainAdapter?.chainScript != null)
-        {
-            partnerCoupler.visualCoupler.chainAdapter.chainScript.StartCoroutine(DelayedVisualStateUpdate(partnerCoupler));
-        }
             if (!partnerCoupler.IsCoupled())
             {
                 partnerCoupler.state = ChainCouplerInteraction.State.Parked;
                 Main.DebugLog(() => "Reset partner coupler state to Parked: " + partnerCoupler.train.ID + " " + partnerCoupler.Position());
             }
+            // Update visual state for partner coupler too - defer to avoid NRE
+            if (partnerCoupler.visualCoupler?.chainAdapter?.chainScript != null)
+            {
+	            partnerCoupler.visualCoupler.chainAdapter.chainScript.StartCoroutine(DelayedVisualStateUpdate(partnerCoupler));
+            }
             partnerCouplers.Remove(__instance);
-        }
-        // Update visual state with deferred approach to avoid NRE during button-triggered uncoupling
-        if (__instance.visualCoupler?.chainAdapter?.chainScript != null)
-        {
-            __instance.visualCoupler.chainAdapter.chainScript.StartCoroutine(DelayedVisualStateUpdate(__instance));
         }
         if (!__instance.IsCoupled())
         {
-            __instance.state = ChainCouplerInteraction.State.Parked;
-            Main.DebugLog(() => "Reset coupler state to Parked: " + __instance.train.ID + " " + __instance.Position());
+            // Only reset to Dangling if this coupler was actually coupled before the uncoupling, else set to Parked
+            if (wasActuallyCoupled.TryGetValue(__instance, out bool wasCoupled) && wasCoupled)
+            {
+                __instance.state = ChainCouplerInteraction.State.Dangling;
+                Main.DebugLog(() => "Reset coupler state to Dangling: " + __instance.train.ID);
+            }
+            else
+            {
+                __instance.state = ChainCouplerInteraction.State.Parked;
+                Main.DebugLog(() => "Reset coupler state to Parked: " + __instance.train.ID);
+            }
+        }
+        
+        // Clean up tracking data
+        wasActuallyCoupled.Remove(__instance);
+        // Update visual state with deferred approach to avoid NRE during button-triggered uncoupling
+        if (__instance.visualCoupler?.chainAdapter?.chainScript != null)
+        {
+	        __instance.visualCoupler.chainAdapter.chainScript.StartCoroutine(DelayedVisualStateUpdate(__instance));
         }
     }
 }
