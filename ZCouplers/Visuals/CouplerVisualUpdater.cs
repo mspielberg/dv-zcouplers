@@ -36,6 +36,31 @@ namespace DvMod.ZCouplers
                     return;
                 }
             }
+
+            // Update LAP links based on current coupler states
+            if (Main.settings.couplerType == CouplerType.LAPCoupler)
+            {
+                var coupler = chainScript.couplerAdapter?.coupler;
+                if (coupler != null && coupler.IsCoupled())
+                {
+                    var otherCoupler = coupler.coupledTo;
+                    if (otherCoupler != null)
+                    {
+                        LAPLinkManager.CreateOrShowLink(coupler, otherCoupler);
+                    }
+                }
+                
+                // Update all LAP link transforms to handle movement and curves
+                // This is done from one updater to avoid duplicate updates
+                if (chainScript.couplerAdapter?.coupler?.Position() == "front")
+                {
+                    LAPLinkManager.UpdateAllLinkTransforms();
+                }
+                
+                // Don't run AdjustPivot for LAP Couplers
+                return;
+            }
+
             // Check if this coupler is physically coupled but state doesn't reflect it
             bool isCoupled = chainScript.couplerAdapter?.IsCoupled() == true;
 

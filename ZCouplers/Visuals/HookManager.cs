@@ -551,6 +551,7 @@ namespace DvMod.ZCouplers
         /// AAR: Parked=closed, Dangling/Being_Dragged=open, Attached_* = closed
         /// SA3: Parked=open, all other states=closed (unchanged)
         /// Schaku: Parked=closed (treated like no parked), Dangling/Being_Dragged=closed, Attached_Tight=open, Attached_Loose=closed
+        /// LAP: Parked=open (no link), all other states=closed (link inserted)
         /// </summary>
         private static bool ShouldUseOpenHook(Coupler coupler)
         {
@@ -594,6 +595,19 @@ namespace DvMod.ZCouplers
                         case ChainCouplerInteraction.State.Being_Dragged:
                         default:
                             return true; // open otherwise
+                    }
+
+                case CouplerType.LAPCoupler:
+                    switch (state)
+                    {
+                        case ChainCouplerInteraction.State.Parked:
+                            return true; // LAP open when parked (no link)
+                        case ChainCouplerInteraction.State.Dangling:
+                        case ChainCouplerInteraction.State.Being_Dragged:
+                        case ChainCouplerInteraction.State.Attached_Loose:
+                        case ChainCouplerInteraction.State.Attached_Tight:
+                        default:
+                            return false; // closed otherwise (link inserted)
                     }
 
                 default:
@@ -683,6 +697,12 @@ namespace DvMod.ZCouplers
             // Name the initial hook child according to the mapped state so swap detection works correctly
             CreateHookInstance(pivot.transform, actualHookPrefab, chainScript, coupler, desiredName);
 
+            // Debug logging for successful LAP hook creation
+            if (Main.settings.couplerType == CouplerType.LAPCoupler)
+            {
+                Main.DebugLog(() => $"Successfully created LAP hook for {coupler.train.ID} {coupler.Position()}, using {(initShouldUseOpenHook ? "open" : "closed")} variant");
+            }
+
             // Add the visual updater component to ensure rotation works
             if (chainScript.gameObject.GetComponent<CouplerVisualUpdater>() == null)
             {
@@ -707,8 +727,8 @@ namespace DvMod.ZCouplers
             if (pivot == null)
                 return false;
 
-            // Validate the pivot still has a hook child; if it doesn’t, treat as not reboundable
-            var hook = pivot.Find("hook") ?? pivot.Find("hook_open") ?? pivot.Find("SA3_closed") ?? pivot.Find("SA3_open") ?? pivot.Find("Schaku_closed") ?? pivot.Find("Schaku_open");
+            // Validate the pivot still has a hook child; if it does not, treat as not reboundable
+            var hook = pivot.Find("hook") ?? pivot.Find("hook_open") ?? pivot.Find("SA3_closed") ?? pivot.Find("SA3_open") ?? pivot.Find("Schaku_closed") ?? pivot.Find("Schaku_open") ?? pivot.Find("LaP_closed") ?? pivot.Find("LaP_open");
             if (hook == null)
                 return false;
 
@@ -957,7 +977,7 @@ namespace DvMod.ZCouplers
 
                 // Keep the Y component for distance calculation but don't zero it out for positioning
                 var distance = offset.magnitude;
-                var hook = pivot.Find("hook") ?? pivot.Find("hook_open") ?? pivot.Find("SA3_closed") ?? pivot.Find("SA3_open") ?? pivot.Find("Schaku_closed") ?? pivot.Find("Schaku_open");
+                var hook = pivot.Find("hook") ?? pivot.Find("hook_open") ?? pivot.Find("SA3_closed") ?? pivot.Find("SA3_open") ?? pivot.Find("Schaku_closed") ?? pivot.Find("Schaku_open") ?? pivot.Find("LaP_closed") ?? pivot.Find("LaP_open");
                 if (hook != null && hook.gameObject != null)
                 {
                     // Base position at half distance
@@ -1003,6 +1023,16 @@ namespace DvMod.ZCouplers
 
             // Use immediate hook swapping instead of the deferred UpdateHookVisualState
             UpdateHookVisualStateImmediate(chainScript, coupler);
+
+            // Update LAP link visibility if using LAP couplers
+            if (Main.settings.couplerType == CouplerType.LAPCoupler && coupler.IsCoupled())
+            {
+                var otherCoupler = coupler.coupledTo;
+                if (otherCoupler != null)
+                {
+                    LAPLinkManager.CreateOrShowLink(coupler, otherCoupler);
+                }
+            }
         }
 
         /// <summary>

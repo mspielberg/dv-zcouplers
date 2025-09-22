@@ -19,6 +19,9 @@ namespace DvMod.ZCouplers
         private static GameObject? sa3SocketPrefab; // For SA3 mount hardware
         private static GameObject? schakuClosedPrefab; // For Scharfenberg closed/ready state
         private static GameObject? schakuOpenPrefab;   // For Scharfenberg open/parked state
+        private static GameObject? lapClosedPrefab; // For LAP closed/ready state
+        private static GameObject? lapOpenPrefab;   // For LAP open/parked state
+        private static GameObject? lapLinkPrefab; // For LAP link hardware
 
         private static readonly string assetsFolder = GetAssetsFolder();
 
@@ -43,26 +46,9 @@ namespace DvMod.ZCouplers
         public static GameObject? GetSchakuClosedPrefab() => schakuClosedPrefab;
         public static GameObject? GetSchakuOpenPrefab() => schakuOpenPrefab;
 
-        /// <summary>
-        /// Returns the hook prefab for the specified coupler type and parked state.
-        /// </summary>
-        public static GameObject? GetHookPrefabForState(CouplerType couplerType, bool isParked)
-        {
-            switch (couplerType)
-            {
-                case CouplerType.AARKnuckle:
-                    return isParked && aarOpenPrefab != null ? aarOpenPrefab : aarClosedPrefab;
-
-                case CouplerType.SA3Knuckle:
-                    return isParked && sa3OpenPrefab != null ? sa3OpenPrefab : sa3ClosedPrefab;
-
-                case CouplerType.Scharfenberg:
-                    return isParked && schakuOpenPrefab != null ? schakuOpenPrefab : schakuClosedPrefab;
-
-                default:
-                    return aarClosedPrefab;
-            }
-        }
+        public static GameObject? GetLAPClosedPrefab() => lapClosedPrefab;
+        public static GameObject? GetLAPOpenPrefab() => lapOpenPrefab;
+        public static GameObject? GetLAPLinkPrefab() => lapLinkPrefab;
 
         /// <summary>
         /// Returns whether assets for the current coupler type are loaded.
@@ -79,6 +65,8 @@ namespace DvMod.ZCouplers
                     return sa3ClosedPrefab != null || sa3OpenPrefab != null;
                 case CouplerType.Scharfenberg:
                     return schakuClosedPrefab != null || schakuOpenPrefab != null;
+                case CouplerType.LAPCoupler:
+                    return lapClosedPrefab != null || lapOpenPrefab != null;
                 default:
                     return aarClosedPrefab != null;
             }
@@ -111,6 +99,10 @@ namespace DvMod.ZCouplers
 
                 case CouplerType.Scharfenberg:
                     LoadScharfenbergAssets();
+                    break;
+
+                case CouplerType.LAPCoupler:
+                    LoadLAPAssets();
                     break;
 
                 default:
@@ -203,6 +195,37 @@ namespace DvMod.ZCouplers
 
                 if (schakuOpenPrefab == null)
                     Main.ErrorLog(() => "Failed to load 'Schaku_open' prefab for Scharfenberg coupler");
+            }
+            finally
+            {
+                bundle.Unload(false);
+            }
+        }
+
+        /// <summary>
+        /// Loads LAP coupler assets from LAP.assetbundle.
+        /// </summary>
+        private static void LoadLAPAssets()
+        {
+            string bundlePath = Path.Combine(assetsFolder, "LAP.assetbundle");
+            var bundle = LoadAssetBundle(bundlePath);
+            if (bundle == null) return;
+
+            try
+            {
+                Main.DebugLog(() => "Loading LAP assets");
+                lapClosedPrefab = LoadPrefabFromBundle(bundle, "LaP_closed");
+                lapOpenPrefab = LoadPrefabFromBundle(bundle, "LaP_open");
+                lapLinkPrefab = LoadPrefabFromBundle(bundle, "LaP_link");
+
+                if (lapClosedPrefab == null)
+                    Main.ErrorLog(() => "Failed to load 'LaP_closed' prefab for LAP coupler");
+
+                if (lapOpenPrefab == null)
+                    Main.ErrorLog(() => "Failed to load 'LaP_open' prefab for LAP coupler");
+
+                if (lapLinkPrefab == null)
+                    Main.ErrorLog(() => "Failed to load 'LaP_link' prefab for LAP coupler link hardware");
             }
             finally
             {
@@ -305,6 +328,9 @@ namespace DvMod.ZCouplers
             sa3SocketPrefab = null;
             schakuClosedPrefab = null;
             schakuOpenPrefab = null;
+            lapClosedPrefab = null;
+            lapOpenPrefab = null;
+            lapLinkPrefab = null;
         }
     }
 }

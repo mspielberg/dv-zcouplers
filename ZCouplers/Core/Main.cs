@@ -61,6 +61,7 @@ public static class Main
         CouplerProfiles.Register(new AARKnuckleProfile());
         CouplerProfiles.Register(new SA3Profile());
         CouplerProfiles.Register(new SchakuProfile());
+        CouplerProfiles.Register(new LAPProfile());
 
         KnuckleCouplers.Initialize();
         mod.Logger.Log($"Loaded {Main.settings.couplerType}");
@@ -83,6 +84,7 @@ public static class Main
             KnuckleCouplers.Cleanup();
             JointManager.Cleanup();
             HookManager.Cleanup();
+            LAPLinkManager.Cleanup();
             AssetManager.Cleanup();
             
             // Cleanup patches static data

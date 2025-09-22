@@ -914,6 +914,17 @@ namespace DvMod.ZCouplers
                 if (!KnuckleCouplers.enabled)
                     return true; // Let original method run when knuckle couplers are disabled
 
+                // Handle LAP coupler link destruction before uncoupling
+                if (Main.settings.couplerType == CouplerType.LAPCoupler && __instance.couplerAdapter?.coupler != null)
+                {
+                    var thisCoupler = __instance.couplerAdapter.coupler;
+                    var otherCoupler = thisCoupler.coupledTo;
+                    if (otherCoupler != null)
+                    {
+                        LAPLinkManager.HideOrDestroyLink(thisCoupler, otherCoupler);
+                    }
+                }
+
                 // When knuckle couplers are enabled, ALL couplers are knuckle couplers
                 __instance.UncoupledExternally();
                 return false;

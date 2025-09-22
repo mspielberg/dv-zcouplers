@@ -49,6 +49,16 @@ namespace DvMod.ZCouplers
 
         public void OnUncoupled(object coupler, UncoupleEventArgs args)
         {
+            // Handle LAP coupler link destruction when uncoupling
+            if (Main.settings.couplerType == CouplerType.LAPCoupler && coupler is Coupler thisCoupler)
+            {
+                var otherCoupler = args.otherCoupler;
+                if (otherCoupler != null)
+                {
+                    LAPLinkManager.HideOrDestroyLink(thisCoupler, otherCoupler);
+                }
+            }
+
             Component.Destroy(this);
         }
 
