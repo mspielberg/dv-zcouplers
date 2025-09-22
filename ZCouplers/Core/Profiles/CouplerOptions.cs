@@ -34,5 +34,14 @@ namespace DvMod.ZCouplers
 
         /// Whether this coupler type uses socket plates.
         public bool HasSocketPlates { get; set; } = false;
+
+        /// Coupler strength in Newtons (converted from MN in profiles).
+        public float CouplerStrength { get; set; } = 1.78e6f; // Default 1.78 MN
+
+        /// Spring rate in N/m (converted from MN/m in profiles).
+        public float SpringRate { get; set; } = 2e6f; // Default 2 MN/m
+
+        /// Damper rate in N*s/m (converted from kN*s/m in profiles).
+        public float DamperRate { get; set; } = 100e3f; // Default 100 kN*s/m
     }
 }

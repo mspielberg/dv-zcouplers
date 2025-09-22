@@ -15,6 +15,9 @@ namespace DvMod.ZCouplers
             HookClosedChildName = "Schaku_closed",
             HookOpenChildName = "Schaku_open",
             HasOpenVariant = true,
+            CouplerStrength = 1.50e6f, // 1.50 MN
+            SpringRate = 5.0e6f, // 5.0 MN/m
+            DamperRate = 8e3f, // 8 kN*s/m
         };
 
         public GameObject? GetClosedPrefab() => AssetManager.GetSchakuClosedPrefab();

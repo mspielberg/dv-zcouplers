@@ -16,6 +16,9 @@ namespace DvMod.ZCouplers
             HookClosedChildName = "LaP_closed",
             HookOpenChildName = "LaP_open",
             HasOpenVariant = true,
+            CouplerStrength = 0.35e6f, // 0.35 MN
+            SpringRate = 3.5e6f, // 3.5 MN/m
+            DamperRate = 3e3f, // 3 kN*s/m
         };
 
         public GameObject? GetClosedPrefab() => AssetManager.GetLAPClosedPrefab();

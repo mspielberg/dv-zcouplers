@@ -16,6 +16,9 @@ namespace DvMod.ZCouplers
             HookOpenChildName = "AAR_open",
             HasOpenVariant = true,
             HasSocketPlates = true, // AAR couplers use socket plates
+            CouplerStrength = 3.65e6f, // 3.65 MN
+            SpringRate = 12.0e6f, // 12.0 MN/m
+            DamperRate = 12e3f, // 12 kN*s/m
         };
 
         public GameObject? GetClosedPrefab() => AssetManager.GetAARClosedPrefab();

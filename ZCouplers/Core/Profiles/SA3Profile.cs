@@ -16,6 +16,9 @@ namespace DvMod.ZCouplers
             HookOpenChildName = "SA3_open",
             HasOpenVariant = true,
             HasSocketPlates = true, // SA3 couplers use socket plates
+            CouplerStrength = 1.70e6f, // 1.70 MN
+            SpringRate = 12.0e6f, // 12.0 MN/m
+            DamperRate = 15e3f, // 15 kN*s/m
         };
 
         public GameObject? GetClosedPrefab() => AssetManager.GetSA3ClosedPrefab();

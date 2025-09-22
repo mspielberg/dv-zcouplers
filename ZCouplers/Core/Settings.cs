@@ -2,6 +2,7 @@ using UnityModManagerNet;
 
 namespace DvMod.ZCouplers
 {
+    public enum strengthPreset { Custom, Recommended }
     public class Settings : UnityModManager.ModSettings, IDrawable
     {
         [Draw("Coupler type (requires restart)")]
@@ -9,11 +10,13 @@ namespace DvMod.ZCouplers
 
         [Draw("Toggle Buffers Visuals", Tooltip = "Also modifies the physics to account for buffer absence")]
         public bool showBuffersWithKnuckles = false;
-        [Draw("Knuckle strength (Mn)", Min = 0.1f)]
+        [Draw(DrawType.ToggleGroup)]
+        public strengthPreset strengthValues = strengthPreset.Recommended;
+        [Draw("Knuckle strength (Mn)", VisibleOn = "strengthValues|Custom", Min = 0.1f)]
         public float knuckleStrength = 1.78f;
-        [Draw("Tension spring rate (Mn/m)", Min = 0f)]
+        [Draw("Tension spring rate (Mn/m)", VisibleOn = "strengthValues|Custom", Min = 0f)]
         public float drawgearSpringRate = 2f; // 2 MN/m = 2e6 N/m
-        [Draw("Compression damper rate (kN*s/m)", Min = 0f)]
+        [Draw("Compression damper rate (kN*s/m)", VisibleOn = "strengthValues|Custom", Min = 0f)]
         public float drawgearDamperRate = 100f;
         [Draw("Auto couple threshold (mm)", Min = 0f)]
         public float autoCoupleThreshold = 20f;
@@ -55,35 +58,47 @@ namespace DvMod.ZCouplers
 
         public float GetCouplerStrength()
         {
-            return couplerType switch
+            if (strengthValues == strengthPreset.Recommended)
             {
-                CouplerType.AARKnuckle => knuckleStrength * 1e6f,
-                CouplerType.SA3Knuckle => knuckleStrength * 1e6f,
-                CouplerType.Scharfenberg => knuckleStrength * 1e6f,
-                _ => knuckleStrength * 1e6f // Default to knuckle strength
-            };
+                // Use profile default values
+                var profile = CouplerProfiles.Get(couplerType);
+                return profile?.Options.CouplerStrength ?? 1.78e6f;
+            }
+            else
+            {
+                // Use custom override value
+                return knuckleStrength * 1e6f; // Convert MN to N
+            }
         }
 
         public float GetSpringRate()
         {
-            return couplerType switch
+            if (strengthValues == strengthPreset.Recommended)
             {
-                CouplerType.AARKnuckle => drawgearSpringRate * 1e6f, // Convert MN/m to N/m
-                CouplerType.SA3Knuckle => drawgearSpringRate * 1e6f, // Convert MN/m to N/m
-                CouplerType.Scharfenberg => drawgearSpringRate * 1e6f, // Convert MN/m to N/m
-                _ => drawgearSpringRate * 1e6f // Default to drawgear spring rate
-            };
+                // Use profile default values
+                var profile = CouplerProfiles.Get(couplerType);
+                return profile?.Options.SpringRate ?? 2e6f;
+            }
+            else
+            {
+                // Use custom override value
+                return drawgearSpringRate * 1e6f; // Convert MN/m to N/m
+            }
         }
 
         public float GetDamperRate()
         {
-            return couplerType switch
+            if (strengthValues == strengthPreset.Recommended)
             {
-                CouplerType.AARKnuckle => drawgearDamperRate * 1e3f, // Convert kN*s/m to N*s/m
-                CouplerType.SA3Knuckle => drawgearDamperRate * 1e3f, // Convert kN*s/m to N*s/m
-                CouplerType.Scharfenberg => drawgearDamperRate * 1e3f, // Convert kN*s/m to N*s/m
-                _ => drawgearDamperRate * 1e3f // Default to drawgear damper rate
-            };
+                // Use profile default values
+                var profile = CouplerProfiles.Get(couplerType);
+                return profile?.Options.DamperRate ?? 100e3f;
+            }
+            else
+            {
+                // Use custom override value
+                return drawgearDamperRate * 1e3f; // Convert kN*s/m to N*s/m
+            }
         }
     }
 }
