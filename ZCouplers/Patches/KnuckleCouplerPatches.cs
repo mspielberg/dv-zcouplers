@@ -1261,6 +1261,18 @@ namespace DvMod.ZCouplers
                             }
                             return ChainCouplerInteraction.State.Attached_Tight;
                         })
+                        .PermitDynamic(ChainCouplerInteraction.Trigger.Screw_Used, () =>
+                        {
+                            // Allow transition from Parked to Dangling when user interacts
+                            var coupler = __instance.couplerAdapter?.coupler;
+                            if (coupler != null && !coupler.IsCoupled())
+                            {
+                                KnuckleCouplerState.ReadyCoupler(coupler);
+                                Main.DebugLog(() => $"FSM: Readied coupler via Screw_Used: {coupler.train.ID} {coupler.Position()}");
+                                return ChainCouplerInteraction.State.Dangling;
+                            }
+                            return ChainCouplerInteraction.State.Parked; // Stay in current state if something went wrong
+                        })
                         .IgnoreIf(ChainCouplerInteraction.Trigger.Enable, () => true)
                         .IgnoreIf(ChainCouplerInteraction.Trigger.UpdateVisible, () => true)
                         .IgnoreIf(ChainCouplerInteraction.Trigger.Picked_Up_By_Player, () => true)
@@ -1285,6 +1297,18 @@ namespace DvMod.ZCouplers
                                 return ChainCouplerInteraction.State.Attached_Tight;
                             }
                             return ChainCouplerInteraction.State.Attached_Tight;
+                        })
+                        .PermitDynamic(ChainCouplerInteraction.Trigger.Screw_Used, () =>
+                        {
+                            // Allow transition from Dangling to Parked when user interacts
+                            var coupler = __instance.couplerAdapter?.coupler;
+                            if (coupler != null && !coupler.IsCoupled())
+                            {
+                                KnuckleCouplerState.UnlockCoupler(coupler, viaChainInteraction: true);
+                                Main.DebugLog(() => $"FSM: Unlocked coupler via Screw_Used: {coupler.train.ID} {coupler.Position()}");
+                                return ChainCouplerInteraction.State.Parked;
+                            }
+                            return ChainCouplerInteraction.State.Dangling; // Stay in current state if something went wrong
                         })
                         .IgnoreIf(ChainCouplerInteraction.Trigger.Enable, () => true)
                         .IgnoreIf(ChainCouplerInteraction.Trigger.UpdateVisible, () => true)

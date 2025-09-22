@@ -15,6 +15,8 @@ public static class UncouplePatch
 
     private static readonly Dictionary<Coupler, Coupler> partnerCouplers = new Dictionary<Coupler, Coupler>();
 
+    private static readonly Dictionary<Coupler, bool> wasActuallyCoupled = new Dictionary<Coupler, bool>();
+
     /// <summary>
     /// Clean up all tracking dictionaries.
     /// Called during mod unload.
@@ -24,6 +26,7 @@ public static class UncouplePatch
         compressionJoints.Clear();
         coros.Clear();
         partnerCouplers.Clear();
+        wasActuallyCoupled.Clear();
     }
 
     /// <summary>
@@ -41,7 +44,10 @@ public static class UncouplePatch
 
     public static void Prefix(Coupler __instance)
     {
-        Main.DebugLog(() => "Uncoupling " + __instance.train.ID + " from " + __instance.coupledTo?.train.ID);
+        // Track whether this coupler was actually coupled before the uncoupling attempt
+        wasActuallyCoupled[__instance] = __instance.IsCoupled();
+        
+        Main.DebugLog(() => "Uncoupling " + __instance.train.ID + " from " + __instance.coupledTo?.train.ID + " (was coupled: " + wasActuallyCoupled[__instance] + ")");
         if (__instance.coupledTo != null)
         {
             partnerCouplers[__instance] = __instance.coupledTo;
@@ -213,9 +219,21 @@ public static class UncouplePatch
         }
         if (!__instance.IsCoupled())
         {
-            __instance.state = ChainCouplerInteraction.State.Parked;
-            Main.DebugLog(() => "Reset coupler state to Parked: " + __instance.train.ID + " " + __instance.Position());
+            // Only reset to Dangling if this coupler was actually coupled before the uncoupling, else set to Parked
+            if (wasActuallyCoupled.TryGetValue(__instance, out bool wasCoupled) && wasCoupled)
+            {
+                __instance.state = ChainCouplerInteraction.State.Dangling;
+                Main.DebugLog(() => "Reset coupler state to Dangling: " + __instance.train.ID);
+            }
+            else
+            {
+                __instance.state = ChainCouplerInteraction.State.Parked;
+                Main.DebugLog(() => "Reset coupler state to Parked: " + __instance.train.ID);
+            }
         }
+        
+        // Clean up tracking data
+        wasActuallyCoupled.Remove(__instance);
         // Update visual state with deferred approach to avoid NRE during button-triggered uncoupling
         if (__instance.visualCoupler?.chainAdapter?.chainScript != null)
         {
