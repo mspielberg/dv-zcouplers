@@ -1,4 +1,5 @@
 using UnityEngine;
+using DV;
 
 namespace DvMod.ZCouplers
 {
@@ -43,5 +44,17 @@ namespace DvMod.ZCouplers
 
         /// Damper rate in N*s/m (converted from kN*s/m in profiles).
         public float DamperRate { get; set; } = 100e3f; // Default 100 kN*s/m
+
+        /// Text to show when the coupler is ready.
+        public string CouplerReadyText { get; set; } = "Coupler is ready\nPress [KEY] to unlock coupler";
+
+        /// Text to show when the coupler is parked.
+        public string CouplerParkedText { get; set; } = "Coupler is parked\nPress [KEY] to ready coupler";
+
+        /// Gets the ready text with the actual key binding substituted.
+        public string GetCouplerReadyText() => CouplerReadyText.Replace("[KEY]", InteractionText.Instance?.BtnUse ?? "[USE KEY]");
+
+        /// Gets the parked text with the actual key binding substituted.
+        public string GetCouplerParkedText() => CouplerParkedText.Replace("[KEY]", InteractionText.Instance?.BtnUse ?? "[USE KEY]");
     }
 }

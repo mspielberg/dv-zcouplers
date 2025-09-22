@@ -1,4 +1,5 @@
 using UnityEngine;
+using DV;
 
 namespace DvMod.ZCouplers
 {
@@ -19,6 +20,8 @@ namespace DvMod.ZCouplers
             CouplerStrength = 0.35e6f, // 0.35 MN
             SpringRate = 3.5e6f, // 3.5 MN/m
             DamperRate = 3e3f, // 3 kN*s/m
+            CouplerReadyText = "Pin is inserted\nPress [KEY] to remove pin",
+            CouplerParkedText = "Pin is removed\nPress [KEY] to insert pin"
         };
 
         public GameObject? GetClosedPrefab() => AssetManager.GetLAPClosedPrefab();

@@ -1345,20 +1345,21 @@ namespace DvMod.ZCouplers
                 if (!KnuckleCouplers.enabled)
                     return true; // Let original method run when knuckle couplers are disabled
 
+                
                 // When knuckle couplers are enabled, handle knuckle coupler-specific text
                 if (infoType == HookManager.KnuckleCouplerReady)
                 {
-                    __result = $"Coupler is ready\nPress {InteractionText.Instance.BtnUse} to unlock coupler";
+                    __result = CouplerProfiles.Current?.Options.GetCouplerReadyText() ?? "Coupler is ready";
                     return false;
                 }
                 if (infoType == HookManager.KnuckleCouplerUnlocked)
                 {
-                    __result = $"Coupler is unlocked\nPress {InteractionText.Instance.BtnUse} to ready coupler";
+                    __result = CouplerProfiles.Current?.Options.GetCouplerParkedText() ?? "Coupler is parked";
                     return false;
                 }
                 if (infoType == HookManager.KnuckleCouplerCoupled)
                 {
-                    __result = $"Coupler is coupled\nPress {InteractionText.Instance.BtnUse} to uncouple";
+                    __result = $"Coupler is coupled\nPress {InteractionText.Instance?.BtnUse ?? "[USE KEY]"} to uncouple";
                     return false;
                 }
                 return true;

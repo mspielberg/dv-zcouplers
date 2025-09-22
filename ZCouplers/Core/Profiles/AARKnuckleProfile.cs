@@ -1,4 +1,5 @@
 using UnityEngine;
+using DV;
 
 namespace DvMod.ZCouplers
 {
@@ -19,6 +20,8 @@ namespace DvMod.ZCouplers
             CouplerStrength = 3.65e6f, // 3.65 MN
             SpringRate = 12.0e6f, // 12.0 MN/m
             DamperRate = 12e3f, // 12 kN*s/m
+            CouplerParkedText = "Coupler is closed\nPress [KEY] to open coupler",
+            CouplerReadyText = "Coupler is open\nPress [KEY] to close coupler"
         };
 
         public GameObject? GetClosedPrefab() => AssetManager.GetAARClosedPrefab();
