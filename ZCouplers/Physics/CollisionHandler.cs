@@ -1,4 +1,6 @@
+using DV;
 using DvMod.ZCouplers.Core;
+using DvMod.ZCouplers.Core.Helpers;
 using HarmonyLib;
 using UnityEngine;
 using System.Collections.Generic;

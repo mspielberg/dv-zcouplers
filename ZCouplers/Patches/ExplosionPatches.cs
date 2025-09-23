@@ -1,5 +1,7 @@
 ﻿using System;
 using HarmonyLib;
+using DvMod.ZCouplers.Core;
+using DvMod.ZCouplers.Visuals;
 
 // TrainCarExplosion has no namespace in the decompiled reference code
 // ReSharper disable once CheckNamespace

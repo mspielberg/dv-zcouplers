@@ -1,4 +1,6 @@
+using DV;
 using DvMod.ZCouplers.Core;
+using DvMod.ZCouplers.Core.Helpers;
 using UnityEngine;
 
 namespace DvMod.ZCouplers.Visuals

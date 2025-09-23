@@ -1,7 +1,9 @@
 using System.Collections.Generic;
 using System.Linq;
+using DV;
 using DvMod.ZCouplers.Core;
 using DvMod.ZCouplers.Core.Helpers;
+using DvMod.ZCouplers.Visuals;
 using UnityEngine;
 
 namespace DvMod.ZCouplers.Physics

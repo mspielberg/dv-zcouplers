@@ -1,7 +1,9 @@
 using UnityEngine;
 using DV;
+using DvMod.ZCouplers.Core.Helpers;
+using DvMod.ZCouplers.Visuals;
 
-namespace DvMod.ZCouplers
+namespace DvMod.ZCouplers.Core.Profiles
 {
     internal sealed class LAPProfile : ICouplerProfile
     {

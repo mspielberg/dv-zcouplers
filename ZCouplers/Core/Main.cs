@@ -1,5 +1,10 @@
 using System;
+using DV;
 using DvMod.ZCouplers.Core.Profiles;
+using DvMod.ZCouplers.Core.Utils;
+using DvMod.ZCouplers.Physics;
+using DvMod.ZCouplers.Visuals;
+using DvMod.ZCouplers.Patches;
 using HarmonyLib;
 
 using UnityEngine;

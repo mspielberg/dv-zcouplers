@@ -1,7 +1,9 @@
 using System;
 using System.Reflection;
 using HarmonyLib;
-using DvMod.ZCouplers;
+using DV;
+using DvMod.ZCouplers.Core;
+using DvMod.ZCouplers.Visuals;
 using UnityEngine;
 
 namespace DvMod.ZCouplers.Patches

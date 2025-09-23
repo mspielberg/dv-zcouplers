@@ -1,4 +1,5 @@
 using DvMod.ZCouplers.Core.Helpers;
+using DvMod.ZCouplers.Core.Profiles;
 using UnityModManagerNet;
 
 namespace DvMod.ZCouplers.Core
