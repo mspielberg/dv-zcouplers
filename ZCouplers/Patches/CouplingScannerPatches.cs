@@ -221,6 +221,7 @@ namespace DvMod.ZCouplers
                 // Check distance-based recoupling prevention
                 if (!RecouplingPrevention.CanRecouple(coupler, otherCoupler))
                 {
+	                Main.DebugLog(() => $"Skipping coupling due to recoupling prevention: {coupler.train.ID} <-> {otherCoupler.train.ID}");
                     return; // Blocked due to insufficient separation since last uncoupling
                 }
 
