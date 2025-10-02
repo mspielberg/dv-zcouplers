@@ -56,5 +56,8 @@ namespace DvMod.ZCouplers
 
         /// Gets the parked text with the actual key binding substituted.
         public string GetCouplerParkedText() => CouplerParkedText.Replace("[KEY]", InteractionText.Instance?.BtnUse ?? "[USE KEY]");
+
+        // If Auto Coupling is enforced
+        public bool EnforceAutoCoupling { get; set; } = false;
     }
 }

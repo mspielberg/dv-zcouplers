@@ -18,8 +18,7 @@ namespace DvMod.ZCouplers
         {
             if (coupler == null || otherCoupler == null)
                 return false;
-
-            if (Main.settings.autoCouplingMode || Main.settings.couplerType == CouplerType.Scharfenberg)
+            if (Main.settings.autoCouplingMode || CouplerProfiles.Current?.Options.EnforceAutoCoupling == true)
             {
                 // In auto coupling mode, skip ready checks - always allow coupling
                 return true;

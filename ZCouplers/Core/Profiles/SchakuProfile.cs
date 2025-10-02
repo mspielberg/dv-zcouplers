@@ -20,7 +20,8 @@ namespace DvMod.ZCouplers
             SpringRate = 5.0e6f, // 5.0 MN/m
             DamperRate = 8e3f, // 8 kN*s/m
             CouplerReadyText = "Coupler is engaged",
-            CouplerParkedText = "Coupler is engaged"
+            CouplerParkedText = "Coupler is engaged",
+            EnforceAutoCoupling = true
         };
 
         public GameObject? GetClosedPrefab() => AssetManager.GetSchakuClosedPrefab();
