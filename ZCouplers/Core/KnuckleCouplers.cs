@@ -276,7 +276,7 @@ namespace DvMod.ZCouplers
         /// </summary>
         private static System.Collections.IEnumerator DelayedBufferColliderUpdate()
         {
-            yield return new UnityEngine.WaitForSeconds(3.0f);
+            yield return new WaitUntil(() => AStartGameData.carsAndJobsLoadingFinished);
 
             // Additional wait for physics frames to ensure everything is stable
             for (int i = 0; i < 30; i++)
