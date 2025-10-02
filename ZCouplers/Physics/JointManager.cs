@@ -65,6 +65,19 @@ namespace DvMod.ZCouplers
 
             CreateTensionJoint(coupler);
 
+            // Add CouplerBreaker component for force monitoring
+            var existingBreaker = coupler.GetComponent<CouplerBreaker>();
+            if (existingBreaker == null)
+            {
+                var breaker = coupler.gameObject.AddComponent<CouplerBreaker>();
+                var tensionJoint = GetTensionJoint(coupler);
+                if (tensionJoint != null)
+                {
+                    breaker.joint = tensionJoint;
+                    Main.DebugLog(() => $"Added CouplerBreaker to {coupler.train.ID} during force joint creation");
+                }
+            }
+
             // Also create compression joint if needed
             if (coupler.rigidCJ == null && coupler.coupledTo.rigidCJ == null)
                 CreateCompressionJoint(coupler, coupler.coupledTo);
@@ -126,6 +139,15 @@ namespace DvMod.ZCouplers
 
             // Store tension joint
             customTensionJoints[coupler] = cj;
+
+            // Add CouplerBreaker component for force monitoring
+            var existingBreaker = coupler.GetComponent<CouplerBreaker>();
+            if (existingBreaker == null)
+            {
+                var breaker = coupler.gameObject.AddComponent<CouplerBreaker>();
+                breaker.joint = cj;
+                Main.DebugLog(() => $"Added CouplerBreaker to {coupler.train.ID} during tension joint creation");
+            }
 
             Main.DebugLog(() => $"Tension joint created: distance={actualJointDistance:F3}m, limit={jointLimit:F3}m for {coupler.train.ID}");
         }
@@ -211,7 +233,7 @@ namespace DvMod.ZCouplers
                 bufferCj.enableCollision = false;
             }
 
-            
+
             bufferCj.breakForce = float.PositiveInfinity;
             bufferCj.breakTorque = float.PositiveInfinity;
 
