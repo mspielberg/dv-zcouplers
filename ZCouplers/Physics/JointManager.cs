@@ -567,5 +567,93 @@ namespace DvMod.ZCouplers
             CollisionHandler.Cleanup();
         }
 
+        /// <summary>
+        /// Clean up all joints associated with a specific coupler during type switching.
+        /// </summary>
+        public static void CleanupCouplerJoints(Coupler coupler)
+        {
+            if (coupler == null) return;
+
+            try
+            {
+                // Clean up tension joints
+                DestroyTensionJoint(coupler);
+
+                // Clean up compression joints
+                DestroyCompressionJoint(coupler, "CleanupCouplerJoints");
+
+                // Clean up any CouplerBreaker components
+                var breaker = coupler.GetComponent<CouplerBreaker>();
+                if (breaker != null)
+                {
+                    UnityEngine.Object.DestroyImmediate(breaker);
+                }
+
+                Main.DebugLog(() => $"Cleaned up joints for coupler {coupler.train.ID} {coupler.Position()}");
+            }
+            catch (System.Exception ex)
+            {
+                Main.ErrorLog(() => $"Error cleaning up coupler joints for {coupler.train.ID}: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Update all existing joint parameters to match current settings.
+        /// Called during runtime coupler type switching to apply new physics parameters.
+        /// </summary>
+        public static void UpdateAllJointParameters()
+        {
+            try
+            {
+                var springRate = Main.settings.GetSpringRate();
+                var damperRate = Main.settings.GetDamperRate();
+
+                Main.DebugLog(() => $"Updating all joint parameters: spring={springRate}, damper={damperRate}");
+
+                // Update tension joints
+                foreach (var kvp in customTensionJoints.ToList())
+                {
+                    var coupler = kvp.Key;
+                    var joint = kvp.Value;
+
+                    if (joint == null || coupler != null)
+                    {
+                        // Clean up invalid entries
+                        customTensionJoints.Remove(coupler);
+                        continue;
+                    }
+
+                    // Update spring parameters
+                    joint.angularXLimitSpring = new SoftJointLimitSpring { spring = springRate };
+                    joint.angularYZLimitSpring = new SoftJointLimitSpring { spring = springRate };
+                    joint.linearLimitSpring = new SoftJointLimitSpring { spring = springRate };
+
+                    // Update angular limits based on buffer visibility setting
+                    if (Main.settings.showBuffersWithKnuckles)
+                    {
+                        joint.lowAngularXLimit = new SoftJointLimit { limit = 5f };
+                        joint.highAngularXLimit = new SoftJointLimit { limit = 5f };
+                        joint.angularYLimit = new SoftJointLimit { limit = 30f };
+                        joint.angularZLimit = new SoftJointLimit { limit = 5 };
+                    }
+                    else
+                    {
+                        joint.lowAngularXLimit = new SoftJointLimit { limit = 20f };
+                        joint.highAngularXLimit = new SoftJointLimit { limit = 20f };
+                        joint.angularYLimit = new SoftJointLimit { limit = 80f };
+                        joint.angularZLimit = new SoftJointLimit { limit = 45f };
+                    }
+                }
+
+                // Update compression joints (reuse existing method)
+                UpdateAllCompressionJoints();
+
+                Main.DebugLog(() => $"Updated {customTensionJoints.Count} tension joints and {bufferJoints.Count / 2} compression joints");
+            }
+            catch (System.Exception ex)
+            {
+                Main.ErrorLog(() => $"Error updating joint parameters: {ex.Message}");
+            }
+        }
     }
 }

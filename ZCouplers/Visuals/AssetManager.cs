@@ -77,16 +77,23 @@ namespace DvMod.ZCouplers
         /// </summary>
         public static void LoadAssets()
         {
+            LoadAssetsForCouplerType(Main.settings.couplerType);
+        }
+
+        /// <summary>
+        /// Loads assets for a specific coupler type. Used for runtime coupler switching.
+        /// </summary>
+        public static void LoadAssetsForCouplerType(CouplerType couplerType)
+        {
             if (!Directory.Exists(assetsFolder))
             {
                 Main.ErrorLog(() => $"Assets folder not found: {assetsFolder}");
                 return;
             }
 
-            CouplerType couplerType = Main.settings.couplerType;
             Main.DebugLog(() => $"Loading assets for coupler type: {couplerType}");
 
-            // Load assets based on coupler type
+            // Load assets based on coupler type - always try to load for runtime switching
             switch (couplerType)
             {
                 case CouplerType.AARKnuckle:
@@ -110,6 +117,36 @@ namespace DvMod.ZCouplers
                     // Fallback to AAR
                     LoadAARAssets();
                     break;
+            }
+            
+            // Verify loading was successful
+            if (!AreAssetsLoadedForType(couplerType))
+            {
+                Main.ErrorLog(() => $"Asset loading verification failed for {couplerType}");
+            }
+            else
+            {
+                Main.DebugLog(() => $"Successfully loaded and verified assets for {couplerType}");
+            }
+        }
+
+        /// <summary>
+        /// Returns whether assets for a specific coupler type are loaded.
+        /// </summary>
+        public static bool AreAssetsLoadedForType(CouplerType couplerType)
+        {
+            switch (couplerType)
+            {
+                case CouplerType.AARKnuckle:
+                    return aarClosedPrefab != null && aarOpenPrefab != null;
+                case CouplerType.SA3Knuckle:
+                    return sa3ClosedPrefab != null && sa3OpenPrefab != null;
+                case CouplerType.Scharfenberg:
+                    return schakuClosedPrefab != null && schakuOpenPrefab != null;
+                case CouplerType.LAPCoupler:
+                    return lapClosedPrefab != null && lapOpenPrefab != null;
+                default:
+                    return aarClosedPrefab != null && aarOpenPrefab != null;
             }
         }
 

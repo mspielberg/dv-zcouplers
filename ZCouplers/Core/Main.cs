@@ -24,17 +24,23 @@ public static class Main
             if (settings != null)
             {
                 Main.settings = settings;
+                // Initialize the lastCouplerType to current value to track future changes
+                Main.settings.lastCouplerType = Main.settings.couplerType;
                 modEntry.Logger.Log("Loaded existing settings");
             }
             else
             {
                 Main.settings = new Settings();
+                // Initialize the lastCouplerType to current value to track future changes
+                Main.settings.lastCouplerType = Main.settings.couplerType;
                 modEntry.Logger.Log("Created new settings (no existing file)");
             }
         }
         catch (Exception ex)
         {
             Main.settings = new Settings();
+            // Initialize the lastCouplerType to current value to track future changes
+            Main.settings.lastCouplerType = Main.settings.couplerType;
             modEntry.Logger.Log("Failed to load settings, using defaults: " + ex.Message);
         }
         modEntry.OnGUI = Main.settings.Draw<Settings>;
@@ -53,10 +59,10 @@ public static class Main
         };
         var harmonyInstance = new Harmony(modEntry.Info.Id);
         harmonyInstance.PatchAll();
-        
+
         // Store harmony instance for cleanup
         harmony = harmonyInstance;
-        
+
         // Register coupler profiles (modular per-coupler files)
         CouplerProfiles.Register(new AARKnuckleProfile());
         CouplerProfiles.Register(new SA3Profile());
@@ -74,11 +80,11 @@ public static class Main
         {
             // Restore original game state before cleanup
             RestoreOriginalState();
-            
+
             // Cleanup Harmony patches
             harmony?.UnpatchAll();
             harmony = null;
-            
+
             // Cleanup all systems in reverse order of initialization
             RecouplingPrevention.Shutdown();
             KnuckleCouplers.Cleanup();
@@ -86,17 +92,17 @@ public static class Main
             HookManager.Cleanup();
             LAPLinkManager.Cleanup();
             AssetManager.Cleanup();
-            
+
             // Cleanup patches static data
             UncouplePatch.Cleanup();
             KnuckleCouplerPatches.Cleanup();
-            
+
             // Cleanup save system
             SaveManager.Cleanup();
-            
+
             // Cleanup profile registry
             CouplerProfiles.Cleanup();
-            
+
             modEntry.Logger.Log("ZCouplers unloaded successfully");
         }
         catch (System.Exception ex)
@@ -104,7 +110,7 @@ public static class Main
             modEntry.Logger.Error($"Error during ZCouplers unload: {ex.Message}");
             modEntry.Logger.Error(ex.StackTrace);
         }
-        
+
         return true;
     }
 
@@ -117,7 +123,7 @@ public static class Main
         {
             // Remove all GameObjHider components from all objects
             CleanupGameObjHiders();
-            
+
             if (CarSpawner.Instance?.allCars == null)
                 return;
 
@@ -127,13 +133,13 @@ public static class Main
 
                 // Restore air hoses and remove GameObjHider components
                 RestoreAirHoses(car);
-                
+
                 // Restore buffer visibility
                 RestoreBuffers(car);
-                
+
                 // Re-enable coupler components that may have been disabled
                 RestoreCouplerComponents(car);
-                
+
                 // Reset coupler states to vanilla
                 ResetCouplerStates(car);
             }
@@ -159,13 +165,13 @@ public static class Main
                     // Restore the object before destroying the component
                     var gameObj = hider.gameObject;
                     gameObj.SetActive(true);
-                    
+
                     var renderers = gameObj.GetComponentsInChildren<MeshRenderer>(true);
                     foreach (var renderer in renderers)
                     {
                         renderer.enabled = true;
                     }
-                    
+
                     UnityEngine.Object.Destroy(hider);
                 }
             }
@@ -197,7 +203,7 @@ public static class Main
 
                 // Restore visibility
                 hosesTransform.gameObject.SetActive(true);
-                
+
                 // Restore renderer components
                 var renderers = hosesTransform.GetComponentsInChildren<MeshRenderer>(true);
                 foreach (var renderer in renderers)

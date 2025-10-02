@@ -5,7 +5,7 @@ namespace DvMod.ZCouplers
     public enum strengthPreset { Custom, Recommended }
     public class Settings : UnityModManager.ModSettings, IDrawable
     {
-        [Draw("Coupler type (requires restart)")]
+        [Draw("Coupler type")]
         public CouplerType couplerType = CouplerType.AARKnuckle;
 
         [Draw("Toggle Buffers Visuals", Tooltip = "Also modifies the physics to account for buffer absence")]
@@ -54,6 +54,24 @@ namespace DvMod.ZCouplers
         {
             Couplers.UpdateAllCompressionJoints();
             KnuckleCouplers.OnSettingsChanged();
+
+            // Handle coupler type change at runtime
+            HandleCouplerTypeChange();
+        }
+
+        public CouplerType? lastCouplerType = null;
+
+        /// <summary>
+        /// Handle runtime coupler type changes by recreating all coupler visuals and physics
+        /// </summary>
+        private void HandleCouplerTypeChange()
+        {
+            if (lastCouplerType.HasValue && lastCouplerType.Value != couplerType)
+            {
+                Main.DebugLog(() => $"Coupler type changed from {lastCouplerType.Value} to {couplerType}, switching at runtime");
+                KnuckleCouplers.SwitchCouplerTypeAtRuntime(lastCouplerType.Value, couplerType);
+            }
+            lastCouplerType = couplerType;
         }
 
         public float GetCouplerStrength()
