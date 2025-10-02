@@ -211,7 +211,8 @@ public static class UncouplePatch
                 Main.DebugLog(() => "Reset partner coupler state to Parked: " + partnerCoupler.train.ID + " " + partnerCoupler.Position());
             }
             // Update visual state for partner coupler too - defer to avoid NRE
-            if (partnerCoupler.visualCoupler?.chainAdapter?.chainScript != null)
+            if (partnerCoupler.visualCoupler?.chainAdapter?.chainScript != null &&
+                partnerCoupler.visualCoupler.chainAdapter.chainScript.gameObject.activeInHierarchy)
             {
 	            partnerCoupler.visualCoupler.chainAdapter.chainScript.StartCoroutine(DelayedVisualStateUpdate(partnerCoupler));
             }
@@ -235,7 +236,8 @@ public static class UncouplePatch
         // Clean up tracking data
         wasActuallyCoupled.Remove(__instance);
         // Update visual state with deferred approach to avoid NRE during button-triggered uncoupling
-        if (__instance.visualCoupler?.chainAdapter?.chainScript != null)
+        if (__instance.visualCoupler?.chainAdapter?.chainScript != null &&
+            __instance.visualCoupler.chainAdapter.chainScript.gameObject.activeInHierarchy)
         {
 	        __instance.visualCoupler.chainAdapter.chainScript.StartCoroutine(DelayedVisualStateUpdate(__instance));
         }
