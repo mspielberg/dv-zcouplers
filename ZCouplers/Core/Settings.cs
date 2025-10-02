@@ -12,11 +12,11 @@ namespace DvMod.ZCouplers
         public bool showBuffersWithKnuckles = false;
         [Draw(DrawType.ToggleGroup)]
         public strengthPreset strengthValues = strengthPreset.Recommended;
-        [Draw("Knuckle strength (Mn)", VisibleOn = "strengthValues|Custom", Min = 0.1f)]
+        [Draw("Coupler strength (MN)", VisibleOn = "strengthValues|Custom", Min = 0.1f)]
         public float knuckleStrength = 1.78f;
-        [Draw("Tension spring rate (Mn/m)", VisibleOn = "strengthValues|Custom", Min = 0f)]
+        [Draw("Tension spring rate (MN/m)", VisibleOn = "strengthValues|Custom", Min = 0f, Tooltip = "Needs recoupling or restart to take effect")]
         public float drawgearSpringRate = 2f; // 2 MN/m = 2e6 N/m
-        [Draw("Compression damper rate (kN*s/m)", VisibleOn = "strengthValues|Custom", Min = 0f)]
+        [Draw("Compression damper rate (kN*s/m)", VisibleOn = "strengthValues|Custom", Min = 0f, Tooltip = "Needs recoupling or restart to take effect")]
         public float drawgearDamperRate = 100f;
         [Draw("Auto couple threshold (mm)", Min = 0f)]
         public float autoCoupleThreshold = 20f;
