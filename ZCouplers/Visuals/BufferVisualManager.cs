@@ -525,10 +525,9 @@ public static class BufferVisualManager
 
             // Get the TrainCar component to access its interior Transform reference
             TrainCar trainCar = root.GetComponent<TrainCar>();
-            
+
             if (trainCar?.interior != null)
             {
-                Main.DebugLog(() => $"Found TrainCar.interior for {livery.id}: {GetGameObjectPath(trainCar.interior.gameObject)}");
                 ProcessSingleInteriorObject(trainCar.interior.gameObject, livery.id, visible);
             }
             else
@@ -551,7 +550,6 @@ public static class BufferVisualManager
         try
         {
             Transform interior = interiorGO.transform;
-            Main.DebugLog(() => $"Processing interior GameObject at path: {GetGameObjectPath(interiorGO)}");
 
             // Find the walkable transform under interior
             Transform walkable = interior.Find("[walkable]");
@@ -561,11 +559,9 @@ public static class BufferVisualManager
                 return;
             }
 
-            Main.DebugLog(() => $"Found walkable at path: {GetGameObjectPath(walkable.gameObject)}");
-
             bool foundOldGroup = false;
             bool foundColliders = false;
-            
+
             // Check if there's an [old] group under walkable
             Transform oldGroup = walkable.Find("[old]");
             if (oldGroup != null)
@@ -575,41 +571,22 @@ public static class BufferVisualManager
                 // When buffers are hidden (!visible), enable the [old] group
                 bool oldGroupNewState = !visible;
                 oldGroup.gameObject.SetActive(oldGroupNewState);
-                Main.DebugLog(() => $"Found [old] group for {liveryId} at path: {GetGameObjectPath(oldGroup.gameObject)}, setting active to {oldGroupNewState} (was: {!oldGroupNewState})");
 
                 // Look for MeshCollider, Exterior, and any buffer-related components under walkable to disable
                 var allMeshColliders = walkable.GetComponentsInChildren<MeshCollider>(true); // Include inactive
                 var exteriorObjects = walkable.GetComponentsInChildren<Transform>(true)
                     .Where(t => t.name.Equals("Exterior", StringComparison.OrdinalIgnoreCase));
-                
+
                 // Find all Transform objects that might be buffer-related by name patterns
                 var bufferRelatedObjects = walkable.GetComponentsInChildren<Transform>(true)
                     .Where(t => IsBufferRelatedName(t.name));
-
-                Main.DebugLog(() => $"Found {allMeshColliders.Length} total MeshColliders, {exteriorObjects.Count()} Exterior objects, and {bufferRelatedObjects.Count()} buffer-related objects under walkable for {liveryId}");
-
-                // Log all buffer-related objects we found for debugging
-                foreach (var bufferObj in bufferRelatedObjects)
-                {
-                    Main.DebugLog(() => $"Buffer-related object found: '{bufferObj.name}' at path '{GetGameObjectPath(bufferObj.gameObject)}'");
-                }
-
-                // Log all MeshColliders first to see what we're working with
-                for (int i = 0; i < allMeshColliders.Length; i++)
-                {
-                    var collider = allMeshColliders[i];
-                    bool isInOldGroup = oldGroup != null && (collider.transform == oldGroup || IsChildOf(collider.transform, oldGroup));
-                    Main.DebugLog(() => $"MeshCollider {i}: '{collider.name}' at path '{GetGameObjectPath(collider.gameObject)}', enabled: {collider.enabled}, in [old] group: {isInOldGroup}");
-                }
 
                 foreach (var collider in allMeshColliders)
                 {
                     if (oldGroup == null || (collider.transform != oldGroup && !IsChildOf(collider.transform, oldGroup)))
                     {
-                        bool wasEnabled = collider.enabled;
                         collider.enabled = visible;
                         foundColliders = true;
-                        Main.DebugLog(() => $"MeshCollider '{collider.name}' at '{GetGameObjectPath(collider.gameObject)}' on {liveryId}: {wasEnabled} -> {visible}");
                     }
                 }
 
@@ -617,10 +594,8 @@ public static class BufferVisualManager
                 {
                     if (oldGroup == null || (exterior != oldGroup && !IsChildOf(exterior, oldGroup)))
                     {
-                        bool wasActive = exterior.gameObject.activeSelf;
                         exterior.gameObject.SetActive(visible);
                         foundColliders = true;
-                        Main.DebugLog(() => $"Exterior object '{exterior.name}' on {liveryId}: {wasActive} -> {visible}");
                     }
                 }
 
@@ -633,36 +608,29 @@ public static class BufferVisualManager
                         var bufferColliders = bufferObj.GetComponentsInChildren<Collider>(true);
                         foreach (var collider in bufferColliders)
                         {
-                            bool wasEnabled = collider.enabled;
                             collider.enabled = visible;
-                            foundColliders = true;
-                            Main.DebugLog(() => $"Buffer Collider ({collider.GetType().Name}) '{collider.name}' in '{bufferObj.name}' on {liveryId}: {wasEnabled} -> {visible}");
                         }
 
                         // Handle buffer GameObjects themselves
-                        bool wasActive = bufferObj.gameObject.activeSelf;
                         bufferObj.gameObject.SetActive(visible);
                         foundColliders = true;
-                        Main.DebugLog(() => $"Buffer object '{bufferObj.name}' at '{GetGameObjectPath(bufferObj.gameObject)}' on {liveryId}: {wasActive} -> {visible}");
                     }
                 }
             }
 
             // Disable Capsule (4) to Capsule (7) components under [walkable]
             var capsuleColliders = walkable.GetComponentsInChildren<CapsuleCollider>(true); // Include inactive
-            Main.DebugLog(() => $"Found {capsuleColliders.Length} CapsuleColliders under walkable for {liveryId}");
-            
+
             foreach (var capsule in capsuleColliders)
             {
                 string name = capsule.name;
                 if (name.ToLower().StartsWith("capsule"))
                 {
-                    
+
                     bool wasEnabled = capsule.enabled;
                     capsule.enabled = visible;
                     foundColliders = true;
-                    Main.DebugLog(() => $"Capsule collider '{name}' on {liveryId}: {wasEnabled} -> {visible}");
-                
+
                 }
             }
 
@@ -683,7 +651,7 @@ public static class BufferVisualManager
     private static bool IsChildOf(Transform child, Transform parent)
     {
         if (child == null || parent == null) return false;
-        
+
         Transform current = child.parent;
         while (current != null)
         {
@@ -699,7 +667,7 @@ public static class BufferVisualManager
     private static string GetGameObjectPath(GameObject obj)
     {
         if (obj == null) return "null";
-        
+
         string path = obj.name;
         Transform parent = obj.transform.parent;
         while (parent != null)
@@ -716,19 +684,16 @@ public static class BufferVisualManager
     public static void ApplyBufferCollidersForCar(TrainCar car)
     {
         if (car == null) return;
-        
+
         bool visible = BuffersCurrentlyVisible;
         string liveryId = car.carLivery.id;
         bool isLocomotive = liveryId.StartsWith("Loco");
-        
-        Main.DebugLog(() => $"ApplyBufferCollidersForCar: {liveryId} (Car ID: {car.ID}) - locomotive: {isLocomotive}");
-        
+
         // Use the TrainCar's interior Transform reference - this points to the actual interior GameObject
         Transform interiorTransform = car.interior;
-        
+
         if (interiorTransform != null)
         {
-            Main.DebugLog(() => $"Found car.interior Transform for car {car.ID}: {GetGameObjectPath(interiorTransform.gameObject)}");
             ProcessSingleInteriorObject(interiorTransform.gameObject, car.carLivery.id, visible);
         }
         else
@@ -736,7 +701,7 @@ public static class BufferVisualManager
             Main.DebugLog(() => $"No car.interior found for car {car.ID} ({liveryId})");
         }
     }
-    
+
     /// <summary>
     /// Apply buffer stem collider management for all cars in the scene
     /// </summary>
@@ -749,8 +714,6 @@ public static class BufferVisualManager
         int totalCars = spawner.allCars.Count;
         int processedCars = 0;
         int skippedCars = 0;
-        
-        Main.DebugLog(() => $"Applying buffer collider management for all cars, visible: {visible}, total cars: {totalCars}");
 
         // First, process all TrainCar instances
         foreach (TrainCar car in spawner.allCars)
@@ -773,18 +736,18 @@ public static class BufferVisualManager
                 skippedCars++;
             }
         }
-        
+
         Main.DebugLog(() => $"TrainCar processing completed: {processedCars} processed, {skippedCars} skipped out of {totalCars} total");
-        
+
         // CRITICAL: Also process ALL interior objects directly to catch any missed instances
         ProcessAllInteriorObjects(visible);
-        
+
         if (skippedCars > 0)
         {
             Main.ErrorLog(() => $"WARNING: {skippedCars} cars were skipped during buffer collider management!");
         }
     }
-    
+
     /// <summary>
     /// Process ALL interior objects in the scene directly, regardless of TrainCar association
     /// This ensures we catch every single interior object, including orphaned ones
@@ -797,9 +760,9 @@ public static class BufferVisualManager
             GameObject[] allInteriors = UnityEngine.Object.FindObjectsOfType<GameObject>()
                 .Where(go => go.name.Contains("(Clone) [interior]"))
                 .ToArray();
-            
+
             int processedInteriors = 0;
-            
+
             foreach (var interior in allInteriors)
             {
                 // Extract livery ID from the name (e.g., "LocoDH4(Clone) [interior]" -> "LocoDH4")
@@ -827,18 +790,18 @@ public static class BufferVisualManager
             return false;
 
         string nameLower = name.ToLowerInvariant();
-        
+
         // Common buffer-related name patterns based on different train types:
-        // - DM1U: "[old]/Buffers"  
+        // - DM1U: "[old]/Buffers"
         // - S060: "[old]/Exterior/buffer (4-7)"
         // - S282A: "[old]/Exterior/buffer (4-5)"
         // - Microshunter: "[old]/hood F/Buffer", "[old]/hood F/Buffer (1)", "[old]/hood R/Buffer", "[old]/hood R/Buffer (1)"
-        
+
         return nameLower.Contains("buffer") ||
                nameLower.Contains("buffers") ||
                nameLower.StartsWith("buffer") ||
                nameLower.EndsWith("buffer") ||
-               // Pattern for named buffer groups like "hood F/Buffer", "hood R/Buffer"  
+               // Pattern for named buffer groups like "hood F/Buffer", "hood R/Buffer"
                (nameLower.Contains("hood") && nameLower.Contains("buffer")) ||
                // Additional patterns for different locomotive types
                nameLower == "buffers" || // DM1U case
