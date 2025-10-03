@@ -1,6 +1,7 @@
 using System.Linq;
 using DvMod.ZCouplers.Core;
 using DvMod.ZCouplers.Core.Helpers;
+using DvMod.ZCouplers.Core.Utils;
 using DvMod.ZCouplers.Visuals;
 using UnityEngine;
 
@@ -62,6 +63,7 @@ namespace DvMod.ZCouplers.Physics
                 {
                     Main.DebugLog(() => $"Force uncoupling {coupler.train?.ID} and {otherCoupler?.train?.ID} due to coupler break");
                     coupler.Uncouple();
+                    RecouplingPrevention.CleanupOldRecords(coupler);
                 }
             }
         }
