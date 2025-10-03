@@ -1,6 +1,7 @@
 using System.Collections.Generic;
+using DvMod.ZCouplers.Core.Helpers;
 
-namespace DvMod.ZCouplers
+namespace DvMod.ZCouplers.Core.Profiles
 {
     /// <summary>
     /// Simple registry and helpers for coupler profiles.

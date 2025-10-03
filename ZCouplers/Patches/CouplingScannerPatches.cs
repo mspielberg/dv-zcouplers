@@ -1,10 +1,14 @@
 using System.Collections;
-
+using DvMod.ZCouplers.Core;
+using DvMod.ZCouplers.Core.Helpers;
+using DvMod.ZCouplers.Core.Profiles;
+using DvMod.ZCouplers.Core.Utils;
+using DvMod.ZCouplers.Physics;
+using DvMod.ZCouplers.Visuals;
 using HarmonyLib;
-
 using UnityEngine;
 
-namespace DvMod.ZCouplers
+namespace DvMod.ZCouplers.Patches
 {
     /// <summary>
     /// Handles coupling scanner functionality and Harmony patches.

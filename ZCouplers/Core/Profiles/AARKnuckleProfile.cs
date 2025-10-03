@@ -1,7 +1,8 @@
+using DvMod.ZCouplers.Core.Helpers;
+using DvMod.ZCouplers.Visuals;
 using UnityEngine;
-using DV;
 
-namespace DvMod.ZCouplers
+namespace DvMod.ZCouplers.Core.Profiles
 {
     internal sealed class AARKnuckleProfile : ICouplerProfile
     {

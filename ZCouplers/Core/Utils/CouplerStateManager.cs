@@ -1,8 +1,8 @@
 using System.Collections.Generic;
+using DvMod.ZCouplers.Core.Helpers;
+using DvMod.ZCouplers.Visuals;
 
-using UnityEngine;
-
-namespace DvMod.ZCouplers
+namespace DvMod.ZCouplers.Core.Utils
 {
     /// <summary>
     /// Manages knuckle coupler states, synchronization, and validation

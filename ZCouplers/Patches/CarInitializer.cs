@@ -1,10 +1,10 @@
 using System.Collections;
-
+using DvMod.ZCouplers.Core;
+using DvMod.ZCouplers.Visuals;
 using HarmonyLib;
-
 using UnityEngine;
 
-namespace DvMod.ZCouplers
+namespace DvMod.ZCouplers.Patches
 {
     /// <summary>
     /// Handles initialization of newly spawned cars (not from save files)

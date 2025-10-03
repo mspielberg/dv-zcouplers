@@ -1,8 +1,10 @@
 using System.Collections.Generic;
-using System.IO;
+using DvMod.ZCouplers.Core;
+using DvMod.ZCouplers.Core.Helpers;
+using DvMod.ZCouplers.Core.Profiles;
 using UnityEngine;
 
-namespace DvMod.ZCouplers
+namespace DvMod.ZCouplers.Visuals
 {
     /// <summary>
     /// Manages Link and Pin coupler links - the connecting piece between two LAP couplers.

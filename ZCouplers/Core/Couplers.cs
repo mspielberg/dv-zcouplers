@@ -1,12 +1,6 @@
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
+using DvMod.ZCouplers.Physics;
 
-using HarmonyLib;
-
-using UnityEngine;
-
-namespace DvMod.ZCouplers
+namespace DvMod.ZCouplers.Core
 {
     /// <summary>
     /// Legacy Couplers class - most functionality moved to specialized classes.

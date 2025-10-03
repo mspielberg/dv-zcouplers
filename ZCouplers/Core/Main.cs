@@ -1,11 +1,14 @@
 using System;
-
+using DvMod.ZCouplers.Core.Profiles;
+using DvMod.ZCouplers.Core.Utils;
+using DvMod.ZCouplers.Patches;
+using DvMod.ZCouplers.Physics;
+using DvMod.ZCouplers.Visuals;
 using HarmonyLib;
-
 using UnityEngine;
 using UnityModManagerNet;
 
-namespace DvMod.ZCouplers;
+namespace DvMod.ZCouplers.Core;
 
 [EnableReloading]
 public static class Main

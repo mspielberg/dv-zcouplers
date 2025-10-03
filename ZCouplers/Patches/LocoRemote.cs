@@ -1,8 +1,9 @@
 using DV.RemoteControls;
-
+using DvMod.ZCouplers.Core;
+using DvMod.ZCouplers.Core.Utils;
 using HarmonyLib;
 
-namespace DvMod.ZCouplers
+namespace DvMod.ZCouplers.Patches
 {
     public static class LocoRemote
     {

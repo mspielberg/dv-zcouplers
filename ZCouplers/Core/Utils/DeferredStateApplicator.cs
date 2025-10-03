@@ -1,11 +1,9 @@
 using System.Collections;
 using System.Collections.Generic;
-
-using DV;
-
+using DvMod.ZCouplers.Visuals;
 using UnityEngine;
 
-namespace DvMod.ZCouplers
+namespace DvMod.ZCouplers.Core.Utils
 {
     /// <summary>
     /// Handles deferred application of coupler states after save loading

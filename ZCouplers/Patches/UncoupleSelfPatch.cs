@@ -1,6 +1,9 @@
+using DvMod.ZCouplers.Core;
+using DvMod.ZCouplers.Core.Utils;
+using DvMod.ZCouplers.Physics;
 using HarmonyLib;
 
-namespace DvMod.ZCouplers;
+namespace DvMod.ZCouplers.Patches;
 
 [HarmonyPatch(typeof(TrainCar), "UncoupleSelf")]
 public static class UncoupleSelfPatch

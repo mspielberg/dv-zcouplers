@@ -1,6 +1,8 @@
+using DvMod.ZCouplers.Core.Helpers;
+using DvMod.ZCouplers.Core.Profiles;
 using UnityModManagerNet;
 
-namespace DvMod.ZCouplers
+namespace DvMod.ZCouplers.Core
 {
     public enum strengthPreset { Custom, Recommended }
     public class Settings : UnityModManager.ModSettings, IDrawable

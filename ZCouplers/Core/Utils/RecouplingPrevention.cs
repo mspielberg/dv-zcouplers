@@ -1,9 +1,8 @@
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using UnityEngine;
 
-namespace DvMod.ZCouplers
+namespace DvMod.ZCouplers.Core.Utils
 {
     /// <summary>
     /// Tracks recently uncoupled coupler pairs to prevent immediate recoupling 

@@ -1,9 +1,11 @@
 using System.Collections.Generic;
 using System.Linq;
-
+using DvMod.ZCouplers.Core;
+using DvMod.ZCouplers.Core.Helpers;
+using DvMod.ZCouplers.Visuals;
 using UnityEngine;
 
-namespace DvMod.ZCouplers
+namespace DvMod.ZCouplers.Physics
 {
     /// <summary>
     /// Manages creation, destruction, and tracking of physics joints between train cars.

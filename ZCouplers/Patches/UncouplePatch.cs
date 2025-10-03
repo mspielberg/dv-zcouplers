@@ -1,10 +1,13 @@
 using System.Collections.Generic;
-
+using DvMod.ZCouplers.Core;
+using DvMod.ZCouplers.Core.Helpers;
+using DvMod.ZCouplers.Core.Utils;
+using DvMod.ZCouplers.Physics;
+using DvMod.ZCouplers.Visuals;
 using HarmonyLib;
-
 using UnityEngine;
 
-namespace DvMod.ZCouplers;
+namespace DvMod.ZCouplers.Patches;
 
 [HarmonyPatch(typeof(Coupler), "Uncouple")]
 public static class UncouplePatch
@@ -46,7 +49,7 @@ public static class UncouplePatch
     {
         // Track whether this coupler was actually coupled before the uncoupling attempt
         wasActuallyCoupled[__instance] = __instance.IsCoupled();
-        
+
         Main.DebugLog(() => "Uncoupling " + __instance.train.ID + " from " + __instance.coupledTo?.train.ID + " (was coupled: " + wasActuallyCoupled[__instance] + ")");
         if (__instance.coupledTo != null)
         {
@@ -95,7 +98,7 @@ public static class UncouplePatch
             CouplingScannerPatches.RestartCouplingScanner(__instance.coupledTo);
             // Record uncoupling for distance-based recoupling prevention
             RecouplingPrevention.RecordUncoupling(__instance, __instance.coupledTo);
-            
+
             // Enable fake buffer colliders for uncoupled cars (like game's loose mode)
             CollisionHandler.EnableFakeBufferColliders(__instance, __instance.coupledTo);
         }
@@ -108,7 +111,7 @@ public static class UncouplePatch
             return;
 
         // If the pair has a compression joint, leave it as-is for a short time; otherwise nothing to do
-        if (!DvMod.ZCouplers.JointManager.TryGetCompressionJoint(coupler, out var joint))
+        if (!JointManager.TryGetCompressionJoint(coupler, out var joint))
             return;
 
         var chain = coupler.visualCoupler.chainAdapter.chainScript;
@@ -125,7 +128,7 @@ public static class UncouplePatch
             // If still uncoupled and joint still tracked, destroy it now
             if (coupler != null && !coupler.IsCoupled())
             {
-                DvMod.ZCouplers.JointManager.DestroyCompressionJoint(coupler, caller: "uncouple-grace");
+                JointManager.DestroyCompressionJoint(coupler, caller: "uncouple-grace");
             }
         }
     }
@@ -232,7 +235,7 @@ public static class UncouplePatch
                 Main.DebugLog(() => "Reset coupler state to Parked: " + __instance.train.ID);
             }
         }
-        
+
         // Clean up tracking data
         wasActuallyCoupled.Remove(__instance);
         // Update visual state with deferred approach to avoid NRE during button-triggered uncoupling

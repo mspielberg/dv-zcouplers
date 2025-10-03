@@ -5,7 +5,7 @@
   "Version": "2.2.2",
   "LoadAfter": [],
   "AssemblyName": "ZCouplers.dll",
-  "EntryMethod": "DvMod.ZCouplers.Main.Load",
+  "EntryMethod": "DvMod.ZCouplers.Core.Main.Load",
   "ManagerVersion": "0.27.3",
   "HomePage": "https://www.nexusmods.com/derailvalley/mods/368",
   "Repository": "https://raw.githubusercontent.com/mspielberg/dv-zcouplers/master/resources/repository.json"

@@ -2,9 +2,11 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using DvMod.ZCouplers.Core;
+using DvMod.ZCouplers.Core.Helpers;
 using UnityEngine;
 
-namespace DvMod.ZCouplers
+namespace DvMod.ZCouplers.Visuals
 {
     /// <summary>
     /// Loads and manages knuckle coupler assets.
@@ -118,7 +120,7 @@ namespace DvMod.ZCouplers
                     LoadAARAssets();
                     break;
             }
-            
+
             // Verify loading was successful
             if (!AreAssetsLoadedForType(couplerType))
             {

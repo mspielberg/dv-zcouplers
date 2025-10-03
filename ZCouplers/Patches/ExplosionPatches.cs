@@ -1,4 +1,6 @@
 ﻿using System;
+using DvMod.ZCouplers.Core;
+using DvMod.ZCouplers.Visuals;
 using HarmonyLib;
 
 // TrainCarExplosion has no namespace in the decompiled reference code

@@ -1,10 +1,9 @@
-using System.Collections.Generic;
-
+using DvMod.ZCouplers.Core;
+using DvMod.ZCouplers.Physics;
 using HarmonyLib;
-
 using UnityEngine;
 
-namespace DvMod.ZCouplers
+namespace DvMod.ZCouplers.Patches
 {
     /// <summary>
     /// Main coupler behavior patches and coordination

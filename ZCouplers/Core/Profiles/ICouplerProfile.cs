@@ -1,6 +1,7 @@
+using DvMod.ZCouplers.Core.Helpers;
 using UnityEngine;
 
-namespace DvMod.ZCouplers
+namespace DvMod.ZCouplers.Core.Profiles
 {
     /// <summary>
     /// Profile contract for a specific coupler type. Provides prefabs and options.

@@ -1,10 +1,8 @@
 using System;
-using System.Collections.Generic;
 using System.Reflection;
+using DvMod.ZCouplers.Core.Helpers;
 
-using UnityEngine;
-
-namespace DvMod.ZCouplers
+namespace DvMod.ZCouplers.Core.Utils
 {
     /// <summary>
     /// Utilities for automatically connecting/disconnecting air systems in Full Automatic Mode.

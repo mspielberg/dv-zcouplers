@@ -1,6 +1,8 @@
+using DvMod.ZCouplers.Core;
+using DvMod.ZCouplers.Core.Helpers;
 using UnityEngine;
 
-namespace DvMod.ZCouplers
+namespace DvMod.ZCouplers.Visuals
 {
     /// <summary>
     /// Component that handles visual updates for knuckle couplers during attachment
