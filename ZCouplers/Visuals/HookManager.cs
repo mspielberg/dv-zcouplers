@@ -68,7 +68,7 @@ namespace DvMod.ZCouplers.Visuals
             if (coupler?.train?.gameObject == null)
                 return;
 
-            Main.DebugLog(() => $"[Hardware] ToggleCouplerHardware called for {coupler.train.ID} {coupler.Position()}: visible={visible}, isSteamLoco={CarTypes.IsSteamLocomotive(coupler.train?.carLivery)}, disableSetting={Main.settings.disableFrontCouplersOnSteamLocos}");
+            Main.DebugLog(() => $"ToggleCouplerHardware called for {coupler.train.ID} {coupler.Position()}: visible={visible}, isSteamLoco={CarTypes.IsSteamLocomotive(coupler.train?.carLivery)}, disableSetting={Main.settings.disableFrontCouplersOnSteamLocos}");
 
             // Toggle the coupler component functionality
             ToggleCouplerComponent(coupler, visible);
@@ -116,7 +116,7 @@ namespace DvMod.ZCouplers.Visuals
                 if (buffers == null)
                 {
                     buffers = coupler.train.gameObject.transform;
-                    Main.DebugLog(() => $"[HookPlate] Using car root as buffers container for {coupler.train.ID}");
+                    Main.DebugLog(() => $"Using car root as buffers container for {coupler.train.ID}");
                 }
             }
 
@@ -132,7 +132,7 @@ namespace DvMod.ZCouplers.Visuals
                 {
                     hasSocket = true;
                     socket.gameObject.SetActive(visible);
-                    Main.DebugLog(() => $"[HookPlate] {socketName} on {coupler.train.ID} set to visible={visible}");
+                    Main.DebugLog(() => $"{socketName} on {coupler.train.ID} set to visible={visible}");
                 }
             }
 
@@ -147,13 +147,13 @@ namespace DvMod.ZCouplers.Visuals
                     {
                         foundCount++;
                         hookPlate.gameObject.SetActive(visible);
-                        Main.DebugLog(() => $"[HookPlate] {hookPlateName} on {coupler.train.ID} set to visible={visible}");
+                        Main.DebugLog(() => $"{hookPlateName} on {coupler.train.ID} set to visible={visible}");
                     }
                 }
 
                 if (foundCount == 0)
                 {
-                    Main.DebugLog(() => $"[HookPlate] WARNING: No {hookPlateName} found on {coupler.train.ID}");
+                    Main.DebugLog(() => $"WARNING: No {hookPlateName} found on {coupler.train.ID}");
                 }
             }
             else
@@ -164,7 +164,7 @@ namespace DvMod.ZCouplers.Visuals
                     if (hookPlate != null && hookPlate.gameObject.activeSelf)
                     {
                         hookPlate.gameObject.SetActive(false);
-                        Main.DebugLog(() => $"[HookPlate] Keeping {hookPlateName} hidden on {coupler.train.ID} (socket present)");
+                        Main.DebugLog(() => $"Keeping {hookPlateName} hidden on {coupler.train.ID} (socket present)");
                     }
                 }
             }
@@ -402,7 +402,7 @@ namespace DvMod.ZCouplers.Visuals
                     // Last resort: some cars might not have a [buffers] container; we'll search the whole car
                     buffers = car.gameObject.transform;
                     if (Main.settings.enableLogging)
-                        Main.DebugLog(() => $"[Sockets] '[buffers]' not found on {car.ID}; falling back to full-car search");
+                        Main.DebugLog(() => $"'[buffers]' not found on {car.ID}; falling back to full-car search");
                 }
             }
 
@@ -424,7 +424,7 @@ namespace DvMod.ZCouplers.Visuals
             if (socketPrefab == null)
             {
                 if (Main.settings.enableLogging)
-                    Main.DebugLog(() => "[Sockets] Socket prefab is null for current coupler type; skipping creation");
+                    Main.DebugLog(() => "Socket prefab is null for current coupler type; skipping creation");
                 return; // Nothing to create for this coupler type
             }
 
@@ -450,7 +450,7 @@ namespace DvMod.ZCouplers.Visuals
                 if (original == null)
                 {
                     if (Main.settings.enableLogging)
-                        Main.DebugLog(() => $"[Sockets] Original plate '{originalName}' not found on {car.ID}; skipping {newName}");
+                        Main.DebugLog(() => $"Original plate '{originalName}' not found on {car.ID}; skipping {newName}");
                     return; // No anchor found
                 }
 
@@ -520,7 +520,7 @@ namespace DvMod.ZCouplers.Visuals
                     ForceRendererRefresh(r);
                 }
                 instance.SetActive(true);
-                Main.DebugLog(() => $"[Sockets] Created socket '{instance.name}' on {car.ID} with position {instance.transform.localPosition} and scale {instance.transform.localScale}");
+                Main.DebugLog(() => $"Created socket '{instance.name}' on {car.ID} with position {instance.transform.localPosition} and scale {instance.transform.localScale}");
             }
 
             CreateSocketIfMissing("HookPlate_F", "ZC_Socket_F");
@@ -1415,7 +1415,7 @@ namespace DvMod.ZCouplers.Visuals
                 if (hookPlate != null)
                 {
                     hookPlate.gameObject.SetActive(true);
-                    Main.DebugLog(() => $"[Sockets] Restored original HookPlate_F visibility on {car.ID}");
+                    Main.DebugLog(() => $"Restored original HookPlate_F visibility on {car.ID}");
                 }
             }
 
@@ -1425,7 +1425,7 @@ namespace DvMod.ZCouplers.Visuals
                 if (hookPlate != null)
                 {
                     hookPlate.gameObject.SetActive(true);
-                    Main.DebugLog(() => $"[Sockets] Restored original HookPlate_R visibility on {car.ID}");
+                    Main.DebugLog(() => $"Restored original HookPlate_R visibility on {car.ID}");
                 }
             }
         }
@@ -1455,7 +1455,7 @@ namespace DvMod.ZCouplers.Visuals
                 if (socket != null)
                 {
                     GameObject.Destroy(socket.gameObject);
-                    Main.DebugLog(() => $"[Sockets] Cleaned up ZC_Socket_F on {car.ID}");
+                    Main.DebugLog(() => $"Cleaned up ZC_Socket_F on {car.ID}");
                 }
             }
 
@@ -1466,7 +1466,7 @@ namespace DvMod.ZCouplers.Visuals
                 if (socket != null)
                 {
                     GameObject.Destroy(socket.gameObject);
-                    Main.DebugLog(() => $"[Sockets] Cleaned up ZC_Socket_R on {car.ID}");
+                    Main.DebugLog(() => $"Cleaned up ZC_Socket_R on {car.ID}");
                 }
             }
         }
@@ -1485,7 +1485,7 @@ namespace DvMod.ZCouplers.Visuals
             // Restore original HookPlates to visible state so they can be managed by the new coupler type
             RestoreOriginalHookPlates(car);
 
-            Main.DebugLog(() => $"[Sockets] Cleaned up HookPlates for type switch on {car.ID}");
+            Main.DebugLog(() => $"Cleaned up HookPlates for type switch on {car.ID}");
         }
     }
 }

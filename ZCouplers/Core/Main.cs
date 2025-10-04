@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.CompilerServices;
 using DvMod.ZCouplers.Core.Profiles;
 using DvMod.ZCouplers.Core.Utils;
 using DvMod.ZCouplers.Patches;
@@ -297,24 +298,40 @@ public static class Main
         }
     }
 
-    public static void DebugLog(TrainCar car, Func<string> message)
-    {
-        if (car == PlayerManager.Car)
-        {
-            DebugLog(message);
-        }
-    }
-
-    public static void DebugLog(Func<string> message)
+    public static void DebugLog(Func<string> message, [CallerFilePath] string sourceFilePath = "")
     {
         if (settings.enableLogging)
         {
-            mod?.Logger.Log(message());
+            string prefix = GetLogPrefix(sourceFilePath);
+            mod?.Logger.Log(prefix + message());
         }
     }
 
-    public static void ErrorLog(Func<string> message)
+    public static void ErrorLog(Func<string> message, [CallerFilePath] string sourceFilePath = "")
     {
-        mod?.Logger.Log(message());
+        string prefix = GetLogPrefix(sourceFilePath);
+        mod?.Logger.Log(prefix + message());
+    }
+
+    /// <summary>
+    /// Get a log prefix in the format [ClassName] based on caller information.
+    /// </summary>
+    private static string GetLogPrefix(string sourceFilePath)
+    {
+        if (string.IsNullOrEmpty(sourceFilePath))
+            return "";
+
+        try
+        {
+            // Extract the file name without extension (e.g., "HookManager" from "HookManager.cs")
+            string fileName = System.IO.Path.GetFileNameWithoutExtension(sourceFilePath);
+
+            // Return formatted prefix
+	        return $"[{fileName}] ";
+        }
+        catch
+        {
+            return "";
+        }
     }
 }
