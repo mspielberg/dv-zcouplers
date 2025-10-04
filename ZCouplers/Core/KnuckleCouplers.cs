@@ -479,6 +479,7 @@ namespace DvMod.ZCouplers.Core
             int processedCars = 0;
             int cleanedHooks = 0;
             int totalHooks = 0;
+            int cleanedGameObjHiders = 0;
 
             foreach (var car in CarSpawner.Instance.allCars)
             {
@@ -490,6 +491,27 @@ namespace DvMod.ZCouplers.Core
                 {
                     // Clean up HookPlates and socket plates for this car first
                     HookManager.CleanupHookPlatesForTypeSwitch(car);
+
+                    // Clean up GameObjHider components from air hoses to ensure proper visibility restoration
+                    if (car.interior != null)
+                    {
+                        for (int i = 0; i < car.interior.childCount; i++)
+                        {
+                            var child = car.interior.GetChild(i);
+                            if (child != null && child.name == "hoses")
+                            {
+                                var hiders = child.GetComponentsInChildren<GameObjHider>(true);
+                                foreach (var hider in hiders)
+                                {
+                                    if (hider != null)
+                                    {
+                                        Object.Destroy(hider);
+                                        cleanedGameObjHiders++;
+                                    }
+                                }
+                            }
+                        }
+                    }
 
                     // Clean up front coupler
                     if (car.frontCoupler?.visualCoupler?.chainAdapter?.chainScript != null)
@@ -545,7 +567,7 @@ namespace DvMod.ZCouplers.Core
                 }
             }
 
-            Main.DebugLog(() => $"Cleanup completed: {processedCars} cars processed, {cleanedHooks}/{totalHooks} hooks destroyed");
+            Main.DebugLog(() => $"Cleanup completed: {processedCars} cars processed, {cleanedHooks}/{totalHooks} hooks destroyed, {cleanedGameObjHiders} GameObjHider components removed");
         }
 
         /// <summary>
