@@ -173,11 +173,6 @@ namespace DvMod.ZCouplers.Patches
                             Main.DebugLog(() => $"Skipping compression joint creation between {coupler.train.ID} and {otherCoupler.train.ID} - couplers not ready (coupler ready: {KnuckleCouplers.IsReadyToCouple(coupler)}, other ready: {KnuckleCouplers.IsReadyToCouple(otherCoupler)}, auto mode: {Main.settings.autoCouplingMode})");
                         }
                     }
-                    else
-                    {
-                        // Preserve compression joints when scanners lose contact; buffer physics should persist until proper uncoupling or car deletion.
-                        Main.DebugLog(() => $"Scanner lost contact - preserving compression joint for {coupler.train.ID} to maintain buffer physics");
-                    }
                 };
             }
         }

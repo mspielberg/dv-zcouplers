@@ -151,7 +151,7 @@ public static class UncouplePatch
             if (__instance.IsCoupled())
             {
                 __instance.rigidCJ = value;
-                Main.DebugLog(() => "Restored rigidCJ for " + __instance.train.ID + " - uncoupling failed, still coupled to " + __instance.coupledTo?.train.ID);
+                Main.ErrorLog(() => "Restored rigidCJ for " + __instance.train.ID + " - uncoupling failed, still coupled to " + __instance.coupledTo?.train.ID);
             }
             else
             {
@@ -168,7 +168,7 @@ public static class UncouplePatch
             if (__instance.IsCoupled())
             {
                 __instance.jointCoroRigid = value2;
-                Main.DebugLog(() => "Restored jointCoroRigid for " + __instance.train.ID + " - uncoupling failed");
+                Main.ErrorLog(() => "Restored jointCoroRigid for " + __instance.train.ID + " - uncoupling failed");
             }
             else
             {
