@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using DV.Logic.Job;
 using DvMod.ZCouplers.Core.Helpers;
 using DvMod.ZCouplers.Core.Profiles;
 using DvMod.ZCouplers.Core.Utils;
@@ -53,7 +54,7 @@ namespace DvMod.ZCouplers.Core
             {
                 new KnuckleCouplers();
             }
-            
+
             // Safety check: Don't process air hoses if profiles aren't registered yet
             var currentProfile = CouplerProfiles.Current;
             if (currentProfile == null)
@@ -61,9 +62,9 @@ namespace DvMod.ZCouplers.Core
                 Main.DebugLog(() => $"OnSettingsChanged called but no profile available for {Main.settings.couplerType}, skipping air hose processing");
                 return;
             }
-            
+
             Main.DebugLog(() => $"OnSettingsChanged called: couplerType={Main.settings.couplerType}, Current profile={currentProfile.Options.Name}");
-            
+
             BufferVisualManager.ToggleBuffers(Main.settings.showBuffersWithKnuckles);
 
             // Recreate all couplers to apply disable settings
@@ -145,76 +146,23 @@ namespace DvMod.ZCouplers.Core
         /// </summary>
         private static void DeactivateAllAirHoses()
         {
-            if (CarSpawner.Instance?.allCars == null)
-                return;
+	        if (CarSpawner.Instance?.allCars == null)
+		        return;
 
-            Main.DebugLog(() => "Deactivating all air hoses for Scharfenberg couplers");
+	        Main.DebugLog(() => "Deactivating all air hoses");
 
-            int processedCars = 0;
-            int processedCouplers = 0;
+	        int processedCars = 0;
+	        int processedCouplers = 0;
 
-            foreach (var car in CarSpawner.Instance.allCars)
-            {
-                if (car == null) continue;
+	        foreach (var car in CarSpawner.Instance.allCars)
+	        {
+		        if (car == null) continue;
+		        HookManager.ToggleAirHose(car.frontCoupler, false);
+		        HookManager.ToggleAirHose(car.rearCoupler, false);
+		        processedCars += 2;
+	        }
 
-                processedCars++;
-
-                // Deactivate air hoses on front coupler
-                if (car.frontCoupler != null)
-                {
-                    DeactivateAirHoseForCoupler(car.frontCoupler);
-                    processedCouplers++;
-                }
-
-                // Deactivate air hoses on rear coupler
-                if (car.rearCoupler != null)
-                {
-                    DeactivateAirHoseForCoupler(car.rearCoupler);
-                    processedCouplers++;
-                }
-            }
-
-            Main.DebugLog(() => $"Processed air hoses: {processedCars} cars, {processedCouplers} couplers");
-        }
-
-        /// <summary>
-        /// Directly deactivate air hoses for a specific coupler, bypassing the conditional logic in HookManager.
-        /// Uses the same proven approach as the steam locomotive air hose deactivation.
-        /// </summary>
-        public static void DeactivateAirHoseForCoupler(Coupler coupler)
-        {
-            if (coupler?.train?.gameObject == null)
-                return;
-
-            var interior = coupler.train.interior;
-            if (interior == null)
-                return;
-
-            // Use interior instance ID as cache key to track already processed interiors
-            int interiorId = interior.GetInstanceID();
-
-            // Early exit if we've already processed this interior
-            if (deactivatedAirHoses.Contains(interiorId))
-                return;
-
-            // Mark as processed before doing the work
-            deactivatedAirHoses.Add(interiorId);
-
-            // Use Transform.Find for direct lookup instead of iterating all children
-            var hosesTransform = interior.Find("hoses");
-            if (hosesTransform != null)
-            {
-                hosesTransform.gameObject.SetActive(false);
-                GameObjHider.Attach(hosesTransform);
-            }
-        }
-
-        /// <summary>
-        /// Clear the air hose deactivation cache. Call when cars are spawned/despawned.
-        /// </summary>
-        public static void ClearAirHoseCache()
-        {
-            deactivatedAirHoses.Clear();
+	        Main.DebugLog(() => $"Processed air hoses: {processedCars} cars, {processedCouplers} couplers");
         }
 
         /// <summary>
@@ -293,14 +241,45 @@ namespace DvMod.ZCouplers.Core
             // Don't clear on UI scene loads or other non-gameplay scenes
             if (mode == LoadSceneMode.Single)
             {
-                ClearAirHoseCache();
-                Main.DebugLog(() => "Cleared air hose cache for scene load " + scene.name);
                 BufferVisualManager.ToggleBuffers(Main.settings.showBuffersWithKnuckles);
 
                 // Apply buffer colliders after scene load
                 UnityEngine.Object.FindObjectOfType<CarSpawner>()?.StartCoroutine(DelayedBufferColliderUpdate());
+                // Apply air hose visibility after scene load
+                UnityEngine.Object.FindObjectOfType<CarSpawner>()?.StartCoroutine(DelayedAirHoseUpdate());
+            }
+        }
 
-                // Air hose handling is only done in OnSettingsChanged when switching coupler types
+        /// <summary>
+        /// Delay to ensure cars and interior objects are fully loaded before applying air hose visibility.
+        /// This handles the case where Scharfenberg is already selected when the game loads.
+        /// </summary>
+        private static System.Collections.IEnumerator DelayedAirHoseUpdate()
+        {
+            yield return new WaitUntil(() => AStartGameData.carsAndJobsLoadingFinished);
+
+            // Additional wait for interior objects to be fully loaded
+            for (int i = 0; i < 10; i++)
+            {
+                yield return new UnityEngine.WaitForFixedUpdate();
+            }
+
+            // Check if current coupler type requires air hoses to be hidden
+            var currentProfile = CouplerProfiles.Current;
+            if (currentProfile?.Options.AlwaysHideAirHoses == true)
+            {
+                Main.DebugLog(() => $"{Main.settings.couplerType} selected - hiding air hoses");
+
+                if (CarSpawner.Instance?.allCars != null)
+                {
+                    foreach (var car in CarSpawner.Instance.allCars)
+                    {
+                        if (car == null) continue;
+                        HookManager.ToggleAirHose(car.frontCoupler, false);
+                        HookManager.ToggleAirHose(car.rearCoupler, false);
+                    }
+                    Main.DebugLog(() => $"Hidden air hoses on {CarSpawner.Instance.allCars.Count} cars");
+                }
             }
         }
 
@@ -330,13 +309,13 @@ namespace DvMod.ZCouplers.Core
         private static System.Collections.IEnumerator SwitchCouplerTypeCoroutine(CouplerType oldType, CouplerType newType)
         {
             Main.DebugLog(() => $"Phase 1: Pre-loading assets for {newType}");
-            
+
             // Phase 1: Load assets FIRST before any cleanup
             AssetManager.LoadAssetsForCouplerType(newType);
-            
+
             // Wait a frame for asset loading to complete
             yield return null;
-            
+
             // Verify assets loaded successfully
             if (!AssetManager.AreAssetsLoadedForType(newType))
             {
@@ -354,12 +333,12 @@ namespace DvMod.ZCouplers.Core
 
             GameObject? closedPrefab = null;
             GameObject? openPrefab = null;
-            
+
             try
             {
                 closedPrefab = newProfile.GetClosedPrefab();
                 openPrefab = newProfile.GetOpenPrefab();
-                
+
                 if (closedPrefab == null || openPrefab == null)
                 {
                     Main.ErrorLog(() => $"Profile for {newType} returned null prefabs (closed: {closedPrefab?.name ?? "null"}, open: {openPrefab?.name ?? "null"})");
@@ -376,12 +355,11 @@ namespace DvMod.ZCouplers.Core
 
             // Phase 2: Clean up existing couplers
             Main.DebugLog(() => "Phase 2: Cleaning up existing couplers");
-            
+
             try
             {
                 CleanupAllCouplersForTypeSwitch();
                 LAPLinkManager.Cleanup();
-                ClearAirHoseCache();
             }
             catch (System.Exception ex)
             {
@@ -393,7 +371,7 @@ namespace DvMod.ZCouplers.Core
             yield return null;
             yield return null;
             yield return new UnityEngine.WaitForEndOfFrame();
-            
+
             // Validate cleanup completed
             if (!ValidateCleanupCompleted())
             {
@@ -405,7 +383,7 @@ namespace DvMod.ZCouplers.Core
 
             // Phase 3: Wait for physics to settle
             Main.DebugLog(() => "Phase 3: Waiting for physics to settle");
-            
+
             // Wait for physics updates to process the cleanup
             for (int i = 0; i < 5; i++)
             {
@@ -414,7 +392,7 @@ namespace DvMod.ZCouplers.Core
 
             // Phase 4: Recreate couplers with new type
             Main.DebugLog(() => "Phase 4: Recreating couplers with new type");
-            
+
             try
             {
                 RecreateAllCouplersForNewType();
@@ -425,11 +403,11 @@ namespace DvMod.ZCouplers.Core
                 Main.ErrorLog(() => "Starting recovery process due to recreation failure");
                 // Can't yield in catch, so just log error and continue - recovery will happen later if validation fails
             }
-            
+
             // Wait for creation to complete
             yield return null;
             yield return new UnityEngine.WaitForEndOfFrame();
-            
+
             // Validate recreation completed
             if (!ValidateRecreationCompleted(newType))
             {
@@ -437,7 +415,7 @@ namespace DvMod.ZCouplers.Core
                 // Attempt a simple recreation retry
                 RecreateAllCouplersForNewType();
                 yield return null;
-                
+
                 if (!ValidateRecreationCompleted(newType))
                 {
                     Main.ErrorLog(() => "Recovery failed, couplers may be in inconsistent state");
@@ -449,7 +427,7 @@ namespace DvMod.ZCouplers.Core
 
             // Phase 5: Apply type-specific settings
             Main.DebugLog(() => "Phase 5: Applying type-specific settings");
-            
+
             try
             {
                 ApplyTypeSpecificSettings(oldType, newType);
@@ -459,13 +437,13 @@ namespace DvMod.ZCouplers.Core
                 Main.ErrorLog(() => $"Error applying type-specific settings: {ex.Message}");
                 // Continue anyway, this is not critical enough to abort
             }
-            
+
             // Wait for settings application
             yield return null;
 
             // Phase 6: Update physics joints
             Main.DebugLog(() => "Phase 6: Updating physics joints");
-            
+
             try
             {
                 UpdateAllJointsForNewType();
@@ -475,7 +453,7 @@ namespace DvMod.ZCouplers.Core
                 Main.ErrorLog(() => $"Error updating physics joints: {ex.Message}");
                 // Continue anyway, joints will be updated as needed
             }
-            
+
             // Final physics settle time
             for (int i = 0; i < 3; i++)
             {
@@ -619,18 +597,18 @@ namespace DvMod.ZCouplers.Core
                         if (shouldHaveHook)
                         {
                             expectedHooks++;
-                            
+
                             // Verify the chain script is still valid
                             if (frontChainScript.gameObject != null && frontChainScript.couplerAdapter != null)
                             {
                                 HookManager.CreateHook(frontChainScript, hookPrefab);
-                                
+
                                 // Verify the hook was actually created
                                 if (HookManager.GetPivot(frontChainScript) != null)
                                 {
                                     successfulHooks++;
                                     HookManager.UpdateHookVisualStateFromCouplerState(car.frontCoupler);
-                                    
+
                                     // Air hose visibility is handled in ApplyTypeSpecificSettings, not here
                                 }
                                 else
@@ -654,18 +632,18 @@ namespace DvMod.ZCouplers.Core
                         if (shouldHaveHook)
                         {
                             expectedHooks++;
-                            
+
                             // Verify the chain script is still valid
                             if (rearChainScript.gameObject != null && rearChainScript.couplerAdapter != null)
                             {
                                 HookManager.CreateHook(rearChainScript, hookPrefab);
-                                
+
                                 // Verify the hook was actually created
                                 if (HookManager.GetPivot(rearChainScript) != null)
                                 {
                                     successfulHooks++;
                                     HookManager.UpdateHookVisualStateFromCouplerState(car.rearCoupler);
-                                    
+
                                     // Air hose visibility is handled in ApplyTypeSpecificSettings, not here
                                 }
                                 else
@@ -754,57 +732,9 @@ namespace DvMod.ZCouplers.Core
                 if (car?.interior == null) continue;
 
                 restoredCars++;
-
-                // First, thoroughly clean up any GameObjHider components and restore at train level
-                var hosesTransform = car.interior.Find("hoses");
-                if (hosesTransform != null)
-                {
-                    // Remove ALL GameObjHider components that may be hiding the hoses (could be multiple)
-                    // Use DestroyImmediate to ensure they're gone before we try to restore visibility
-                    var hiders = hosesTransform.GetComponents<GameObjHider>();
-                    foreach (var hider in hiders)
-                    {
-                        if (hider != null)
-                        {
-                            UnityEngine.Object.DestroyImmediate(hider);
-                        }
-                    }
-
-                    // Also check and remove GameObjHiders from child objects
-                    var childHiders = hosesTransform.GetComponentsInChildren<GameObjHider>(true);
-                    foreach (var childHider in childHiders)
-                    {
-                        if (childHider != null)
-                        {
-                            // Store the gameObject reference before destroying the component
-                            var childObj = childHider.gameObject;
-                            UnityEngine.Object.DestroyImmediate(childHider);
-                            
-                            // Force the child object back to active state, but skip DEBUG objects
-                            if (!childObj.name.Contains("DEBUG"))
-                            {
-                                childObj.SetActive(true);
-                            }
-                        }
-                    }
-
-                    // Restore visibility at train level and all child objects
-                    hosesTransform.gameObject.SetActive(true);
-                    
-                    // Ensure all child objects are also active and renderers enabled
-                    var renderers = hosesTransform.GetComponentsInChildren<Renderer>(true);
-                    foreach (var renderer in renderers)
-                    {
-                        if (renderer != null && !renderer.gameObject.name.Contains("DEBUG"))
-                        {
-                            renderer.gameObject.SetActive(true);
-                            renderer.enabled = true;
-                        }
-                    }
-                }
-
-                // Air hose visibility is now restored by cleaning up GameObjHiders above
-                // No need to call ToggleAirHose which has profile-based overrides
+                HookManager.ToggleAirHose(car.frontCoupler, true);
+                HookManager.ToggleAirHose(car.rearCoupler, true);
+                processedCouplers += 2;
             }
 
             Main.DebugLog(() => $"Air hose restoration completed: {restoredCars} cars, {processedCouplers} couplers processed");
@@ -887,7 +817,7 @@ namespace DvMod.ZCouplers.Core
                 {
                     totalCouplers++;
                     var frontChainScript = car.frontCoupler.visualCoupler.chainAdapter.chainScript;
-                    
+
                     if (!HookManager.ShouldDisableCoupler(car.frontCoupler))
                     {
                         expectedHooks++;
@@ -901,7 +831,7 @@ namespace DvMod.ZCouplers.Core
                 {
                     totalCouplers++;
                     var rearChainScript = car.rearCoupler.visualCoupler.chainAdapter.chainScript;
-                    
+
                     if (!HookManager.ShouldDisableCoupler(car.rearCoupler))
                     {
                         expectedHooks++;
@@ -912,9 +842,10 @@ namespace DvMod.ZCouplers.Core
             }
 
             Main.DebugLog(() => $"Recreation validation: {actualHooks}/{expectedHooks} expected hooks created ({totalCouplers} total couplers)");
-            
+
             // Allow some tolerance - if we got at least 80% of expected hooks, consider it successful
             return expectedHooks == 0 || (actualHooks >= (expectedHooks * 0.8f));
         }
     }
 }
+

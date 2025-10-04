@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using DV.CabControls;
 using DV.CabControls.Spec;
+using DV.ThingTypes;
 using DvMod.ZCouplers.Core;
 using DvMod.ZCouplers.Core.Helpers;
 using DvMod.ZCouplers.Core.Profiles;
@@ -44,12 +45,9 @@ namespace DvMod.ZCouplers.Visuals
         /// <summary>
         /// Check if the given coupler is the front coupler of a LocoS282A (LocoSteamHeavy).
         /// </summary>
-        private static bool IsFrontCouplerOnLocoS282A(Coupler coupler)
+        private static bool IsFrontCouplerOnSteamLoco(Coupler coupler)
         {
-            if (coupler?.train?.carLivery?.id != "LocoS282A")
-                return false;
-
-            return coupler.isFrontCoupler;
+	        return coupler.train?.carLivery?.id == "LocoS282A" && coupler.isFrontCoupler;
         }
 
         /// <summary>
@@ -57,24 +55,7 @@ namespace DvMod.ZCouplers.Visuals
         /// </summary>
         public static bool ShouldDisableCoupler(Coupler coupler)
         {
-            if (!Main.settings.disableFrontCouplersOnSteamLocos)
-                return false;
-
-            if (!coupler.isFrontCoupler)
-                return false;
-
-            var liveryId = coupler?.train?.carLivery?.id;
-            // Disable front coupler on the S282A
-            return liveryId == "LocoS282A";
-        }
-
-        /// <summary>
-        /// Check whether a locomotive should use steam-specific front hose handling.
-        /// </summary>
-        private static bool IsSteamLocomotive(Coupler? coupler)
-        {
-            var liveryId = coupler?.train?.carLivery?.id;
-            return liveryId == "LocoS282A";
+	        return Main.settings.disableFrontCouplersOnSteamLocos && IsFrontCouplerOnSteamLoco(coupler);
         }
 
         /// <summary>
@@ -87,19 +68,106 @@ namespace DvMod.ZCouplers.Visuals
             if (coupler?.train?.gameObject == null)
                 return;
 
-            var trainGameObject = coupler.train.gameObject;
+            Main.DebugLog(() => $"[Hardware] ToggleCouplerHardware called for {coupler.train.ID} {coupler.Position()}: visible={visible}, isSteamLoco={CarTypes.IsSteamLocomotive(coupler.train?.carLivery)}, disableSetting={Main.settings.disableFrontCouplersOnSteamLocos}");
 
-            // Toggle the actual coupler component functionality
+            // Toggle the coupler component functionality
             ToggleCouplerComponent(coupler, visible);
 
-            // Let the game handle air hose visibility naturally
-            // Our custom air hose manipulation was causing issues
+            // Hide or show the HookPlate for this specific coupler
+            ToggleHookPlate(coupler, visible);
+            
+            bool isSteamLoco = Main.settings.disableFrontCouplersOnSteamLocos && coupler.train?.carLivery?.id == "LocoS282A";
 
-            // Ensure replacement socket plates are present (destroys originals)
-            EnsureSocketPlates(coupler.train);
+            if (isSteamLoco)
+            {
+				// Disabling front coupler on steam loco - hide all air hoses on this train
+	            ToggleAirHose(coupler, false);
+            }
+            else
+            {
+                // Normal trains: toggle air hoses based on visible parameter
+                ToggleAirHose(coupler, visible);
+            }
+
+            // Ensure replacement socket plates are present (for enabled couplers)
+            if (visible && coupler.train != null)
+            {
+	            EnsureSocketPlates(coupler.train, visible);
+            }
 
             // Summary debug
-            Main.DebugLog(() => $"Coupler hardware toggled for {coupler.train.ID} {coupler.Position()}: visible={visible}");
+            Main.DebugLog(() => $"Coupler hardware toggled for {coupler.train?.ID} {coupler.Position()}: visible={visible}");
+        }
+
+        /// <summary>
+        /// Toggle the visibility of the HookPlate for a specific coupler (front or rear).
+        /// Also handles ZC_Socket plates created by EnsureSocketPlates.
+        /// When a socket exists, the original HookPlate should remain hidden.
+        /// </summary>
+        private static void ToggleHookPlate(Coupler coupler, bool visible)
+        {
+            if (coupler?.train?.gameObject == null)
+                return;
+
+            var buffers = coupler.train.gameObject.transform.Find("[buffers]");
+            if (buffers == null)
+            {
+                buffers = FindTransformRecursive(coupler.train.gameObject.transform, "[buffers]");
+                if (buffers == null)
+                {
+                    buffers = coupler.train.gameObject.transform;
+                    Main.DebugLog(() => $"[HookPlate] Using car root as buffers container for {coupler.train.ID}");
+                }
+            }
+
+            // Determine which HookPlate and socket to toggle based on coupler position
+            string hookPlateName = coupler.isFrontCoupler ? "HookPlate_F" : "HookPlate_R";
+            string socketName = coupler.isFrontCoupler ? "ZC_Socket_F" : "ZC_Socket_R";
+
+            // Check if a socket exists for this coupler
+            bool hasSocket = false;
+            foreach (var socket in FindAllTransformsByName(buffers, socketName, recursive: true))
+            {
+                if (socket != null)
+                {
+                    hasSocket = true;
+                    socket.gameObject.SetActive(visible);
+                    Main.DebugLog(() => $"[HookPlate] {socketName} on {coupler.train.ID} set to visible={visible}");
+                }
+            }
+
+            // Only toggle the original HookPlate if there's NO socket
+            // If a socket exists, the original HookPlate should remain hidden
+            if (!hasSocket)
+            {
+                int foundCount = 0;
+                foreach (var hookPlate in FindAllTransformsByName(buffers, hookPlateName, recursive: true))
+                {
+                    if (hookPlate != null)
+                    {
+                        foundCount++;
+                        hookPlate.gameObject.SetActive(visible);
+                        Main.DebugLog(() => $"[HookPlate] {hookPlateName} on {coupler.train.ID} set to visible={visible}");
+                    }
+                }
+
+                if (foundCount == 0)
+                {
+                    Main.DebugLog(() => $"[HookPlate] WARNING: No {hookPlateName} found on {coupler.train.ID}");
+                }
+            }
+            else
+            {
+                // Socket exists, ensure original HookPlate stays hidden
+                foreach (var hookPlate in FindAllTransformsByName(buffers, hookPlateName, recursive: true))
+                {
+                    if (hookPlate != null && hookPlate.gameObject.activeSelf)
+                    {
+                        hookPlate.gameObject.SetActive(false);
+                        Main.DebugLog(() => $"[HookPlate] Keeping {hookPlateName} hidden on {coupler.train.ID} (socket present)");
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -135,38 +203,32 @@ namespace DvMod.ZCouplers.Visuals
         /// </summary>
         public static void ToggleAirHose(Coupler coupler, bool visible)
         {
-            if (coupler?.train?.gameObject == null)
+            if (coupler.train?.gameObject == null)
                 return;
-
-            var trainGameObject = coupler.train.gameObject;
 
             // For profiles that always hide air hoses (e.g., Schaku), enforce it
             if (CouplerProfiles.Current?.Options.AlwaysHideAirHoses == true)
             {
-                ToggleAirHoseOnAllTrainTypes(trainGameObject, coupler, false);
+                ToggleAirHoseVisibility(coupler, false);
                 return;
             }
 
-            // Special case: Steam locomotives with front coupler disable setting
-            if (Main.settings.disableFrontCouplersOnSteamLocos && 
-                IsSteamLocomotive(coupler) && 
-                coupler.isFrontCoupler)
+            // Disable air hose on S282A
+            if (Main.settings.disableFrontCouplersOnSteamLocos && coupler.train?.carLivery?.id == "LocoS282A")
             {
-                // Hide air hoses on disabled front couplers of steam locomotives
-                ToggleAirHoseOnSteamLocomotive(trainGameObject, coupler, false);
-                return;
+	            ToggleAirHoseVisibility(coupler, false);
+	            return;
             }
 
             // Default behavior: show/hide air hoses based on the visible parameter
             // This handles all normal trains and non-disabled couplers
-            ToggleAirHoseOnAllTrainTypes(trainGameObject, coupler, visible);
+            ToggleAirHoseVisibility(coupler, visible);
         }
 
         /// <summary>
-        /// Toggle air hose visibility on all train types (for Scharfenberg couplers).
-        /// Uses the same proven approach as steam locomotive air hose handling.
+        /// Toggle air hose visibility.
         /// </summary>
-        private static void ToggleAirHoseOnAllTrainTypes(GameObject trainGameObject, Coupler coupler, bool visible)
+        private static void ToggleAirHoseVisibility(Coupler coupler, bool visible)
         {
             // Deterministic: only disable/enable both direct "hoses" children under the interior
             var interior = coupler.train?.interior;
@@ -176,131 +238,68 @@ namespace DvMod.ZCouplers.Visuals
             for (int i = 0; i < interior.childCount; i++)
             {
                 var child = interior.GetChild(i);
-                if (child != null && child.name == "hoses")
+                if (child == null || child.name != "hoses") continue;
+                if (!visible)
                 {
-                    if (!visible)
-                    {
-                        child.gameObject.SetActive(false);
-                        GameObjHider.Attach(child);
-                    }
-                    else
-                    {
-                        // When making visible, ensure GameObjHiders are properly removed
-                        var hiders = child.GetComponentsInChildren<GameObjHider>(true);
-                        foreach (var hider in hiders)
-                        {
-                            if (hider != null)
-                            {
-                                UnityEngine.Object.DestroyImmediate(hider);
-                            }
-                        }
-                        
-                        // Disable CouplingHoseDelayedEnable components to prevent camera-related errors during early loading
-                        var delayedEnables = child.GetComponentsInChildren<CouplingHoseDelayedEnable>(true);
-                        foreach (var delayedEnable in delayedEnables)
-                        {
-                            if (delayedEnable != null)
-                            {
-                                delayedEnable.enabled = false;
-                            }
-                        }
-                        
-                        // Skip DEBUG objects when re-enabling
-                        if (!child.gameObject.name.Contains("DEBUG"))
-                        {
-                            child.gameObject.SetActive(true);
-                        }
-                        
-                        // Ensure all renderers are enabled, but skip DEBUG objects
-                        var renderers = child.GetComponentsInChildren<Renderer>(true);
-                        foreach (var renderer in renderers)
-                        {
-                            if (renderer != null && !renderer.gameObject.name.Contains("DEBUG"))
-                            {
-                                renderer.enabled = true;
-                            }
-                        }
-                    }
+	                child.gameObject.SetActive(false);
+	                GameObjHider.Attach(child);
+                }
+                else
+                {
+	                GameObjHider.Detach(child);
+
+	                // Temporarily disable CouplingHoseDelayedEnable components to prevent NullReferenceException
+	                // during activation (they try to access PlayerManager.ActiveCamera which may not be ready yet)
+	                var delayedEnableComponents = child.GetComponentsInChildren<CouplingHoseDelayedEnable>(true);
+	                foreach (var component in delayedEnableComponents)
+	                {
+		                if (component != null)
+		                {
+			                component.enabled = false;
+		                }
+	                }
+
+	                child.gameObject.SetActive(true);
+
+	                // Re-enable the components after PlayerManager.ActiveCamera is available
+	                if (delayedEnableComponents.Length > 0 && coupler.train != null)
+	                {
+		                coupler.train.StartCoroutine(ReEnableHoseComponentsWhenCameraReady(delayedEnableComponents));
+	                }
                 }
             }
         }
 
         /// <summary>
-        /// Toggle air hose visibility on steam locomotives (original logic).
+        /// Coroutine to re-enable CouplingHoseDelayedEnable components after PlayerManager.ActiveCamera is ready.
+        /// This prevents NullReferenceException when the component tries to access the camera during its OnEnable.
         /// </summary>
-        private static void ToggleAirHoseOnSteamLocomotive(GameObject trainGameObject, Coupler coupler, bool visible)
+        private static IEnumerator ReEnableHoseComponentsWhenCameraReady(CouplingHoseDelayedEnable[] components)
         {
-            var trainName = trainGameObject.name;
-
-            // For steam locomotives, look for their interior objects
-            var interiorName = $"{trainName} [interior]";
-
-            // Find all matching interior objects, not just the first one
-            var allGameObjects = UnityEngine.Object.FindObjectsOfType<GameObject>();
-            var matchingInteriors = new List<GameObject>();
-
-            foreach (var obj in allGameObjects)
+            // Wait until PlayerManager.ActiveCamera is available
+            // This is much more reliable than waiting for a fixed time
+            while (PlayerManager.ActiveCamera == null)
             {
-                if (obj.name == interiorName)
-                {
-                    matchingInteriors.Add(obj);
-                }
+                yield return null; // Wait one frame
             }
 
-            if (matchingInteriors.Count == 0)
+            // Camera is now ready, safe to re-enable the components
+            foreach (var component in components)
             {
-                // Silent if no interior found; fall back to hierarchy search
-                return;
-            }
-
-            // Process all matching interior objects
-            foreach (var interiorGameObject in matchingInteriors)
-            {
-                // Toggle all direct hose children (there are usually two)
-                SetActiveForChildrenNamed(interiorGameObject.transform, "hoses", visible, recursive: false);
-                // and recursive as a safety net
-                SetActiveForChildrenNamed(interiorGameObject.transform, "hoses", visible, recursive: true);
-                foreach (var t in FindAllTransformsByName(interiorGameObject.transform, "hoses", recursive: true))
+                if (component != null)
                 {
-                    if (!visible) GameObjHider.Attach(t);
-                    else GameObjHider.Detach(t);
+                    try
+                    {
+                        component.enabled = true;
+                    }
+                    catch (System.Exception ex)
+                    {
+                        // Suppress any exceptions during re-enable
+                        if (Main.settings.enableLogging)
+                            Main.DebugLog(() => $"Exception re-enabling CouplingHoseDelayedEnable: {ex.Message}");
+                    }
                 }
             }
-
-            // Fallback 1: try to find the coupler hierarchy (original logic)
-            var couplerHierarchy = coupler.isFrontCoupler ? "[coupler_front]" : "[coupler_rear]";
-            var couplerTransform = trainGameObject.transform.Find(couplerHierarchy);
-            if (couplerTransform != null)
-            {
-                foreach (var t in FindAllTransformsByName(couplerTransform, "hoseAndCock"))
-                {
-                    var renderers = t.GetComponentsInChildren<MeshRenderer>(true);
-                    foreach (var renderer in renderers)
-                        renderer.enabled = visible;
-                    if (!visible) GameObjHider.Attach(t);
-                }
-            }
-
-            // Fallback 2: search for air hose related objects in the entire train hierarchy
-            var airHoseObjects = new string[]
-            {
-                "hoseAndCock",
-                $"hoseAndCock_{(coupler.isFrontCoupler ? "front" : "rear")}",
-                "AirHose",
-                "Hose",
-                $"{(coupler.isFrontCoupler ? "Front" : "Rear")}AirHose",
-                $"AirHose{(coupler.isFrontCoupler ? "Front" : "Rear")}"
-            };
-
-            foreach (var hoseObjectName in airHoseObjects)
-                foreach (var t in FindAllTransformsByName(trainGameObject.transform, hoseObjectName))
-                {
-                    var renderers = t.GetComponentsInChildren<MeshRenderer>(true);
-                    foreach (var renderer in renderers)
-                        renderer.enabled = visible;
-                    if (!visible) GameObjHider.Attach(t);
-                    else GameObjHider.Detach(t);
-                }
         }
 
         /// <summary>
@@ -358,23 +357,6 @@ namespace DvMod.ZCouplers.Visuals
             }
         }
 
-        /// <summary>
-        /// Toggle GameObject active for all children with the given name. Returns how many were toggled.
-        /// </summary>
-        private static int SetActiveForChildrenNamed(Transform parent, string name, bool active, bool recursive)
-        {
-            int count = 0;
-            foreach (var t in FindAllTransformsByName(parent, name, recursive))
-            {
-                if (t != null && t.gameObject != null)
-                {
-                    t.gameObject.SetActive(active);
-                    count++;
-                }
-            }
-            return count;
-        }
-
         private static void SetLayerRecursively(GameObject obj, int layer)
         {
             if (obj == null) return;
@@ -404,9 +386,9 @@ namespace DvMod.ZCouplers.Visuals
         /// Ensure we have ZCouplers socket plates instantiated for the current coupler type (AAR/SA3) on this car.
         /// New sockets are placed at the original HookPlate_F/R local position, plus a small type-specific offset, under the same parent.
         /// </summary>
-        private static void EnsureSocketPlates(TrainCar car)
+        private static void EnsureSocketPlates(TrainCar car, bool visible = true)
         {
-            if (car?.gameObject == null)
+            if (car?.gameObject == null || !visible)
                 return;
 
             // Try direct find first
@@ -880,7 +862,7 @@ namespace DvMod.ZCouplers.Visuals
                 finalPosition += new Vector3(options.HookLateralOffsetX, 0f, 0f) + options.HookAdditionalOffset;
 
             // Apply height offset for LocoS282A front coupler
-            if (IsFrontCouplerOnLocoS282A(coupler))
+            if (coupler.train?.carLivery?.id == "LocoS282A" && coupler.isFrontCoupler)
             {
                 // Move front coupler on LocoS282A down by 0.05 units
                 finalPosition += new Vector3(0f, -0.05f, 0f);
@@ -1097,7 +1079,7 @@ namespace DvMod.ZCouplers.Visuals
 
                     // Apply height offset for LocoS282A front coupler
                     var coupler = pivot.GetComponentInParent<Coupler>();
-                    if (IsFrontCouplerOnLocoS282A(coupler))
+                    if (coupler?.train?.carLivery?.id == "LocoS282A" && coupler.isFrontCoupler)
                     {
                         // Move front coupler on LocoS282A down by 0.05 units
                         finalPosition += new Vector3(0f, -0.05f, 0f);
@@ -1210,7 +1192,7 @@ namespace DvMod.ZCouplers.Visuals
                                 finalPosition += new Vector3(options.HookLateralOffsetX, 0f, 0f) + options.HookAdditionalOffset;
 
                             // Apply height offset for LocoS282A front coupler
-                            if (IsFrontCouplerOnLocoS282A(coupler))
+                            if (coupler.train?.carLivery?.id != "LocoS282A" && coupler.isFrontCoupler)
                             {
                                 // Move front coupler on LocoS282A down by 0.05 units
                                 finalPosition += new Vector3(0f, -0.05f, 0f);
@@ -1362,7 +1344,7 @@ namespace DvMod.ZCouplers.Visuals
             var options = CouplerProfiles.Current?.Options;
             if (options == null || options.HasSocketPlates)
             {
-                // Add ZCouplers socket plates for AAR/SA3 (destroys originals)
+                // Add ZCouplers socket plates
                 EnsureSocketPlates(car);
             }
 

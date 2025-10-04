@@ -610,7 +610,7 @@ namespace DvMod.ZCouplers.Physics
                 var springRate = Main.settings.GetSpringRate();
                 var damperRate = Main.settings.GetDamperRate();
 
-                Main.DebugLog(() => $"Updating all joint parameters: spring={springRate}, damper={damperRate}");
+                Main.DebugLog(() => $"Updating joint parameters: spring={springRate}, damper={damperRate}");
 
                 // Update tension joints
                 foreach (var kvp in customTensionJoints.ToList())
@@ -618,10 +618,13 @@ namespace DvMod.ZCouplers.Physics
                     var coupler = kvp.Key;
                     var joint = kvp.Value;
 
-                    if (joint == null || coupler != null)
+                    if (joint == null)
                     {
-                        // Clean up invalid entries
-                        customTensionJoints.Remove(coupler);
+                        if (coupler != null)
+                        {
+                            // Clean up invalid entries
+                            customTensionJoints.Remove(coupler);
+                        }
                         continue;
                     }
 
@@ -633,19 +636,22 @@ namespace DvMod.ZCouplers.Physics
                     // Update angular limits based on buffer visibility setting
                     if (Main.settings.showBuffersWithKnuckles)
                     {
-                        joint.lowAngularXLimit = new SoftJointLimit { limit = 5f };
-                        joint.highAngularXLimit = new SoftJointLimit { limit = 5f };
-                        joint.angularYLimit = new SoftJointLimit { limit = 30f };
-                        joint.angularZLimit = new SoftJointLimit { limit = 5 };
+	                    joint.lowAngularXLimit = new SoftJointLimit { limit = 5f };
+	                    joint.highAngularXLimit = new SoftJointLimit { limit = 5f };
+	                    joint.angularYLimit = new SoftJointLimit { limit = 30f };
+	                    joint.angularZLimit = new SoftJointLimit { limit = 5 };
                     }
                     else
                     {
-                        joint.lowAngularXLimit = new SoftJointLimit { limit = 20f };
-                        joint.highAngularXLimit = new SoftJointLimit { limit = 20f };
-                        joint.angularYLimit = new SoftJointLimit { limit = 80f };
-                        joint.angularZLimit = new SoftJointLimit { limit = 45f };
+	                    joint.lowAngularXLimit = new SoftJointLimit { limit = 20f };
+	                    joint.highAngularXLimit = new SoftJointLimit { limit = 20f };
+	                    joint.angularYLimit = new SoftJointLimit { limit = 80f };
+	                    joint.angularZLimit = new SoftJointLimit { limit = 45f };
                     }
                 }
+
+                // Recreate missing tension joints for coupled cars
+                RecreateMissingTensionJoints();
 
                 // Update compression joints (reuse existing method)
                 UpdateAllCompressionJoints();
@@ -655,6 +661,42 @@ namespace DvMod.ZCouplers.Physics
             catch (System.Exception ex)
             {
                 Main.ErrorLog(() => $"Error updating joint parameters: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Recreate tension joints for any coupled cars that are missing them.
+        /// Called during runtime coupler type switching to restore joints after cleanup.
+        /// </summary>
+        private static void RecreateMissingTensionJoints()
+        {
+            if (CarSpawner.Instance?.allCars == null)
+                return;
+
+            int recreatedCount = 0;
+
+            foreach (var car in CarSpawner.Instance.allCars)
+            {
+                if (car == null) continue;
+
+                // Check front coupler
+                if (car.frontCoupler != null && car.frontCoupler.IsCoupled() && !HasTensionJoint(car.frontCoupler))
+                {
+                    ForceCreateTensionJoint(car.frontCoupler);
+                    recreatedCount++;
+                }
+
+                // Check rear coupler
+                if (car.rearCoupler != null && car.rearCoupler.IsCoupled() && !HasTensionJoint(car.rearCoupler))
+                {
+                    ForceCreateTensionJoint(car.rearCoupler);
+                    recreatedCount++;
+                }
+            }
+
+            if (recreatedCount > 0)
+            {
+                Main.DebugLog(() => $"Recreated {recreatedCount} missing tension joints");
             }
         }
     }

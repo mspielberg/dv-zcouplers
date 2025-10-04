@@ -525,7 +525,7 @@ namespace DvMod.ZCouplers.Patches
                 // Check for the specific teleport bug: one coupler Parked, partner Attached_Tight, but both have joints
                 CheckCouplerForTeleportIssues(car.frontCoupler);
                 CheckCouplerForTeleportIssues(car.rearCoupler);
-                
+
                 // Also check coupled cars to ensure the fix is applied comprehensively
                 // This is important because TrainCar.Start might only be called for one car in a teleported consist
                 var processedCars = new HashSet<TrainCar> { car };
@@ -661,6 +661,7 @@ namespace DvMod.ZCouplers.Patches
                 __result.StartCoroutine(DelayedBufferColliderForCar(__result));
 
                 // If using Scharfenberg couplers, also deactivate air hoses on the newly spawned car
+                // TODO Change to profile-based activation/deactivation
                 if (Main.settings.couplerType == CouplerType.Scharfenberg)
                 {
                     __result.StartCoroutine(DelayedAirHoseDeactivationForCar(__result));
@@ -796,13 +797,13 @@ namespace DvMod.ZCouplers.Patches
                     // Deactivate air hoses on both couplers of the new car
                     if (trainCar.frontCoupler != null)
                     {
-                        KnuckleCouplers.DeactivateAirHoseForCoupler(trainCar.frontCoupler);
+                        HookManager.ToggleAirHose(trainCar.frontCoupler, false);
                         deactivatedCouplers++;
                     }
 
                     if (trainCar.rearCoupler != null)
                     {
-                        KnuckleCouplers.DeactivateAirHoseForCoupler(trainCar.rearCoupler);
+	                    HookManager.ToggleAirHose(trainCar.rearCoupler, false);
                         deactivatedCouplers++;
                     }
 
@@ -821,7 +822,7 @@ namespace DvMod.ZCouplers.Patches
             {
                 // Wait longer for the car and its interior to be fully initialized
                 yield return new UnityEngine.WaitForSeconds(2.0f);
-                
+
                 // Additional wait for physics frames
                 for (int i = 0; i < 10; i++)
                 {
@@ -1370,7 +1371,7 @@ namespace DvMod.ZCouplers.Patches
                 if (!KnuckleCouplers.enabled)
                     return true; // Let original method run when knuckle couplers are disabled
 
-                
+
                 // When knuckle couplers are enabled, handle knuckle coupler-specific text
                 if (infoType == HookManager.KnuckleCouplerReady)
                 {
