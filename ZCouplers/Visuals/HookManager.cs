@@ -75,7 +75,7 @@ namespace DvMod.ZCouplers.Visuals
 
             // Hide or show the HookPlate for this specific coupler
             ToggleHookPlate(coupler, visible);
-            
+
             bool isSteamLoco = Main.settings.disableFrontCouplersOnSteamLocos && coupler.train?.carLivery?.id == "LocoS282A";
 
             if (isSteamLoco)
@@ -1181,25 +1181,6 @@ namespace DvMod.ZCouplers.Visuals
                     if (pivot != null && pivot.gameObject != null && coupler.transform != null)
                     {
                         pivot.localEulerAngles = coupler.transform.localEulerAngles;
-                        if (hook != null && hook.gameObject != null)
-                        {
-                            // Base position when parked/disconnected
-                            var basePosition = PivotLength * Vector3.forward;
-
-                            // Start with base position and apply profile offsets
-                            var finalPosition = basePosition;
-                            if (options != null)
-                                finalPosition += new Vector3(options.HookLateralOffsetX, 0f, 0f) + options.HookAdditionalOffset;
-
-                            // Apply height offset for LocoS282A front coupler
-                            if (coupler.train?.carLivery?.id != "LocoS282A" && coupler.isFrontCoupler)
-                            {
-                                // Move front coupler on LocoS282A down by 0.05 units
-                                finalPosition += new Vector3(0f, -0.05f, 0f);
-                            }
-
-                            hook.localPosition = finalPosition;
-                        }
                     }
 
                     // Clear the attached reference if it exists
@@ -1304,8 +1285,6 @@ namespace DvMod.ZCouplers.Visuals
 
                 // Destroy old after this frame; safe vs. ButtonBase.Use stack
                 GameObject.Destroy(oldGo);
-
-                UpdateHookVisualStateFromCouplerState(coupler);
             }
         }
 
