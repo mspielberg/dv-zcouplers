@@ -699,5 +699,54 @@ namespace DvMod.ZCouplers.Physics
                 Main.DebugLog(() => $"Recreated {recreatedCount} missing tension joints");
             }
         }
+
+        /// <summary>
+        /// Update physics joint for a specific coupler during runtime type switching.
+        /// Recreates the joint with updated parameters from the current profile.
+        /// </summary>
+        public static void UpdateJointForCoupler(Coupler coupler)
+        {
+            if (coupler == null || !coupler.IsCoupled())
+                return;
+
+            try
+            {
+                // Check if coupler has a tension joint
+                if (HasTensionJoint(coupler))
+                {
+                    var joint = GetTensionJoint(coupler);
+                    if (joint != null)
+                    {
+                        // Update spring parameters
+                        var springRate = Main.settings.GetSpringRate();
+                        joint.angularXLimitSpring = new SoftJointLimitSpring { spring = springRate };
+                        joint.angularYZLimitSpring = new SoftJointLimitSpring { spring = springRate };
+                        joint.linearLimitSpring = new SoftJointLimitSpring { spring = springRate };
+                    }
+                }
+                else
+                {
+                    // Joint missing - recreate it
+                    CreateTensionJoint(coupler);
+                }
+
+                // Update compression joint if present
+                if (HasCompressionJoint(coupler))
+                {
+                    // Compression joints are updated by UpdateAllCompressionJoints
+                    // Just ensure it's properly configured
+                    var otherCoupler = coupler.coupledTo;
+                    if (otherCoupler != null)
+                    {
+                        DestroyCompressionJoint(coupler, "UpdateJointForCoupler");
+                        CreateCompressionJoint(coupler, otherCoupler);
+                    }
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Main.ErrorLog(() => $"Error updating joint for coupler: {ex.Message}");
+            }
+        }
     }
 }

@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using DvMod.ZCouplers.Core.Profiles;
 using DvMod.ZCouplers.Core.Utils;
@@ -17,37 +18,51 @@ public static class Main
     public static UnityModManager.ModEntry? mod;
     public static Harmony? harmony;
 
-    public static Settings settings = new Settings();
+    public static Settings settings = null!; // Will be initialized in Load() after profiles are registered
 
     public static bool Load(UnityModManager.ModEntry modEntry)
     {
         mod = modEntry;
+
+        // Register coupler profiles FIRST before loading settings
+        RegisterCouplerProfilesAutomatically();
+
         try
         {
-            Settings settings = UnityModManager.ModSettings.Load<Settings>(modEntry);
-            if (settings != null)
+            Settings currentSettings = UnityModManager.ModSettings.Load<Settings>(modEntry);
+            if (currentSettings != null)
             {
-                Main.settings = settings;
-                // Initialize the lastCouplerType to current value to track future changes
-                Main.settings.lastCouplerType = Main.settings.couplerType;
+                Main.settings = currentSettings;
+                // Validate that the loaded profile ID exists, otherwise use first available
+                if (CouplerProfiles.GetById(Main.settings.selectedCoupler) == null)
+                {
+                    Main.settings.selectedCoupler = CouplerProfiles.GetAllProfileIds().FirstOrDefault() ?? "AAR";
+                    modEntry.Logger.Log($"Invalid profile ID in settings, defaulting to: {Main.settings.selectedCoupler}");
+                }
+                // Initialize the lastCouplerProfile to current value to track future changes
+                Main.settings.lastCouplerProfile = Main.settings.couplerProfile;
                 modEntry.Logger.Log("Loaded existing settings");
             }
             else
             {
                 Main.settings = new Settings();
-                // Initialize the lastCouplerType to current value to track future changes
-                Main.settings.lastCouplerType = Main.settings.couplerType;
+                // Ensure we have a valid profile
+                Main.settings.selectedCoupler = CouplerProfiles.GetAllProfileIds().FirstOrDefault() ?? "AAR";
+                // Initialize the lastCouplerProfile to current value to track future changes
+                Main.settings.lastCouplerProfile = Main.settings.couplerProfile;
                 modEntry.Logger.Log("Created new settings (no existing file)");
             }
         }
         catch (Exception ex)
         {
             Main.settings = new Settings();
-            // Initialize the lastCouplerType to current value to track future changes
-            Main.settings.lastCouplerType = Main.settings.couplerType;
+            // Ensure we have a valid profile
+            Main.settings.selectedCoupler = CouplerProfiles.GetAllProfileIds().FirstOrDefault() ?? "AAR";
+            // Initialize the lastCouplerProfile to current value to track future changes
+            Main.settings.lastCouplerProfile = Main.settings.couplerProfile;
             modEntry.Logger.Log("Failed to load settings, using defaults: " + ex.Message);
         }
-        modEntry.OnGUI = Main.settings.Draw<Settings>;
+        modEntry.OnGUI = Main.settings.OnGUI;
         modEntry.OnSaveGUI = Main.settings.Save;
         modEntry.OnUnload = Unload;
         AppDomain.CurrentDomain.UnhandledException += delegate (object sender, UnhandledExceptionEventArgs e)
@@ -67,15 +82,50 @@ public static class Main
         // Store harmony instance for cleanup
         harmony = harmonyInstance;
 
-        // Register coupler profiles (modular per-coupler files)
-        CouplerProfiles.Register(new AARKnuckleProfile());
-        CouplerProfiles.Register(new SA3Profile());
-        CouplerProfiles.Register(new SchakuProfile());
-        CouplerProfiles.Register(new LAPProfile());
-
         KnuckleCouplers.Initialize();
-        mod.Logger.Log($"Loaded {Main.settings.couplerType}");
+        mod.Logger.Log($"Loaded ZCouplers with profile: {Main.settings.couplerProfile?.DisplayName ?? Main.settings.selectedCoupler}");
         return true;
+    }
+
+    /// <summary>
+    /// Automatically discovers and registers all ICouplerProfile implementations via reflection.
+    /// This makes the system fully modular - just add a new profile class and it's automatically discovered.
+    /// </summary>
+    private static void RegisterCouplerProfilesAutomatically()
+    {
+        try
+        {
+            var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+            var profileType = typeof(ICouplerProfile);
+
+            // Find all types that implement ICouplerProfile and are not interfaces or abstract
+            var profileTypes = assembly.GetTypes()
+                .Where(t => profileType.IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract);
+
+            int count = 0;
+            foreach (var type in profileTypes)
+            {
+                try
+                {
+	                // Create an instance and register it
+	                if (System.Activator.CreateInstance(type) is not ICouplerProfile profile) continue;
+	                CouplerProfiles.Register(profile);
+                    mod?.Logger.Log($"Registered coupler profile: {profile.DisplayName} (ID: {profile.ProfileId})");
+                    count++;
+                }
+                catch (System.Exception ex)
+                {
+                    mod?.Logger.Error($"Failed to instantiate profile type {type.Name}: {ex.Message}");
+                }
+            }
+
+            mod?.Logger.Log($"Auto-registered {count} coupler profiles");
+        }
+        catch (System.Exception ex)
+        {
+            mod?.Logger.Error($"Error during automatic profile registration: {ex.Message}");
+            mod?.Logger.Error(ex.StackTrace);
+        }
     }
 
     public static bool Unload(UnityModManager.ModEntry modEntry)

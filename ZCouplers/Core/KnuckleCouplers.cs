@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using DV.Logic.Job;
 using DvMod.ZCouplers.Core.Helpers;
 using DvMod.ZCouplers.Core.Profiles;
@@ -32,9 +33,7 @@ namespace DvMod.ZCouplers.Core
         public static GameObject? GetHookPrefab()
         {
             var profile = CouplerProfiles.Current;
-            if (profile == null)
-                return AssetManager.GetAARClosedPrefab();
-            return profile.GetClosedPrefab();
+            return profile?.GetClosedPrefab();
         }
 
         // Hook management delegation
@@ -59,11 +58,11 @@ namespace DvMod.ZCouplers.Core
             var currentProfile = CouplerProfiles.Current;
             if (currentProfile == null)
             {
-                Main.DebugLog(() => $"OnSettingsChanged called but no profile available for {Main.settings.couplerType}, skipping air hose processing");
+                Main.DebugLog(() => $"OnSettingsChanged called but no profile available for {currentProfile}, skipping air hose processing");
                 return;
             }
 
-            Main.DebugLog(() => $"OnSettingsChanged called: couplerType={Main.settings.couplerType}, Current profile={currentProfile.Options.Name}");
+            Main.DebugLog(() => $"OnSettingsChanged called: couplerProfileId={currentProfile.ProfileId}, Current profile={currentProfile.DisplayName}");
 
             BufferVisualManager.ToggleBuffers(Main.settings.showBuffersWithKnuckles);
 
@@ -163,6 +162,29 @@ namespace DvMod.ZCouplers.Core
 	        }
 
 	        Main.DebugLog(() => $"Processed air hoses: {processedCars} cars, {processedCouplers} couplers");
+        }
+
+        /// <summary>
+        /// Restore all air hoses when switching from profiles that hide them.
+        /// </summary>
+        private static void RestoreAllAirHoses()
+        {
+            if (CarSpawner.Instance?.allCars == null)
+                return;
+
+            Main.DebugLog(() => "Restoring all air hoses");
+
+            int processedCars = 0;
+
+            foreach (var car in CarSpawner.Instance.allCars)
+            {
+                if (car == null) continue;
+                HookManager.ToggleAirHose(car.frontCoupler, true);
+                HookManager.ToggleAirHose(car.rearCoupler, true);
+                processedCars++;
+            }
+
+            Main.DebugLog(() => $"Restored air hoses for {processedCars} cars");
         }
 
         /// <summary>
@@ -266,28 +288,23 @@ namespace DvMod.ZCouplers.Core
 
             // Check if current coupler type requires air hoses to be hidden
             var currentProfile = CouplerProfiles.Current;
-            if (currentProfile?.Options.AlwaysHideAirHoses == true)
-            {
-                Main.DebugLog(() => $"{Main.settings.couplerType} selected - hiding air hoses");
+            if (currentProfile?.Options.AlwaysHideAirHoses != true) yield break;
+            Main.DebugLog(() => $"{currentProfile.DisplayName} selected - hiding air hoses");
 
-                if (CarSpawner.Instance?.allCars != null)
-                {
-                    foreach (var car in CarSpawner.Instance.allCars)
-                    {
-                        if (car == null) continue;
-                        HookManager.ToggleAirHose(car.frontCoupler, false);
-                        HookManager.ToggleAirHose(car.rearCoupler, false);
-                    }
-                    Main.DebugLog(() => $"Hidden air hoses on {CarSpawner.Instance.allCars.Count} cars");
-                }
+            if (CarSpawner.Instance?.allCars == null) yield break;
+            foreach (var car in CarSpawner.Instance.allCars.OfType<TrainCar>())
+            {
+	            HookManager.ToggleAirHose(car.frontCoupler, false);
+	            HookManager.ToggleAirHose(car.rearCoupler, false);
             }
+            Main.DebugLog(() => $"Hidden air hoses on {CarSpawner.Instance.allCars.Count} cars");
         }
 
         /// <summary>
         /// Switch coupler types at runtime without requiring a restart.
         /// This method starts a coroutine to handle the complex multi-phase switching process.
         /// </summary>
-        public static void SwitchCouplerTypeAtRuntime(CouplerType oldType, CouplerType newType)
+        public static void SwitchCouplerTypeAtRuntime(ICouplerProfile oldType, ICouplerProfile newType)
         {
             Main.DebugLog(() => $"Starting runtime coupler switch from {oldType} to {newType}");
 
@@ -306,31 +323,30 @@ namespace DvMod.ZCouplers.Core
         /// <summary>
         /// Coroutine that handles the runtime coupler type switching with proper timing and validation.
         /// </summary>
-        private static System.Collections.IEnumerator SwitchCouplerTypeCoroutine(CouplerType oldType, CouplerType newType)
+        private static System.Collections.IEnumerator SwitchCouplerTypeCoroutine(ICouplerProfile oldProfile, ICouplerProfile newProfile)
         {
-            Main.DebugLog(() => $"Phase 1: Pre-loading assets for {newType}");
+            Main.DebugLog(() => $"Phase 1: Pre-loading assets for {newProfile.DisplayName}");
 
-            // Phase 1: Load assets FIRST before any cleanup
-            AssetManager.LoadAssetsForCouplerType(newType);
+            // Phase 1: Get profile and load assets
+            if (newProfile == null)
+            {
+                Main.ErrorLog(() => $"No profile found for coupler type {newProfile}, aborting switch");
+                yield break;
+            }
+
+            AssetManager.LoadAssetsForProfile(newProfile);
 
             // Wait a frame for asset loading to complete
             yield return null;
 
             // Verify assets loaded successfully
-            if (!AssetManager.AreAssetsLoadedForType(newType))
+            if (!AssetManager.AreAssetsLoaded(newProfile))
             {
-                Main.ErrorLog(() => $"Failed to load assets for coupler type {newType}, aborting switch");
+                Main.ErrorLog(() => $"Failed to load assets for profile {newProfile}, aborting switch");
                 yield break;
             }
 
-            // Verify profile and prefabs are accessible
-            var newProfile = CouplerProfiles.Get(newType);
-            if (newProfile == null)
-            {
-                Main.ErrorLog(() => $"No profile found for coupler type {newType}, aborting switch");
-                yield break;
-            }
-
+            // Verify prefabs are accessible
             GameObject? closedPrefab = null;
             GameObject? openPrefab = null;
 
@@ -339,17 +355,17 @@ namespace DvMod.ZCouplers.Core
                 closedPrefab = newProfile.GetClosedPrefab();
                 openPrefab = newProfile.GetOpenPrefab();
 
-                if (closedPrefab == null || openPrefab == null)
+                if (closedPrefab == null || (newProfile.Options.HasOpenVariant && openPrefab == null))
                 {
-                    Main.ErrorLog(() => $"Profile for {newType} returned null prefabs (closed: {closedPrefab?.name ?? "null"}, open: {openPrefab?.name ?? "null"})");
+                    Main.ErrorLog(() => $"Profile for {newProfile} returned null prefabs (closed: {closedPrefab?.name ?? "null"}, open: {openPrefab?.name ?? "null"})");
                     yield break;
                 }
 
-                Main.DebugLog(() => $"Assets verified for {newType}: closed={closedPrefab.name}, open={openPrefab.name}");
+                Main.DebugLog(() => $"Assets verified for {newProfile}: closed={closedPrefab.name}, open={openPrefab?.name ?? "N/A"}");
             }
             catch (System.Exception ex)
             {
-                Main.ErrorLog(() => $"Error accessing prefabs for {newType}: {ex.Message}");
+                Main.ErrorLog(() => $"Error accessing prefabs for {newProfile}: {ex.Message}");
                 yield break;
             }
 
@@ -409,14 +425,14 @@ namespace DvMod.ZCouplers.Core
             yield return new UnityEngine.WaitForEndOfFrame();
 
             // Validate recreation completed
-            if (!ValidateRecreationCompleted(newType))
+            if (!ValidateRecreationCompleted(newProfile.ProfileId))
             {
                 Main.ErrorLog(() => "Recreation validation failed, attempting simple recovery");
                 // Attempt a simple recreation retry
                 RecreateAllCouplersForNewType();
                 yield return null;
 
-                if (!ValidateRecreationCompleted(newType))
+                if (!ValidateRecreationCompleted(newProfile.ProfileId))
                 {
                     Main.ErrorLog(() => "Recovery failed, couplers may be in inconsistent state");
                     // Continue anyway - user can change coupler type again to fix
@@ -430,7 +446,7 @@ namespace DvMod.ZCouplers.Core
 
             try
             {
-                ApplyTypeSpecificSettings(oldType, newType);
+                ApplyProfileSpecificSettings(oldProfile, newProfile);
             }
             catch (System.Exception ex)
             {
@@ -460,7 +476,7 @@ namespace DvMod.ZCouplers.Core
                 yield return new UnityEngine.WaitForFixedUpdate();
             }
 
-            Main.DebugLog(() => $"Successfully completed runtime coupler switch to {newType}");
+            Main.DebugLog(() => $"Successfully completed runtime coupler switch to {newProfile}");
         }
 
         /// <summary>
@@ -583,20 +599,15 @@ namespace DvMod.ZCouplers.Core
 
             // Verify we have a valid profile and prefabs before starting
             var profile = CouplerProfiles.Current;
-            if (profile == null)
-            {
-                Main.ErrorLog(() => $"No profile available for coupler type {Main.settings.couplerType}");
-                return;
-            }
 
             var hookPrefab = GetHookPrefab();
             if (hookPrefab == null)
             {
-                Main.ErrorLog(() => $"Hook prefab is null for coupler type {Main.settings.couplerType}");
+                Main.ErrorLog(() => $"Hook prefab is null for coupler type {profile?.DisplayName}");
                 return;
             }
 
-            Main.DebugLog(() => $"Recreating all couplers with new type {Main.settings.couplerType}, prefab: {hookPrefab.name}");
+            Main.DebugLog(() => $"Recreating all couplers with new type {profile?.DisplayName}, prefab: {hookPrefab.name}");
 
             int processedCars = 0;
             int successfulHooks = 0;
@@ -695,140 +706,94 @@ namespace DvMod.ZCouplers.Core
         }
 
         /// <summary>
-        /// Apply type-specific settings like air hoses and buffers when switching coupler types.
-        /// Only handles air hoses when switching to/from Scharfenberg profile.
+        /// Apply profile-specific settings like air hoses and buffers when switching coupler profiles.
+        /// Only handles air hoses when switching to/from profiles that hide air hoses.
         /// </summary>
-        private static void ApplyTypeSpecificSettings(CouplerType oldType, CouplerType newType)
+        private static void ApplyProfileSpecificSettings(ICouplerProfile oldProfile, ICouplerProfile newProfile)
         {
-            var oldProfile = CouplerProfiles.Get(oldType);
-            var newProfile = CouplerProfiles.Get(newType);
-            if (newProfile == null) return;
+            Main.DebugLog(() => $"Applying profile-specific settings for switch from {oldProfile.DisplayName} to {newProfile.DisplayName}");
 
-            Main.DebugLog(() => $"Applying type-specific settings for switch from {oldType} to {newType}");
+            // Only handle air hoses when switching to/from profiles that hide air hoses (e.g., Scharfenberg)
+            bool oldProfileHidesAirHoses = oldProfile?.Options.AlwaysHideAirHoses == true;
+            bool newProfileHidesAirHoses = newProfile.Options.AlwaysHideAirHoses;
 
-            // Only handle air hoses when switching to/from Scharfenberg (which hides air hoses)
-            bool oldTypeHidesAirHoses = oldProfile?.Options.AlwaysHideAirHoses == true;
-            bool newTypeHidesAirHoses = newProfile.Options.AlwaysHideAirHoses;
-
-            if (oldTypeHidesAirHoses != newTypeHidesAirHoses)
+            if (oldProfileHidesAirHoses != newProfileHidesAirHoses)
             {
                 // Only change air hose state when there's actually a difference
-                if (newTypeHidesAirHoses)
+                if (newProfileHidesAirHoses)
                 {
-                    Main.DebugLog(() => $"Switching to {newType} - hiding air hoses");
+                    Main.DebugLog(() => $"Switching to {newProfile.DisplayName} - hiding air hoses");
                     DeactivateAllAirHoses();
                 }
                 else
                 {
-                    Main.DebugLog(() => $"Switching from {oldType} to {newType} - restoring air hoses");
+                    Main.DebugLog(() => $"Switching from {oldProfile?.DisplayName} to {newProfile.DisplayName} - restoring air hoses");
                     RestoreAllAirHoses();
                 }
             }
             else
             {
-                Main.DebugLog(() => $"Air hose visibility unchanged for switch from {oldType} to {newType}");
+                Main.DebugLog(() => $"Air hose visibility unchanged for switch from {oldProfile?.DisplayName} to {newProfile.DisplayName}");
             }
 
-            // Update buffer visibility (this may have changed with coupler type)
+            // Update buffer visibility (this may have changed with coupler profile)
             BufferVisualManager.ToggleBuffers(Main.settings.showBuffersWithKnuckles);
         }
 
         /// <summary>
-        /// Restore air hoses that may have been hidden by a previous coupler type
-        /// </summary>
-        private static void RestoreAllAirHoses()
-        {
-            if (CarSpawner.Instance?.allCars == null)
-                return;
-
-            Main.DebugLog(() => "Restoring air hoses for new coupler type");
-
-            // Clear the cache first so hoses can be processed again
-            deactivatedAirHoses.Clear();
-
-            int restoredCars = 0;
-            int processedCouplers = 0;
-
-            foreach (var car in CarSpawner.Instance.allCars)
-            {
-                if (car?.interior == null) continue;
-
-                restoredCars++;
-                HookManager.ToggleAirHose(car.frontCoupler, true);
-                HookManager.ToggleAirHose(car.rearCoupler, true);
-                processedCouplers += 2;
-            }
-
-            Main.DebugLog(() => $"Air hose restoration completed: {restoredCars} cars, {processedCouplers} couplers processed");
-        }
-
-        /// <summary>
-        /// Update all existing physics joints to use parameters from the new coupler type
-        /// </summary>
-        private static void UpdateAllJointsForNewType()
-        {
-            Main.DebugLog(() => "Updating physics joints for new coupler type");
-
-            // Update compression joints with new settings
-            Couplers.UpdateAllCompressionJoints();
-
-            // Update any existing tension joints
-            JointManager.UpdateAllJointParameters();
-        }
-
-        /// <summary>
-        /// Validates that the cleanup phase completed successfully by checking that old coupler visuals are removed.
+        /// Validate that cleanup completed successfully by checking for remaining hooks
         /// </summary>
         private static bool ValidateCleanupCompleted()
         {
             if (CarSpawner.Instance?.allCars == null)
-                return true;
+                return true; // No cars, nothing to validate
 
             int remainingHooks = 0;
-            int totalCouplers = 0;
 
             foreach (var car in CarSpawner.Instance.allCars)
             {
                 if (car == null) continue;
 
-                // Check front coupler
                 if (car.frontCoupler?.visualCoupler?.chainAdapter?.chainScript != null)
                 {
-                    totalCouplers++;
-                    var frontChainScript = car.frontCoupler.visualCoupler.chainAdapter.chainScript;
-                    if (HookManager.GetPivot(frontChainScript) != null)
+                    if (HookManager.GetPivot(car.frontCoupler.visualCoupler.chainAdapter.chainScript) != null)
                         remainingHooks++;
                 }
 
-                // Check rear coupler
                 if (car.rearCoupler?.visualCoupler?.chainAdapter?.chainScript != null)
                 {
-                    totalCouplers++;
-                    var rearChainScript = car.rearCoupler.visualCoupler.chainAdapter.chainScript;
-                    if (HookManager.GetPivot(rearChainScript) != null)
+                    if (HookManager.GetPivot(car.rearCoupler.visualCoupler.chainAdapter.chainScript) != null)
                         remainingHooks++;
                 }
             }
 
-            Main.DebugLog(() => $"Cleanup validation: {remainingHooks}/{totalCouplers} couplers still have hooks");
-            return remainingHooks == 0;
+            if (remainingHooks > 0)
+            {
+                Main.ErrorLog(() => $"Cleanup validation failed: {remainingHooks} hooks still exist");
+                return false;
+            }
+
+            Main.DebugLog(() => "Cleanup validation passed: all hooks removed");
+            return true;
         }
 
         /// <summary>
-        /// Validates that the recreation phase completed successfully by checking that new coupler visuals are created.
+        /// Validate that recreation completed successfully
         /// </summary>
-        private static bool ValidateRecreationCompleted(CouplerType expectedType)
+        private static bool ValidateRecreationCompleted(string expectedProfileId)
         {
             if (CarSpawner.Instance?.allCars == null)
-                return true;
+                return true; // No cars, nothing to validate
 
-            var profile = CouplerProfiles.Get(expectedType);
+            var profile = CouplerProfiles.GetById(expectedProfileId);
             if (profile == null)
+            {
+                Main.ErrorLog(() => $"Profile {expectedProfileId} not found during recreation validation");
                 return false;
+            }
 
             int expectedHooks = 0;
             int actualHooks = 0;
-            int totalCouplers = 0;
 
             foreach (var car in CarSpawner.Instance.allCars)
             {
@@ -837,13 +802,10 @@ namespace DvMod.ZCouplers.Core
                 // Check front coupler
                 if (car.frontCoupler?.visualCoupler?.chainAdapter?.chainScript != null)
                 {
-                    totalCouplers++;
-                    var frontChainScript = car.frontCoupler.visualCoupler.chainAdapter.chainScript;
-
                     if (!HookManager.ShouldDisableCoupler(car.frontCoupler))
                     {
                         expectedHooks++;
-                        if (HookManager.GetPivot(frontChainScript) != null)
+                        if (HookManager.GetPivot(car.frontCoupler.visualCoupler.chainAdapter.chainScript) != null)
                             actualHooks++;
                     }
                 }
@@ -851,23 +813,234 @@ namespace DvMod.ZCouplers.Core
                 // Check rear coupler
                 if (car.rearCoupler?.visualCoupler?.chainAdapter?.chainScript != null)
                 {
-                    totalCouplers++;
-                    var rearChainScript = car.rearCoupler.visualCoupler.chainAdapter.chainScript;
-
                     if (!HookManager.ShouldDisableCoupler(car.rearCoupler))
                     {
                         expectedHooks++;
-                        if (HookManager.GetPivot(rearChainScript) != null)
+                        if (HookManager.GetPivot(car.rearCoupler.visualCoupler.chainAdapter.chainScript) != null)
                             actualHooks++;
                     }
                 }
             }
 
-            Main.DebugLog(() => $"Recreation validation: {actualHooks}/{expectedHooks} expected hooks created ({totalCouplers} total couplers)");
+            if (actualHooks < expectedHooks)
+            {
+                Main.ErrorLog(() => $"Recreation validation failed: only {actualHooks}/{expectedHooks} hooks created");
+                return false;
+            }
 
-            // Allow some tolerance - if we got at least 80% of expected hooks, consider it successful
-            return expectedHooks == 0 || (actualHooks >= (expectedHooks * 0.8f));
+            Main.DebugLog(() => $"Recreation validation passed: {actualHooks}/{expectedHooks} hooks created");
+            return true;
+        }
+
+        /// <summary>
+        /// Update all physics joints for the new coupler type
+        /// </summary>
+        private static void UpdateAllJointsForNewType()
+        {
+            if (CarSpawner.Instance?.allCars == null)
+                return;
+
+            Main.DebugLog(() => "Updating physics joints for new coupler type");
+
+            int updatedJoints = 0;
+
+            foreach (var car in CarSpawner.Instance.allCars)
+            {
+                if (car == null) continue;
+
+                // Update joints for front coupler if coupled
+                if (car.frontCoupler?.IsCoupled() == true)
+                {
+                    try
+                    {
+                        JointManager.UpdateJointForCoupler(car.frontCoupler);
+                        updatedJoints++;
+                    }
+                    catch (System.Exception ex)
+                    {
+                        Main.ErrorLog(() => $"Error updating front joint for car {car.ID}: {ex.Message}");
+                    }
+                }
+
+                // Update joints for rear coupler if coupled
+                if (car.rearCoupler?.IsCoupled() == true)
+                {
+                    try
+                    {
+                        JointManager.UpdateJointForCoupler(car.rearCoupler);
+                        updatedJoints++;
+                    }
+                    catch (System.Exception ex)
+                    {
+                        Main.ErrorLog(() => $"Error updating rear joint for car {car.ID}: {ex.Message}");
+                    }
+                }
+            }
+
+            Main.DebugLog(() => $"Updated {updatedJoints} physics joints");
+        }
+
+        /// <summary>
+        /// Switch coupler profiles at runtime using profile IDs (modular system)
+        /// </summary>
+        public static void SwitchCouplerProfileAtRuntime(ICouplerProfile oldProfile, ICouplerProfile newProfile)
+        {
+            Main.DebugLog(() => $"Starting runtime coupler switch from {oldProfile.DisplayName} to {newProfile.ProfileId}");
+
+            // Start the coroutine-based switching process
+            var carSpawner = UnityEngine.Object.FindObjectOfType<CarSpawner>();
+            if (carSpawner != null)
+            {
+                carSpawner.StartCoroutine(SwitchCouplerProfileCoroutine(oldProfile, newProfile));
+            }
+            else
+            {
+                Main.ErrorLog(() => "CarSpawner not found, cannot perform runtime coupler switch");
+            }
+        }
+
+        /// <summary>
+        /// Coroutine that handles the runtime coupler profile switching with proper timing and validation.
+        /// </summary>
+        private static System.Collections.IEnumerator SwitchCouplerProfileCoroutine(ICouplerProfile oldProfile, ICouplerProfile newProfile)
+        {
+            Main.DebugLog(() => $"Phase 1: Pre-loading assets for {newProfile.DisplayName}");
+
+            // Phase 1: Get profile and load assets
+            AssetManager.LoadAssetsForProfile(newProfile);
+
+            // Wait a frame for asset loading to complete
+            yield return null;
+
+            // Verify assets loaded successfully
+            if (!AssetManager.AreAssetsLoaded())
+            {
+                Main.ErrorLog(() => $"Failed to load assets for profile {newProfile.DisplayName}, aborting switch");
+                yield break;
+            }
+
+            // Verify prefabs are accessible
+            GameObject? closedPrefab = null;
+            GameObject? openPrefab = null;
+
+            try
+            {
+                closedPrefab = newProfile.GetClosedPrefab();
+                openPrefab = newProfile.GetOpenPrefab();
+
+                if (closedPrefab == null || (newProfile.Options.HasOpenVariant && openPrefab == null))
+                {
+                    Main.ErrorLog(() => $"Profile {newProfile.DisplayName} returned null prefabs (closed: {closedPrefab?.name ?? "null"}, open: {openPrefab?.name ?? "null"})");
+                    yield break;
+                }
+
+                Main.DebugLog(() => $"Assets verified for {newProfile.DisplayName}: closed={closedPrefab.name}, open={openPrefab?.name ?? "N/A"}");
+            }
+            catch (System.Exception ex)
+            {
+                Main.ErrorLog(() => $"Error accessing prefabs for {newProfile.DisplayName}: {ex.Message}");
+                yield break;
+            }
+
+            // Phase 2: Clean up existing couplers
+            Main.DebugLog(() => "Phase 2: Cleaning up existing couplers");
+
+            try
+            {
+                CleanupAllCouplersForTypeSwitch();
+                LAPLinkManager.Cleanup();
+            }
+            catch (System.Exception ex)
+            {
+                Main.ErrorLog(() => $"Error during cleanup phase: {ex.Message}");
+                yield break;
+            }
+
+            // Wait multiple frames for Unity to process GameObject destruction
+            yield return null;
+            yield return null;
+            yield return new WaitForEndOfFrame();
+
+            // Validate cleanup completed
+            if (!ValidateCleanupCompleted())
+            {
+                Main.ErrorLog(() => "Cleanup validation failed, but continuing anyway");
+            }
+
+            Main.DebugLog(() => "Cleanup phase completed successfully");
+
+            // Phase 3: Wait for physics to settle
+            Main.DebugLog(() => "Phase 3: Waiting for physics to settle");
+
+            for (int i = 0; i < 5; i++)
+            {
+                yield return new WaitForFixedUpdate();
+            }
+
+            // Phase 4: Recreate couplers with new profile
+            Main.DebugLog(() => "Phase 4: Recreating couplers with new profile");
+
+            try
+            {
+                RecreateAllCouplersForNewType();
+            }
+            catch (System.Exception ex)
+            {
+                Main.ErrorLog(() => $"Error during recreation phase: {ex.Message}");
+            }
+
+            // Wait for creation to complete
+            yield return null;
+            yield return new UnityEngine.WaitForEndOfFrame();
+
+            // Validate recreation completed
+            if (!ValidateRecreationCompleted(newProfile.ProfileId))
+            {
+                Main.ErrorLog(() => "Recreation validation failed, attempting simple recovery");
+                RecreateAllCouplersForNewType();
+                yield return null;
+
+                if (!ValidateRecreationCompleted(newProfile.ProfileId))
+                {
+                    Main.ErrorLog(() => "Recovery failed, couplers may be in inconsistent state");
+                }
+            }
+
+            Main.DebugLog(() => "Recreation phase completed successfully");
+
+            // Phase 5: Apply profile-specific settings
+            Main.DebugLog(() => "Phase 5: Applying profile-specific settings");
+
+            try
+            {
+                ApplyProfileSpecificSettings(oldProfile, newProfile);
+            }
+            catch (System.Exception ex)
+            {
+                Main.ErrorLog(() => $"Error applying profile-specific settings: {ex.Message}");
+            }
+
+            yield return null;
+
+            // Phase 6: Update physics joints
+            Main.DebugLog(() => "Phase 6: Updating physics joints");
+
+            try
+            {
+                UpdateAllJointsForNewType();
+            }
+            catch (System.Exception ex)
+            {
+                Main.ErrorLog(() => $"Error updating physics joints: {ex.Message}");
+            }
+
+            // Final physics settle time
+            for (int i = 0; i < 3; i++)
+            {
+                yield return new UnityEngine.WaitForFixedUpdate();
+            }
+
+            Main.DebugLog(() => $"Successfully completed runtime coupler switch to {newProfile.DisplayName}");
         }
     }
 }
-

@@ -59,5 +59,11 @@ namespace DvMod.ZCouplers.Core.Profiles
 
         // If Auto Coupling is enforced
         public bool EnforceAutoCoupling { get; set; } = false;
+
+        /// <summary>
+        /// If true, enforces Auto Air & MU Mode regardless of user settings
+        /// (e.g., Scharfenberg automatic couplers)
+        /// </summary>
+        public bool EnforceAutoAirAndMu { get; set; } = false;
     }
 }

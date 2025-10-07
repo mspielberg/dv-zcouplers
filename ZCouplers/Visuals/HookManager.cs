@@ -383,8 +383,8 @@ namespace DvMod.ZCouplers.Visuals
         }
 
         /// <summary>
-        /// Ensure we have ZCouplers socket plates instantiated for the current coupler type (AAR/SA3) on this car.
-        /// New sockets are placed at the original HookPlate_F/R local position, plus a small type-specific offset, under the same parent.
+        /// Ensure we have ZCouplers socket plates instantiated for the current coupler type on this car.
+        /// New sockets are placed at the original HookPlate_F/R local position, plus profile-specific offset.
         /// </summary>
         private static void EnsureSocketPlates(TrainCar car, bool visible = true)
         {
@@ -406,20 +406,9 @@ namespace DvMod.ZCouplers.Visuals
                 }
             }
 
-            // Pick prefab based on current coupler type
-            GameObject? socketPrefab = null;
-            switch (Main.settings.couplerType)
-            {
-                case CouplerType.AARKnuckle:
-                    socketPrefab = AssetManager.GetAARSocketPrefab();
-                    break;
-                case CouplerType.SA3Knuckle:
-                    socketPrefab = AssetManager.GetSA3SocketPrefab();
-                    break;
-                default:
-                    socketPrefab = null;
-                    break;
-            }
+            // Get socket prefab from current profile (modular system)
+            var profile = CouplerProfiles.Current;
+            GameObject? socketPrefab = profile?.GetSocketPrefab();
 
             if (socketPrefab == null)
             {
@@ -457,43 +446,15 @@ namespace DvMod.ZCouplers.Visuals
                 var parentTransform = original.parent;
                 var originalLocalPos = original.localPosition;
 
-                // Type-specific local offset relative to the stock HookPlate position
-                Vector3 offset = Vector3.zero;
-                Quaternion prefabLocalRot = socketPrefab.transform.localRotation; // Default to prefab rotation
-                Vector3 prefabScale = socketPrefab.transform.localScale;
-                if (isFrontPlate)
-                {
-                    switch (Main.settings.couplerType)
-                    {
-                        case CouplerType.AARKnuckle:
-                            offset = new Vector3(0f, -0.01f, 0.01f);
-                            //prefabScale += new Vector3(-1f, 0f, 10f);
-                            break;
-                        case CouplerType.SA3Knuckle:
-                            offset = new Vector3(-0.02f, 0.04f, 0.01f);
-                            break;
-                        default:
-                            break;
-                    }
-                }
-                // Rear sockets need other offsets and rotation
-                else if (!isFrontPlate)
-                {
-                    switch (Main.settings.couplerType)
-                    {
-                        case CouplerType.AARKnuckle:
-                            offset = new Vector3(0f, -0.01f, -0.01f);
-                            prefabLocalRot = Quaternion.Euler(0f, 180f, 0f) * socketPrefab.transform.localRotation;
-                            //prefabScale += new Vector3(-1f, 0f, 10f);
-                            break;
-                        case CouplerType.SA3Knuckle:
-                            offset = new Vector3(0.02f, 0.04f, -0.01f);
-                            prefabLocalRot = Quaternion.Euler(0f, 180f, 0f) * socketPrefab.transform.localRotation;
-                            break;
-                        default:
-                            break;
-                    }
-                }
+                // Get transform data from profile (modular system)
+                Vector3 offset;
+                Quaternion rotation;
+                Vector3 scale;
+                profile!.GetSocketTransform(isFrontPlate, out offset, out rotation, out scale);
+
+                // Apply the prefab's original rotation to the profile rotation
+                Quaternion prefabLocalRot = rotation * socketPrefab.transform.localRotation;
+                Vector3 prefabScale = Vector3.Scale(scale, socketPrefab.transform.localScale);
 
                 // Hide the original plate instead of destroying it
                 original.gameObject.SetActive(false);
@@ -566,10 +527,7 @@ namespace DvMod.ZCouplers.Visuals
 
         /// <summary>
         /// Decide whether the visual should use the "open" hook prefab based on coupler type and current state.
-        /// AAR: Parked=closed, Dangling/Being_Dragged=open, Attached_* = closed
-        /// SA3: Parked=open, all other states=closed (unchanged)
-        /// Schaku: Parked=closed (treated like no parked), Dangling/Being_Dragged=closed, Attached_Tight=open, Attached_Loose=closed
-        /// LAP: Parked=open (no link), all other states=closed (link inserted)
+        /// Now delegates to the profile's ShouldUseOpenVisual method for full modularity.
         /// </summary>
         private static bool ShouldUseOpenHook(Coupler coupler)
         {
@@ -577,60 +535,11 @@ namespace DvMod.ZCouplers.Visuals
                 return false;
 
             var profile = CouplerProfiles.Current;
-            if (profile == null || profile.Options.HasOpenVariant != true || profile.GetOpenPrefab() == null)
+            if (profile == null || profile.Options.HasOpenVariant != true)
                 return false;
 
-            var type = Main.settings.couplerType;
-            var state = coupler.state;
-
-            switch (type)
-            {
-                case CouplerType.AARKnuckle:
-                    switch (state)
-                    {
-                        case ChainCouplerInteraction.State.Dangling:
-                        case ChainCouplerInteraction.State.Being_Dragged:
-                            return true; // AAR ready state visuals are open
-                        case ChainCouplerInteraction.State.Parked:
-                        case ChainCouplerInteraction.State.Attached_Loose:
-                        case ChainCouplerInteraction.State.Attached_Tight:
-                        default:
-                            return false; // closed
-                    }
-
-                case CouplerType.SA3Knuckle:
-                    // Keep previous behavior: open only when Parked
-                    return state == ChainCouplerInteraction.State.Parked;
-
-                case CouplerType.Scharfenberg:
-                    switch (state)
-                    {
-                        case ChainCouplerInteraction.State.Attached_Tight:
-                        case ChainCouplerInteraction.State.Attached_Loose:
-                            return false; // Schaku closes when attached
-                        case ChainCouplerInteraction.State.Parked:
-                        case ChainCouplerInteraction.State.Dangling:
-                        case ChainCouplerInteraction.State.Being_Dragged:
-                        default:
-                            return true; // open otherwise
-                    }
-
-                case CouplerType.LAPCoupler:
-                    switch (state)
-                    {
-                        case ChainCouplerInteraction.State.Parked:
-                            return true; // LAP open when parked (no link)
-                        case ChainCouplerInteraction.State.Dangling:
-                        case ChainCouplerInteraction.State.Being_Dragged:
-                        case ChainCouplerInteraction.State.Attached_Loose:
-                        case ChainCouplerInteraction.State.Attached_Tight:
-                        default:
-                            return false; // closed otherwise (link inserted)
-                    }
-
-                default:
-                    return false;
-            }
+            // Delegate to profile's visual state logic
+            return profile.ShouldUseOpenVisual(coupler.state);
         }
 
         public static void CreateHook(ChainCouplerInteraction chainScript, GameObject? fallbackHookPrefab = null)
@@ -702,7 +611,7 @@ namespace DvMod.ZCouplers.Visuals
 
             if (actualHookPrefab == null)
             {
-                Main.ErrorLog(() => $"Hook prefab is null for coupler type {Main.settings.couplerType}, state={coupler.state}, cannot create knuckle coupler hook");
+                Main.ErrorLog(() => $"Hook prefab is null for coupler type {CouplerProfiles.Current}, state={coupler.state}, cannot create knuckle coupler hook");
                 return;
             }
 
@@ -716,7 +625,7 @@ namespace DvMod.ZCouplers.Visuals
             CreateHookInstance(pivot.transform, actualHookPrefab, chainScript, coupler, desiredName);
 
             // Debug logging for successful LAP hook creation
-            if (Main.settings.couplerType == CouplerType.LAPCoupler)
+            if (CouplerProfiles.Current == CouplerProfiles.GetById("LAP"))
             {
                 Main.DebugLog(() => $"Successfully created LAP hook for {coupler.train.ID} {coupler.Position()}, using {(initShouldUseOpenHook ? "open" : "closed")} variant");
             }
@@ -1113,13 +1022,11 @@ namespace DvMod.ZCouplers.Visuals
             UpdateHookVisualStateImmediate(chainScript, coupler);
 
             // Update LAP link visibility if using LAP couplers
-            if (Main.settings.couplerType == CouplerType.LAPCoupler && coupler.IsCoupled())
+            if (CouplerProfiles.Current != CouplerProfiles.GetById("LAP") || !coupler.IsCoupled()) return;
+            var otherCoupler = coupler.coupledTo;
+            if (otherCoupler != null)
             {
-                var otherCoupler = coupler.coupledTo;
-                if (otherCoupler != null)
-                {
-                    LAPLinkManager.CreateOrShowLink(coupler, otherCoupler);
-                }
+	            LAPLinkManager.CreateOrShowLink(coupler, otherCoupler);
             }
         }
 
@@ -1140,19 +1047,17 @@ namespace DvMod.ZCouplers.Visuals
 
             try
             {
-                var couplerType = Main.settings.couplerType;
-
                 SwapHookVisualImmediately(chainScript, coupler);
 
                 // Determine the correct interaction text based on coupler state
-                if (hook?.GetComponent<InfoArea>() is InfoArea infoArea)
+                if (hook?.GetComponent<InfoArea>() is { } infoArea)
                 {
                     // Base the text on the actual coupler state, not just the locked flag
                     switch (coupler.state)
                     {
 	                    case ChainCouplerInteraction.State.Parked:
 		                    // Parked = coupler is unlocked, but for Scharfenberg or auto-coupling mode, show "ready"
-		                    if (Main.settings.couplerType == CouplerType.Scharfenberg || Main.settings.autoCouplingMode)
+		                    if (CouplerProfiles.Current != null && (CouplerProfiles.Current.Options.EnforceAutoCoupling || Main.settings.autoCouplingMode))
 		                    {
 			                    infoArea.infoType = KnuckleCouplerReady; // "Coupler is ready"
 		                    }

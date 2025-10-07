@@ -1,5 +1,6 @@
 using DvMod.ZCouplers.Core;
 using DvMod.ZCouplers.Core.Helpers;
+using DvMod.ZCouplers.Core.Profiles;
 using UnityEngine;
 
 namespace DvMod.ZCouplers.Visuals
@@ -40,7 +41,7 @@ namespace DvMod.ZCouplers.Visuals
             }
 
             // Update LAP links based on current coupler states
-            if (Main.settings.couplerType == CouplerType.LAPCoupler)
+            if (CouplerProfiles.Current?.ProfileId == "LAP")
             {
                 var coupler = chainScript.couplerAdapter?.coupler;
                 if (coupler != null && coupler.IsCoupled())
@@ -51,14 +52,14 @@ namespace DvMod.ZCouplers.Visuals
                         LAPLinkManager.CreateOrShowLink(coupler, otherCoupler);
                     }
                 }
-                
+
                 // Update all LAP link transforms to handle movement and curves
                 // This is done from one updater to avoid duplicate updates
                 if (chainScript.couplerAdapter?.coupler?.Position() == "front")
                 {
                     LAPLinkManager.UpdateAllLinkTransforms();
                 }
-                
+
                 // Don't run AdjustPivot for LAP Couplers
                 return;
             }

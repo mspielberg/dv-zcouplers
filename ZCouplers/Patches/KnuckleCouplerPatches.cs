@@ -227,7 +227,7 @@ namespace DvMod.ZCouplers.Patches
                                 var finalPosition = basePosition;
 
                                 // Apply SA3-specific offset if using SA3 couplers
-                                if (Main.settings.couplerType == CouplerType.SA3Knuckle)
+                                if (CouplerProfiles.Current == CouplerProfiles.GetById("SA3"))
                                 {
                                     // Move SA3 coupler head 0.035 units to the left
                                     finalPosition += new Vector3(-0.035f, 0f, 0f);
@@ -661,8 +661,7 @@ namespace DvMod.ZCouplers.Patches
                 __result.StartCoroutine(DelayedBufferColliderForCar(__result));
 
                 // If using Scharfenberg couplers, also deactivate air hoses on the newly spawned car
-                // TODO Change to profile-based activation/deactivation
-                if (Main.settings.couplerType == CouplerType.Scharfenberg)
+                if (CouplerProfiles.Current != null && CouplerProfiles.Current.Options.AlwaysHideAirHoses)
                 {
                     __result.StartCoroutine(DelayedAirHoseDeactivationForCar(__result));
                 }
@@ -917,7 +916,7 @@ namespace DvMod.ZCouplers.Patches
                     return true; // Let original method run when knuckle couplers are disabled
 
                 // Handle LAP coupler link destruction before uncoupling
-                if (Main.settings.couplerType == CouplerType.LAPCoupler && __instance.couplerAdapter?.coupler != null)
+                if (CouplerProfiles.Current == CouplerProfiles.GetById("LAP") && __instance.couplerAdapter?.coupler != null)
                 {
                     var thisCoupler = __instance.couplerAdapter.coupler;
                     var otherCoupler = thisCoupler.coupledTo;

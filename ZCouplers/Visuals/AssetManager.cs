@@ -1,9 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
 using DvMod.ZCouplers.Core;
-using DvMod.ZCouplers.Core.Helpers;
+using DvMod.ZCouplers.Core.Profiles;
 using UnityEngine;
 
 namespace DvMod.ZCouplers.Visuals
@@ -13,17 +14,8 @@ namespace DvMod.ZCouplers.Visuals
     /// </summary>
     public static class AssetManager
     {
-        private static GameObject? aarClosedPrefab;
-        private static GameObject? aarOpenPrefab; // For AAR open state
-        private static GameObject? aarSocketPrefab; // For AAR mount hardware
-        private static GameObject? sa3ClosedPrefab; // For SA3 closed/ready state
-        private static GameObject? sa3OpenPrefab;   // For SA3 open/parked state
-        private static GameObject? sa3SocketPrefab; // For SA3 mount hardware
-        private static GameObject? schakuClosedPrefab; // For Scharfenberg closed/ready state
-        private static GameObject? schakuOpenPrefab;   // For Scharfenberg open/parked state
-        private static GameObject? lapClosedPrefab; // For LAP closed/ready state
-        private static GameObject? lapOpenPrefab;   // For LAP open/parked state
-        private static GameObject? lapLinkPrefab; // For LAP link hardware
+        // New modular asset cache system
+        private static readonly Dictionary<string, Dictionary<string, GameObject>> profileAssetCache = new();
 
         private static readonly string assetsFolder = GetAssetsFolder();
 
@@ -37,145 +29,111 @@ namespace DvMod.ZCouplers.Visuals
             return Path.Combine(dllDirectory ?? string.Empty, "Assets");
         }
 
-        public static GameObject? GetAARClosedPrefab() => aarClosedPrefab;
-        public static GameObject? GetAAROpenPrefab() => aarOpenPrefab;
-        public static GameObject? GetAARSocketPrefab() => aarSocketPrefab;
-
-        public static GameObject? GetSA3ClosedPrefab() => sa3ClosedPrefab;
-        public static GameObject? GetSA3OpenPrefab() => sa3OpenPrefab;
-        public static GameObject? GetSA3SocketPrefab() => sa3SocketPrefab;
-
-        public static GameObject? GetSchakuClosedPrefab() => schakuClosedPrefab;
-        public static GameObject? GetSchakuOpenPrefab() => schakuOpenPrefab;
-
-        public static GameObject? GetLAPClosedPrefab() => lapClosedPrefab;
-        public static GameObject? GetLAPOpenPrefab() => lapOpenPrefab;
-        public static GameObject? GetLAPLinkPrefab() => lapLinkPrefab;
-
+        // New modular API
         /// <summary>
-        /// Returns whether assets for the current coupler type are loaded.
+        /// Get a prefab for a specific profile and type (modular system)
         /// </summary>
-        public static bool AreAssetsLoaded()
+        /// <param name="profile">The coupler profile</param>
+        /// <param name="prefabType">"closed", "open", "socket", "link", etc.</param>
+        public static GameObject? GetPrefabForProfile(ICouplerProfile? profile, string prefabType)
         {
-            CouplerType couplerType = Main.settings.couplerType;
-
-            switch (couplerType)
+            // Check if we have it cached
+            if (profile != null && profileAssetCache.TryGetValue(profile.ProfileId, out var assetDict))
             {
-                case CouplerType.AARKnuckle:
-                    return aarClosedPrefab != null || aarOpenPrefab != null;
-                case CouplerType.SA3Knuckle:
-                    return sa3ClosedPrefab != null || sa3OpenPrefab != null;
-                case CouplerType.Scharfenberg:
-                    return schakuClosedPrefab != null || schakuOpenPrefab != null;
-                case CouplerType.LAPCoupler:
-                    return lapClosedPrefab != null || lapOpenPrefab != null;
-                default:
-                    return aarClosedPrefab != null;
+                if (assetDict.TryGetValue(prefabType, out var prefab))
+                {
+                    return prefab;
+                }
             }
+
+            // Not loaded yet, try to load assets for this profile
+            if (profile != null)
+            {
+	            LoadAssetsForProfile(profile);
+
+	            // Try again after loading
+	            if (!profileAssetCache.TryGetValue(profile.ProfileId, out assetDict)) return null;
+	            if (assetDict.TryGetValue(prefabType, out var prefab))
+	            {
+		            return prefab;
+	            }
+            }
+
+            return null;
         }
 
         /// <summary>
-        /// Loads assets for the specified coupler type from separate asset bundle files.
+        /// Load assets for a specific profile (modular system)
         /// </summary>
-        public static void LoadAssets()
+        public static void LoadAssetsForProfile(ICouplerProfile profile)
         {
-            LoadAssetsForCouplerType(Main.settings.couplerType);
-        }
+            // Check if already loaded
+            if (profileAssetCache.ContainsKey(profile.ProfileId))
+            {
+                Main.DebugLog(() => $"Assets for profile '{profile.ProfileId}' already loaded");
+                return;
+            }
 
-        /// <summary>
-        /// Loads assets for a specific coupler type. Used for runtime coupler switching.
-        /// </summary>
-        public static void LoadAssetsForCouplerType(CouplerType couplerType)
-        {
             if (!Directory.Exists(assetsFolder))
             {
                 Main.ErrorLog(() => $"Assets folder not found: {assetsFolder}");
                 return;
             }
 
-            Main.DebugLog(() => $"Loading assets for coupler type: {couplerType}");
+            Main.DebugLog(() => $"Loading assets for profile: {profile.ProfileId}");
 
-            // Load assets based on coupler type - always try to load for runtime switching
-            switch (couplerType)
-            {
-                case CouplerType.AARKnuckle:
-                    LoadAARAssets();
-                    break;
-
-                case CouplerType.SA3Knuckle:
-                    LoadSA3Assets();
-                    break;
-
-                case CouplerType.Scharfenberg:
-                    LoadScharfenbergAssets();
-                    break;
-
-                case CouplerType.LAPCoupler:
-                    LoadLAPAssets();
-                    break;
-
-                default:
-                    Main.ErrorLog(() => $"Unknown coupler type: {couplerType}");
-                    // Fallback to AAR
-                    LoadAARAssets();
-                    break;
-            }
-
-            // Verify loading was successful
-            if (!AreAssetsLoadedForType(couplerType))
-            {
-                Main.ErrorLog(() => $"Asset loading verification failed for {couplerType}");
-            }
-            else
-            {
-                Main.DebugLog(() => $"Successfully loaded and verified assets for {couplerType}");
-            }
-        }
-
-        /// <summary>
-        /// Returns whether assets for a specific coupler type are loaded.
-        /// </summary>
-        public static bool AreAssetsLoadedForType(CouplerType couplerType)
-        {
-            switch (couplerType)
-            {
-                case CouplerType.AARKnuckle:
-                    return aarClosedPrefab != null && aarOpenPrefab != null;
-                case CouplerType.SA3Knuckle:
-                    return sa3ClosedPrefab != null && sa3OpenPrefab != null;
-                case CouplerType.Scharfenberg:
-                    return schakuClosedPrefab != null && schakuOpenPrefab != null;
-                case CouplerType.LAPCoupler:
-                    return lapClosedPrefab != null && lapOpenPrefab != null;
-                default:
-                    return aarClosedPrefab != null && aarOpenPrefab != null;
-            }
-        }
-
-        /// <summary>
-        /// Loads AAR coupler assets from AAR.assetbundle.
-        /// </summary>
-        private static void LoadAARAssets()
-        {
-            string bundlePath = Path.Combine(assetsFolder, "AAR.assetbundle");
+            string bundlePath = Path.Combine(assetsFolder, profile.GetAssetBundleName());
             var bundle = LoadAssetBundle(bundlePath);
             if (bundle == null) return;
 
             try
             {
-                Main.DebugLog(() => "Loading AAR assets");
-                aarClosedPrefab = LoadPrefabFromBundle(bundle, "AAR_closed");
-                aarOpenPrefab = LoadPrefabFromBundle(bundle, "AAR_open");
-                aarSocketPrefab = LoadPrefabFromBundle(bundle, "AAR_socket");
+                var assetDict = new Dictionary<string, GameObject>();
 
-                if (aarClosedPrefab == null)
-                    Main.ErrorLog(() => "Failed to load 'AAR_closed' prefab for AAR coupler");
+                // Load closed prefab
+                var closedPrefabName = profile.GetClosedPrefabName();
+                if (!string.IsNullOrEmpty(closedPrefabName))
+                {
+                    var closedPrefab = LoadPrefabFromBundle(bundle, closedPrefabName);
+                    if (closedPrefab != null)
+                    {
+                        assetDict["closed"] = closedPrefab;
+                    }
+                    else
+                    {
+                        Main.ErrorLog(() => $"Failed to load closed prefab '{closedPrefabName}' for profile '{profile.ProfileId}'");
+                    }
+                }
 
-                if (aarOpenPrefab == null)
-                    Main.ErrorLog(() => "Failed to load 'AAR_open' prefab for AAR coupler");
+                // Load open prefab if available
+                var openPrefabName = profile.GetOpenPrefabName();
+                if (!string.IsNullOrEmpty(openPrefabName))
+                {
+                    var openPrefab = LoadPrefabFromBundle(bundle, openPrefabName ?? string.Empty);
+                    if (openPrefab != null)
+                    {
+                        assetDict["open"] = openPrefab;
+                    }
+                }
 
-                if (aarSocketPrefab == null)
-                    Main.ErrorLog(() => "Failed to load 'AAR_socket' prefab for AAR coupler mount hardware");
+                // Load additional prefab if available (socket or link)
+                var additionalPrefabName = profile.GetAdditionalPrefabName();
+                if (!string.IsNullOrEmpty(additionalPrefabName))
+                {
+                    var additionalPrefab = LoadPrefabFromBundle(bundle, additionalPrefabName ?? string.Empty);
+                    if (additionalPrefab != null)
+                    {
+                        // Determine the key based on name pattern
+                        string key = additionalPrefabName != null && additionalPrefabName.ToLower().Contains("socket") ? "socket" :
+                            additionalPrefabName != null && additionalPrefabName.ToLower().Contains("link") ? "link" : "additional";
+                        assetDict[key] = additionalPrefab;
+                    }
+                }
+
+                // Cache the assets
+                profileAssetCache[profile.ProfileId] = assetDict;
+
+                Main.DebugLog(() => $"Successfully loaded {assetDict.Count} assets for profile '{profile.ProfileId}'");
             }
             finally
             {
@@ -184,92 +142,41 @@ namespace DvMod.ZCouplers.Visuals
         }
 
         /// <summary>
-        /// Loads SA3 coupler assets from SA3.assetbundle.
+        /// Load assets for the current profile
         /// </summary>
-        private static void LoadSA3Assets()
+        public static void LoadAssets()
         {
-            string bundlePath = Path.Combine(assetsFolder, "SA3.assetbundle");
-            var bundle = LoadAssetBundle(bundlePath);
-            if (bundle == null) return;
-
-            try
+            var currentProfile = CouplerProfiles.Current;
+            if (currentProfile != null)
             {
-                Main.DebugLog(() => "Loading SA3 assets");
-                sa3ClosedPrefab = LoadPrefabFromBundle(bundle, "SA3_closed");
-                sa3OpenPrefab = LoadPrefabFromBundle(bundle, "SA3_open");
-                sa3SocketPrefab = LoadPrefabFromBundle(bundle, "SA3_socket");
-
-                if (sa3ClosedPrefab == null)
-                    Main.ErrorLog(() => "Failed to load 'SA3_closed' prefab for SA3 coupler");
-
-                if (sa3OpenPrefab == null)
-                    Main.ErrorLog(() => "Failed to load 'SA3_open' prefab for SA3 coupler");
-
-                if (sa3SocketPrefab == null)
-                    Main.ErrorLog(() => "Failed to load 'SA3_socket' prefab for SA3 coupler mount hardware");
-            }
-            finally
-            {
-                bundle.Unload(false);
+                LoadAssetsForProfile(currentProfile);
             }
         }
 
         /// <summary>
-        /// Loads Scharfenberg coupler assets from Scharfenberg.assetbundle.
+        /// Check if assets are loaded for current profile
         /// </summary>
-        private static void LoadScharfenbergAssets()
+        public static bool AreAssetsLoaded()
         {
-            string bundlePath = Path.Combine(assetsFolder, "Scharfenberg.assetbundle");
-            var bundle = LoadAssetBundle(bundlePath);
-            if (bundle == null) return;
-
-            try
-            {
-                Main.DebugLog(() => "Loading Scharfenberg assets");
-                schakuClosedPrefab = LoadPrefabFromBundle(bundle, "Schaku_closed");
-                schakuOpenPrefab = LoadPrefabFromBundle(bundle, "Schaku_open");
-
-                if (schakuClosedPrefab == null)
-                    Main.ErrorLog(() => "Failed to load 'Schaku_closed' prefab for Scharfenberg coupler");
-
-                if (schakuOpenPrefab == null)
-                    Main.ErrorLog(() => "Failed to load 'Schaku_open' prefab for Scharfenberg coupler");
-            }
-            finally
-            {
-                bundle.Unload(false);
-            }
+            var currentProfile = CouplerProfiles.Current;
+            if (currentProfile == null) return false;
+            return profileAssetCache.ContainsKey(currentProfile.ProfileId);
         }
 
         /// <summary>
-        /// Loads LAP coupler assets from LAP.assetbundle.
+        /// Check if assets are loaded for a specific profile
         /// </summary>
-        private static void LoadLAPAssets()
+        public static bool AreAssetsLoaded(ICouplerProfile profile)
         {
-            string bundlePath = Path.Combine(assetsFolder, "LAP.assetbundle");
-            var bundle = LoadAssetBundle(bundlePath);
-            if (bundle == null) return;
+            return profileAssetCache.ContainsKey(profile.ProfileId);
+        }
 
-            try
-            {
-                Main.DebugLog(() => "Loading LAP assets");
-                lapClosedPrefab = LoadPrefabFromBundle(bundle, "LaP_closed");
-                lapOpenPrefab = LoadPrefabFromBundle(bundle, "LaP_open");
-                lapLinkPrefab = LoadPrefabFromBundle(bundle, "LaP_link");
-
-                if (lapClosedPrefab == null)
-                    Main.ErrorLog(() => "Failed to load 'LaP_closed' prefab for LAP coupler");
-
-                if (lapOpenPrefab == null)
-                    Main.ErrorLog(() => "Failed to load 'LaP_open' prefab for LAP coupler");
-
-                if (lapLinkPrefab == null)
-                    Main.ErrorLog(() => "Failed to load 'LaP_link' prefab for LAP coupler link hardware");
-            }
-            finally
-            {
-                bundle.Unload(false);
-            }
+        /// <summary>
+        /// Check if assets are loaded for a specific profile ID
+        /// </summary>
+        public static bool AreAssetsLoaded(string profileId)
+        {
+            return profileAssetCache.ContainsKey(profileId);
         }
 
         /// <summary>
@@ -309,7 +216,7 @@ namespace DvMod.ZCouplers.Visuals
         {
             try
             {
-                // Try direct name first (works if asset was explicitly named)
+                // Try direct name first
                 var go = bundle.LoadAsset<GameObject>(desiredName);
                 if (go != null)
                 {
@@ -317,10 +224,10 @@ namespace DvMod.ZCouplers.Visuals
                     return go;
                 }
 
-                // Scan all asset names (lowercased paths like "assets/prefabs/foo.prefab")
+                // Scan all asset names
                 string[] names;
                 try { names = bundle.GetAllAssetNames(); }
-                catch { names = Array.Empty<string>(); }
+                catch { names = []; }
 
                 if (names.Length == 0)
                 {
@@ -328,7 +235,7 @@ namespace DvMod.ZCouplers.Visuals
                     return null;
                 }
 
-                // Match by filename without extension, then by path ending, then by contains
+                // Match by filename
                 var match = names.FirstOrDefault(p => string.Equals(Path.GetFileNameWithoutExtension(p), desiredName, StringComparison.OrdinalIgnoreCase))
                          ?? names.FirstOrDefault(p => p.EndsWith("/" + desiredName + ".prefab", StringComparison.OrdinalIgnoreCase))
                          ?? names.FirstOrDefault(p => p.IndexOf(desiredName, StringComparison.OrdinalIgnoreCase) >= 0 && p.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase));
@@ -354,22 +261,11 @@ namespace DvMod.ZCouplers.Visuals
         }
 
         /// <summary>
-        /// Clean up all asset references.
-        /// Called during mod unload.
+        /// Cleanup all cached assets.
         /// </summary>
         public static void Cleanup()
         {
-            aarClosedPrefab = null;
-            aarOpenPrefab = null;
-            aarSocketPrefab = null;
-            sa3ClosedPrefab = null;
-            sa3OpenPrefab = null;
-            sa3SocketPrefab = null;
-            schakuClosedPrefab = null;
-            schakuOpenPrefab = null;
-            lapClosedPrefab = null;
-            lapOpenPrefab = null;
-            lapLinkPrefab = null;
+            profileAssetCache.Clear();
         }
     }
 }
