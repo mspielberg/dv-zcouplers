@@ -525,7 +525,8 @@ public static class BufferVisualManager
 
             if (trainCar?.interior != null)
             {
-                ProcessSingleInteriorObject(trainCar.interior.gameObject, livery.id, visible);
+	            ProcessSingleInteriorObject(trainCar.interior.gameObject, livery.id,
+		            trainCar._isCaboose == true || visible);
             }
             else
             {
@@ -689,9 +690,10 @@ public static class BufferVisualManager
         // Use the TrainCar's interior Transform reference - this points to the actual interior GameObject
         Transform interiorTransform = car.interior;
 
-        if (interiorTransform != null)
+        if (interiorTransform != null && car._isCaboose == false)
         {
-            ProcessSingleInteriorObject(interiorTransform.gameObject, car.carLivery.id, visible);
+	        ProcessSingleInteriorObject(interiorTransform.gameObject, car.carLivery.id,
+		        car._isCaboose == true || visible);
         }
         else
         {
@@ -767,7 +769,7 @@ public static class BufferVisualManager
                 if (parts.Length > 0)
                 {
                     string liveryId = parts[0];
-                    ProcessSingleInteriorObject(interior, liveryId, visible);
+                    ProcessSingleInteriorObject(interior, liveryId, interior.name.Contains("Caboose") || visible);
                     processedInteriors++;
                 }
             }
