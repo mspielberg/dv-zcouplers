@@ -117,6 +117,8 @@ public static class BufferCollisionManager
 	            // If no name pattern matches, try to identify a rectangular pattern of colliders
                 if (!foundColliders)
                 {
+	                // Skip for LocoDH4 since it has no buffer colliders
+	                if (liveryId.Contains("LocoDH4")) return;
 	                var allColliders = oldGroup.GetComponentsInChildren<Collider>(true)
 		                .Where(c => c is not MeshCollider) // Exclude mesh colliders
 		                .ToList();
