@@ -47,7 +47,7 @@ namespace DvMod.ZCouplers.Core
         {
             // Draw coupler profile popup dropdown
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Coupler Profile: ", GUILayout.Width(200));
+            GUILayout.Label("Coupler Profile: ", GUILayout.Width(120));
 
             var couplerProfiles = CouplerProfiles.GetAllProfiles().ToArray();
             var names = couplerProfiles.Select(p => p.DisplayName).ToArray();
@@ -58,7 +58,9 @@ namespace DvMod.ZCouplers.Core
 
             // Use PopupToggleGroup for a dropdown (requires ref parameter)
             int newIndex = currentIndex;
+            GUILayout.BeginVertical(GUILayout.Width(150));
             UnityModManager.UI.PopupToggleGroup(ref newIndex, names);
+            GUILayout.EndVertical();
 
             if (newIndex != currentIndex && newIndex >= 0 && newIndex < ids.Length)
             {
