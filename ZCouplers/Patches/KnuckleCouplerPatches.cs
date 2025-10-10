@@ -833,7 +833,7 @@ namespace DvMod.ZCouplers.Patches
 
                 try
                 {
-                    BufferVisualManager.ApplyBufferCollidersForCar(trainCar);
+                    BufferCollisionManager.ApplyBufferCollidersForCar(trainCar);
                 }
                 catch (System.Exception ex)
                 {

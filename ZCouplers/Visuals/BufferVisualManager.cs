@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using DV;
 using DV.ThingTypes;
 using DV.Utils;
 using DvMod.ZCouplers.Core;
+using DvMod.ZCouplers.Physics;
 using UnityEngine;
 
 namespace DvMod.ZCouplers.Visuals;
@@ -95,7 +97,15 @@ public static class BufferVisualManager
 		ToggleCCLBufferStemsByMarker(root, livery, visible);
 		ToggleDamageBufferStems(root, livery, visible);
         // Apply buffer stem collider management
-        ToggleBufferStemColliders(root, livery, visible);
+                var trainCar = TrainCar.Resolve(root);
+        if (trainCar != null)
+        {
+            BufferCollisionManager.ApplyBufferCollidersForCar(trainCar);
+        }
+        else
+        {
+            Main.DebugLog(() => $"TrainCar.Resolve(root) returned null in ToggleBuffers for livery {livery.id}");
+        }
     }
 
     private static void ToggleBufferVisuals(Transform buffers, TrainCarLivery livery, bool visible)
@@ -504,306 +514,5 @@ public static class BufferVisualManager
 	    return name.IndexOf(needle, StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
-    /// <summary>
-    /// Toggle buffer stem colliders to prevent collision when buffers are hidden.
-    /// Disables MeshCollider/Exterior components under [interior]/[walkable]/ when [old] group exists,
-    /// and disables Capsule (4-7) components under [walkable].
-    /// </summary>
-    private static void ToggleBufferStemColliders(GameObject root, TrainCarLivery livery, bool visible)
-    {
-        try
-        {
-            // Skip collider management for prefabs - only handle live cars in the scene
-            if (root.scene.name == null || root.scene.name.Length == 0)
-            {
-                // This is a prefab, not a live car in the scene
-                return;
-            }
 
-            // Get the TrainCar component to access its interior Transform reference
-            TrainCar trainCar = root.GetComponent<TrainCar>();
-
-            if (trainCar?.interior != null)
-            {
-	            ProcessSingleInteriorObject(trainCar.interior.gameObject, livery.id,
-		            trainCar._isCaboose == true || visible);
-            }
-            else
-            {
-                Main.DebugLog(() => $"No TrainCar component or interior found for {livery.id} - skipping collider management");
-                return;
-            }
-        }
-        catch (Exception ex)
-        {
-            Main.ErrorLog(() => $"Error in ToggleBufferStemColliders for {livery.id}: {ex.Message}");
-        }
-    }
-
-    /// <summary>
-    /// Process a single interior GameObject for buffer stem collider management
-    /// </summary>
-    private static void ProcessSingleInteriorObject(GameObject interiorGO, string liveryId, bool visible)
-    {
-        try
-        {
-            Transform interior = interiorGO.transform;
-
-            // Find the walkable transform under interior
-            Transform walkable = interior.Find("[walkable]");
-            if (walkable == null)
-            {
-                Main.DebugLog(() => $"No [walkable] found under interior for {liveryId} - skipping");
-                return;
-            }
-
-            bool foundOldGroup = false;
-            bool foundColliders = false;
-
-            // Check if there's an [old] group under walkable
-            Transform oldGroup = walkable.Find("[old]");
-            if (oldGroup != null)
-            {
-                foundOldGroup = true;
-                // Enable/disable the [old] group based on buffer visibility state
-                // When buffers are hidden (!visible), enable the [old] group
-                bool oldGroupNewState = !visible;
-                oldGroup.gameObject.SetActive(oldGroupNewState);
-
-                // Look for MeshCollider, Exterior, and any buffer-related components under walkable to disable
-                var allMeshColliders = walkable.GetComponentsInChildren<MeshCollider>(true); // Include inactive
-                var exteriorObjects = walkable.GetComponentsInChildren<Transform>(true)
-                    .Where(t => t.name.Equals("Exterior", StringComparison.OrdinalIgnoreCase));
-
-                // Find all Transform objects that might be buffer-related by name patterns
-                var bufferRelatedObjects = walkable.GetComponentsInChildren<Transform>(true)
-                    .Where(t => IsBufferRelatedName(t.name));
-
-                foreach (var collider in allMeshColliders)
-                {
-                    if (oldGroup == null || (collider.transform != oldGroup && !IsChildOf(collider.transform, oldGroup)))
-                    {
-                        collider.enabled = visible;
-                        foundColliders = true;
-                    }
-                }
-
-                foreach (var exterior in exteriorObjects)
-                {
-                    if (oldGroup == null || (exterior != oldGroup && !IsChildOf(exterior, oldGroup)))
-                    {
-                        exterior.gameObject.SetActive(visible);
-                        foundColliders = true;
-                    }
-                }
-
-                // Process buffer-related objects (like DM1U buffers in "[old]/Buffers", Microshunter "hood F/Buffer", etc.)
-                foreach (var bufferObj in bufferRelatedObjects)
-                {
-                    if (oldGroup == null || IsChildOf(bufferObj, oldGroup))
-                    {
-                        // Handle buffer objects that have any type of colliders (MeshCollider, CapsuleCollider, BoxCollider, etc.)
-                        var bufferColliders = bufferObj.GetComponentsInChildren<Collider>(true);
-                        foreach (var collider in bufferColliders)
-                        {
-                            collider.enabled = visible;
-                        }
-
-                        // Handle buffer GameObjects themselves
-                        bufferObj.gameObject.SetActive(visible);
-                        foundColliders = true;
-                    }
-                }
-            }
-
-            // Disable Capsule (4) to Capsule (7) components under [walkable]
-            var capsuleColliders = walkable.GetComponentsInChildren<CapsuleCollider>(true); // Include inactive
-
-            foreach (var capsule in capsuleColliders)
-            {
-                string name = capsule.name;
-                if (name.ToLower().StartsWith("capsule"))
-                {
-
-                    bool wasEnabled = capsule.enabled;
-                    capsule.enabled = visible;
-                    foundColliders = true;
-
-                }
-            }
-
-            if (!foundOldGroup && !foundColliders)
-            {
-                Main.ErrorLog(() => $"No [old] group or relevant colliders found under interior/[walkable]/ for {liveryId}");
-            }
-        }
-        catch (Exception ex)
-        {
-            Main.ErrorLog(() => $"Error in ProcessSingleInteriorObject for {liveryId}: {ex.Message}");
-        }
-    }
-
-    /// <summary>
-    /// Helper method to check if a transform is a child of another transform
-    /// </summary>
-    private static bool IsChildOf(Transform child, Transform parent)
-    {
-        if (child == null || parent == null) return false;
-
-        Transform current = child.parent;
-        while (current != null)
-        {
-            if (current == parent) return true;
-            current = current.parent;
-        }
-        return false;
-    }
-
-    /// <summary>
-    /// Helper method to get the full path of a GameObject in the hierarchy
-    /// </summary>
-    private static string GetGameObjectPath(GameObject obj)
-    {
-        if (obj == null) return "null";
-
-        string path = obj.name;
-        Transform parent = obj.transform.parent;
-        while (parent != null)
-        {
-            path = parent.name + "/" + path;
-            parent = parent.parent;
-        }
-        return path;
-    }
-
-    /// <summary>
-    /// Apply buffer stem collider management for a specific train car
-    /// </summary>
-    public static void ApplyBufferCollidersForCar(TrainCar car)
-    {
-        if (car == null) return;
-
-        bool visible = BuffersCurrentlyVisible;
-        string liveryId = car.carLivery.id;
-        bool isLocomotive = liveryId.StartsWith("Loco");
-
-        // Use the TrainCar's interior Transform reference - this points to the actual interior GameObject
-        Transform interiorTransform = car.interior;
-
-        if (interiorTransform != null && car._isCaboose == false)
-        {
-	        ProcessSingleInteriorObject(interiorTransform.gameObject, car.carLivery.id,
-		        car._isCaboose == true || visible);
-        }
-        else
-        {
-            Main.DebugLog(() => $"No car.interior found for car {car.ID} ({liveryId})");
-        }
-    }
-
-    /// <summary>
-    /// Apply buffer stem collider management for all cars in the scene
-    /// </summary>
-    public static void ApplyBufferCollidersForAllCars()
-    {
-        var spawner = SingletonBehaviour<CarSpawner>.Instance;
-        if (spawner == null) return;
-
-        bool visible = BuffersCurrentlyVisible;
-        int totalCars = spawner.allCars.Count;
-        int processedCars = 0;
-        int skippedCars = 0;
-
-        // First, process all TrainCar instances
-        foreach (TrainCar car in spawner.allCars)
-        {
-            if (car != null)
-            {
-                try
-                {
-                    ApplyBufferCollidersForCar(car);
-                    processedCars++;
-                }
-                catch (System.Exception ex)
-                {
-                    Main.ErrorLog(() => $"Error processing car {car.ID} ({car.carLivery.id}): {ex.Message}");
-                    skippedCars++;
-                }
-            }
-            else
-            {
-                skippedCars++;
-            }
-        }
-
-        Main.DebugLog(() => $"TrainCar processing completed: {processedCars} processed, {skippedCars} skipped out of {totalCars} total");
-
-        // CRITICAL: Also process ALL interior objects directly to catch any missed instances
-        ProcessAllInteriorObjects(visible);
-
-        if (skippedCars > 0)
-        {
-            Main.ErrorLog(() => $"WARNING: {skippedCars} cars were skipped during buffer collider management!");
-        }
-    }
-
-    /// <summary>
-    /// Process ALL interior objects in the scene directly, regardless of TrainCar association
-    /// This ensures we catch every single interior object, including orphaned ones
-    /// </summary>
-    private static void ProcessAllInteriorObjects(bool visible)
-    {
-        try
-        {
-            // Find ALL interior GameObjects in the scene
-            GameObject[] allInteriors = UnityEngine.Object.FindObjectsOfType<GameObject>()
-                .Where(go => go.name.Contains("(Clone) [interior]"))
-                .ToArray();
-
-            int processedInteriors = 0;
-
-            foreach (var interior in allInteriors)
-            {
-                // Extract livery ID from the name (e.g., "LocoDH4(Clone) [interior]" -> "LocoDH4")
-                string[] parts = interior.name.Split('(');
-                if (parts.Length > 0)
-                {
-                    string liveryId = parts[0];
-                    ProcessSingleInteriorObject(interior, liveryId, interior.name.Contains("Caboose") || visible);
-                    processedInteriors++;
-                }
-            }
-        }
-        catch (System.Exception ex)
-        {
-            Main.ErrorLog(() => $"Error in ProcessAllInteriorObjects: {ex.Message}");
-        }
-    }
-
-    /// <summary>
-    /// Check if a GameObject name suggests it's buffer-related
-    /// </summary>
-    private static bool IsBufferRelatedName(string name)
-    {
-        if (string.IsNullOrEmpty(name))
-            return false;
-
-        string nameLower = name.ToLowerInvariant();
-
-        // Common buffer-related name patterns based on different train types:
-        // - DM1U: "[old]/Buffers"
-        // - S060: "[old]/Exterior/buffer (4-7)"
-        // - S282A: "[old]/Exterior/buffer (4-5)"
-        // - Microshunter: "[old]/hood F/Buffer", "[old]/hood F/Buffer (1)", "[old]/hood R/Buffer", "[old]/hood R/Buffer (1)"
-
-        return nameLower.Contains("buffer") ||
-               nameLower.Contains("buffers") ||
-               nameLower.StartsWith("buffer") ||
-               nameLower.EndsWith("buffer") ||
-               // Pattern for named buffer groups like "hood F/Buffer", "hood R/Buffer"
-               (nameLower.Contains("hood") && nameLower.Contains("buffer")) ||
-               // Additional patterns for different locomotive types
-               nameLower == "buffers" || // DM1U case
-               (nameLower.Contains("exterior") && nameLower.Contains("buffer")); // S060/S282A case
-    }
 }

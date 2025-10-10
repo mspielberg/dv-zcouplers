@@ -255,7 +255,9 @@ namespace DvMod.ZCouplers.Core
                 yield return new UnityEngine.WaitForFixedUpdate();
             }
 
-            BufferVisualManager.ApplyBufferCollidersForAllCars();
+            if (CarSpawner.Instance == null) yield break;
+            foreach (var car in CarSpawner.Instance.allCars)
+				BufferCollisionManager.ApplyBufferCollidersForCar(car);
         }
         private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
