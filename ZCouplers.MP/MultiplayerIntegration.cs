@@ -116,6 +116,8 @@ namespace DvMod.ZCouplers
                 client.RegisterPacket<CouplerStateSync>(OnClientCouplerStateSync);
                 client.RegisterPacket<JointCreate>(OnClientJointCreate);
                 client.RegisterPacket<JointDestroy>(OnClientJointDestroy);
+                client.RegisterPacket<RecouplingBlock>(OnClientRecouplingBlock);
+                client.RegisterPacket<RecouplingUnblock>(OnClientRecouplingUnblock);
                 Main.DebugLog(() => "[MP] Client integration ready");
             }
             catch (Exception e)
@@ -286,7 +288,7 @@ namespace DvMod.ZCouplers
         // Host: send a joint create to a specific player
         private static void SendJointCreateToPlayer(Coupler a, Coupler b, JointKind kind, IPlayer player)
         {
-            if (MultiplayerAPI.Server == null || a == null || b == null || player == null)
+            if (MultiplayerAPI.Server == null || a == null || b == null)
                 return;
             if (!TryGetCarNetId(a.train, out var aId) || !TryGetCarNetId(b.train, out var bId))
                 return;
@@ -307,7 +309,7 @@ namespace DvMod.ZCouplers
         /// </summary>
         private static void SendCouplerStateToPlayer(Coupler coupler, IPlayer player)
         {
-            if (coupler == null || MultiplayerAPI.Server == null || player == null)
+            if (coupler == null || MultiplayerAPI.Server == null)
                 return;
 
             if (!TryGetCarNetId(coupler.train, out var carId))
@@ -509,7 +511,7 @@ namespace DvMod.ZCouplers
             netId = 0;
             var ok = MultiplayerAPI.Instance?.TryGetNetId(car, out netId) == true;
             if (!ok)
-                Main.DebugLog(() => $"[MP] NetId not found for TrainCar {car?.ID}");
+                Main.DebugLog(() => $"[MP] NetId not found for TrainCar {car.ID}");
             return ok;
         }
 
@@ -537,6 +539,96 @@ namespace DvMod.ZCouplers
             {
                 lastState[coupler] = state;
                 BroadcastCouplerState(coupler);
+            }
+        }
+
+        // -------- Recoupling Prevention Sync --------
+
+        /// <summary>
+        /// Host: Broadcast that a coupler pair should be blocked from recoupling.
+        /// </summary>
+        public static void HostBroadcastRecouplingBlock(Coupler a, Coupler b)
+        {
+            if (MultiplayerAPI.Server == null || a == null || b == null)
+                return;
+            if (!TryGetCarNetId(a.train, out var aId) || !TryGetCarNetId(b.train, out var bId))
+                return;
+
+            var packet = new RecouplingBlock
+            {
+                ACarNetId = aId,
+                AIsFront = a.isFrontCoupler,
+                BCarNetId = bId,
+                BIsFront = b.isFrontCoupler,
+                Tick = MultiplayerAPI.Instance?.CurrentTick ?? 0,
+            };
+
+            MultiplayerAPI.Server.SendPacketToAll(packet, reliable: true);
+            Main.DebugLog(() => $"[MP] Host broadcast recoupling block: {a.train.ID} <-> {b.train.ID}");
+        }
+
+        /// <summary>
+        /// Host: Broadcast that a coupler pair should be unblocked and allowed to recouple.
+        /// </summary>
+        public static void HostBroadcastRecouplingUnblock(Coupler a, Coupler b)
+        {
+            if (MultiplayerAPI.Server == null || a == null || b == null)
+                return;
+            if (!TryGetCarNetId(a.train, out var aId) || !TryGetCarNetId(b.train, out var bId))
+                return;
+
+            var packet = new RecouplingUnblock
+            {
+                ACarNetId = aId,
+                AIsFront = a.isFrontCoupler,
+                BCarNetId = bId,
+                BIsFront = b.isFrontCoupler,
+                Tick = MultiplayerAPI.Instance?.CurrentTick ?? 0,
+            };
+
+            MultiplayerAPI.Server.SendPacketToAll(packet, reliable: true);
+            Main.DebugLog(() => $"[MP] Host broadcast recoupling unblock: {a.train.ID} <-> {b.train.ID}");
+        }
+
+        /// <summary>
+        /// Client: Apply a recoupling block from the host.
+        /// </summary>
+        private static void OnClientRecouplingBlock(RecouplingBlock packet)
+        {
+            if (!TryResolveCoupler(packet.ACarNetId, packet.AIsFront, out var a)) return;
+            if (!TryResolveCoupler(packet.BCarNetId, packet.BIsFront, out var b)) return;
+
+            try
+            {
+                // Directly add to blockedPairs - no need for a separate method
+                var pair = new RecouplingPrevention.CouplerPair(a, b);
+                RecouplingPrevention.blockedPairs.Add(pair);
+                Main.DebugLog(() => $"[MP] Client applied recoupling block: {a.train.ID} <-> {b.train.ID}");
+            }
+            catch (Exception e)
+            {
+                Main.ErrorLog(() => $"[MP] Client recoupling block failed: {e.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Client: Apply a recoupling unblock from the host.
+        /// </summary>
+        private static void OnClientRecouplingUnblock(RecouplingUnblock packet)
+        {
+            if (!TryResolveCoupler(packet.ACarNetId, packet.AIsFront, out var a)) return;
+            if (!TryResolveCoupler(packet.BCarNetId, packet.BIsFront, out var b)) return;
+
+            try
+            {
+                // Directly remove from blockedPairs - no need for a separate method
+                var pair = new RecouplingPrevention.CouplerPair(a, b);
+                RecouplingPrevention.blockedPairs.Remove(pair);
+                Main.DebugLog(() => $"[MP] Client applied recoupling unblock: {a.train.ID} <-> {b.train.ID}");
+            }
+            catch (Exception e)
+            {
+                Main.ErrorLog(() => $"[MP] Client recoupling unblock failed: {e.Message}");
             }
         }
     }

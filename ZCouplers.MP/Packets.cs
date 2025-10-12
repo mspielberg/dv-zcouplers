@@ -59,4 +59,28 @@ namespace DvMod.ZCouplers
 		public JointKind Kind { get; set; }
 		public uint Tick { get; set; }
 	}
+
+	/// <summary>
+	/// Server -> Clients: Block a coupler pair from recoupling.
+	/// </summary>
+	public class RecouplingBlock : IPacket
+	{
+		public ushort ACarNetId { get; set; }
+		public bool AIsFront { get; set; }
+		public ushort BCarNetId { get; set; }
+		public bool BIsFront { get; set; }
+		public uint Tick { get; set; }
+	}
+
+	/// <summary>
+	/// Server -> Clients: Unblock a coupler pair, allowing recoupling.
+	/// </summary>
+	public class RecouplingUnblock : IPacket
+	{
+		public ushort ACarNetId { get; set; }
+		public bool AIsFront { get; set; }
+		public ushort BCarNetId { get; set; }
+		public bool BIsFront { get; set; }
+		public uint Tick { get; set; }
+	}
 }
