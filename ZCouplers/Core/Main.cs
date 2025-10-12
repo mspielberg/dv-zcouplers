@@ -84,6 +84,7 @@ public static class Main
 
         KnuckleCouplers.Initialize();
         mod.Logger.Log($"Loaded ZCouplers with profile: {Main.settings.couplerProfile?.DisplayName ?? Main.settings.selectedCoupler}");
+        MpShim.TryInitialize(modEntry);
         return true;
     }
 
