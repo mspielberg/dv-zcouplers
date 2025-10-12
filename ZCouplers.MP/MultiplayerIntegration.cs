@@ -39,7 +39,8 @@ namespace DvMod.ZCouplers
         // Build an ordered pair key from two endpoints
         private static string PairKey(ushort id1, bool f1, ushort id2, bool f2)
         {
-            int s1 = f1 ? 1 : 0; int s2 = f2 ? 1 : 0;
+            int s1 = f1 ? 1 : 0;
+            int s2 = f2 ? 1 : 0;
             if (id2 < id1 || (id2 == id1 && s2 < s1))
             {
                 (id1, id2) = (id2, id1);
@@ -407,6 +408,7 @@ namespace DvMod.ZCouplers
                         try
                         {
                             a?.CoupleTo(b, viaChainInteraction: true);
+                            Main.DebugLog(() => $"CoupleTo {a?.train.ID} <-> {b?.train.ID} (client)");
                         }
                         finally
                         {

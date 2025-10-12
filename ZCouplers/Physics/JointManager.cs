@@ -20,7 +20,7 @@ namespace DvMod.ZCouplers.Physics
         private const float MinJointCreationInterval = 2.0f; // Minimum seconds between joint creation attempts
 
         // Buffer joint tracking
-        internal static readonly Dictionary<Coupler, (Coupler otherCoupler, ConfigurableJoint joint)> bufferJoints =
+        public static readonly Dictionary<Coupler, (Coupler otherCoupler, ConfigurableJoint joint)> bufferJoints =
             new Dictionary<Coupler, (Coupler otherCoupler, ConfigurableJoint joint)>();
 
         private const float LooseChainLength = 1.0f;
