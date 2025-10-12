@@ -1,9 +1,8 @@
-using DV;
+using System.Collections.Generic;
 using DvMod.ZCouplers.Core;
 using DvMod.ZCouplers.Core.Helpers;
 using HarmonyLib;
 using UnityEngine;
-using System.Collections.Generic;
 
 namespace DvMod.ZCouplers.Physics
 {
@@ -30,19 +29,19 @@ namespace DvMod.ZCouplers.Physics
             {
                 // Create fake buffer collider like the game does
                 var fakeCollider = coupler.gameObject.AddComponent<BoxCollider>();
-                
+
                 // Use same dimensions as game: 2.178126f x 0.45f x 1f
                 fakeCollider.size = new Vector3(2.178126f, 0.45f, 1f);
                 fakeCollider.center = new Vector3(0f, 0f, -0.6f);
-                
+
                 // Set to Train_Big_Collider layer like the game
                 fakeCollider.gameObject.layer = LayerMask.NameToLayer("Train_Big_Collider");
-                
+
                 // Start disabled - will be enabled when needed
                 fakeCollider.enabled = false;
-                
+
                 fakeBufferColliders[coupler] = fakeCollider;
-                
+
                 Main.DebugLog(() => $"Created fake buffer collider for {coupler.train.ID} {coupler.Position()}");
                 return fakeCollider;
             }

@@ -1,12 +1,12 @@
 using System;
-using DV;
+using System.Linq;
+using System.Runtime.CompilerServices;
 using DvMod.ZCouplers.Core.Profiles;
 using DvMod.ZCouplers.Core.Utils;
+using DvMod.ZCouplers.Patches;
 using DvMod.ZCouplers.Physics;
 using DvMod.ZCouplers.Visuals;
-using DvMod.ZCouplers.Patches;
 using HarmonyLib;
-
 using UnityEngine;
 using UnityModManagerNet;
 
@@ -18,31 +18,51 @@ public static class Main
     public static UnityModManager.ModEntry? mod;
     public static Harmony? harmony;
 
-	public static Settings settings = new Settings();
+    public static Settings settings = null!; // Will be initialized in Load() after profiles are registered
 
     public static bool Load(UnityModManager.ModEntry modEntry)
     {
         mod = modEntry;
+
+        // Register coupler profiles FIRST before loading settings
+        RegisterCouplerProfilesAutomatically();
+
         try
         {
-            Settings settings = UnityModManager.ModSettings.Load<Settings>(modEntry);
-            if (settings != null)
+            Settings currentSettings = UnityModManager.ModSettings.Load<Settings>(modEntry);
+            if (currentSettings != null)
             {
-                Main.settings = settings;
+                Main.settings = currentSettings;
+                // Validate that the loaded profile ID exists, otherwise use first available
+                if (CouplerProfiles.GetById(Main.settings.selectedCoupler) == null)
+                {
+                    Main.settings.selectedCoupler = CouplerProfiles.GetAllProfileIds().FirstOrDefault() ?? "AAR";
+                    modEntry.Logger.Log($"Invalid profile ID in settings, defaulting to: {Main.settings.selectedCoupler}");
+                }
+                // Initialize the lastCouplerProfile to current value to track future changes
+                Main.settings.lastCouplerProfile = Main.settings.couplerProfile;
                 modEntry.Logger.Log("Loaded existing settings");
             }
             else
             {
                 Main.settings = new Settings();
+                // Ensure we have a valid profile
+                Main.settings.selectedCoupler = CouplerProfiles.GetAllProfileIds().FirstOrDefault() ?? "AAR";
+                // Initialize the lastCouplerProfile to current value to track future changes
+                Main.settings.lastCouplerProfile = Main.settings.couplerProfile;
                 modEntry.Logger.Log("Created new settings (no existing file)");
             }
         }
         catch (Exception ex)
         {
             Main.settings = new Settings();
+            // Ensure we have a valid profile
+            Main.settings.selectedCoupler = CouplerProfiles.GetAllProfileIds().FirstOrDefault() ?? "AAR";
+            // Initialize the lastCouplerProfile to current value to track future changes
+            Main.settings.lastCouplerProfile = Main.settings.couplerProfile;
             modEntry.Logger.Log("Failed to load settings, using defaults: " + ex.Message);
         }
-        modEntry.OnGUI = Main.settings.Draw<Settings>;
+        modEntry.OnGUI = Main.settings.OnGUI;
         modEntry.OnSaveGUI = Main.settings.Save;
         modEntry.OnUnload = Unload;
         AppDomain.CurrentDomain.UnhandledException += delegate (object sender, UnhandledExceptionEventArgs e)
@@ -58,22 +78,55 @@ public static class Main
         };
         var harmonyInstance = new Harmony(modEntry.Info.Id);
         harmonyInstance.PatchAll();
-        
+
         // Store harmony instance for cleanup
         harmony = harmonyInstance;
-        
-        // Register coupler profiles (modular per-coupler files)
-        CouplerProfiles.Register(new AARKnuckleProfile());
-        CouplerProfiles.Register(new SA3Profile());
-        CouplerProfiles.Register(new SchakuProfile());
-        CouplerProfiles.Register(new LAPProfile());
 
-		KnuckleCouplers.Initialize();
-		// Initialize optional Multiplayer integration via runtime shim (no hard dependency)
-		MpShim.TryInitialize(modEntry);
-		mod.Logger.Log($"Loaded {Main.settings.couplerType}");
-		return true;
-	}
+        KnuckleCouplers.Initialize();
+        mod.Logger.Log($"Loaded ZCouplers with profile: {Main.settings.couplerProfile?.DisplayName ?? Main.settings.selectedCoupler}");
+        return true;
+    }
+
+    /// <summary>
+    /// Automatically discovers and registers all ICouplerProfile implementations via reflection.
+    /// This makes the system fully modular - just add a new profile class and it's automatically discovered.
+    /// </summary>
+    private static void RegisterCouplerProfilesAutomatically()
+    {
+        try
+        {
+            var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+            var profileType = typeof(ICouplerProfile);
+
+            // Find all types that implement ICouplerProfile and are not interfaces or abstract
+            var profileTypes = assembly.GetTypes()
+                .Where(t => profileType.IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract);
+
+            int count = 0;
+            foreach (var type in profileTypes)
+            {
+                try
+                {
+	                // Create an instance and register it
+	                if (System.Activator.CreateInstance(type) is not ICouplerProfile profile) continue;
+	                CouplerProfiles.Register(profile);
+                    mod?.Logger.Log($"Registered coupler profile: {profile.DisplayName} (ID: {profile.ProfileId})");
+                    count++;
+                }
+                catch (System.Exception ex)
+                {
+                    mod?.Logger.Error($"Failed to instantiate profile type {type.Name}: {ex.Message}");
+                }
+            }
+
+            mod?.Logger.Log($"Auto-registered {count} coupler profiles");
+        }
+        catch (System.Exception ex)
+        {
+            mod?.Logger.Error($"Error during automatic profile registration: {ex.Message}");
+            mod?.Logger.Error(ex.StackTrace);
+        }
+    }
 
     public static bool Unload(UnityModManager.ModEntry modEntry)
     {
@@ -81,11 +134,11 @@ public static class Main
         {
             // Restore original game state before cleanup
             RestoreOriginalState();
-            
+
             // Cleanup Harmony patches
             harmony?.UnpatchAll();
             harmony = null;
-            
+
             // Cleanup all systems in reverse order of initialization
             RecouplingPrevention.Shutdown();
             KnuckleCouplers.Cleanup();
@@ -93,17 +146,17 @@ public static class Main
             HookManager.Cleanup();
             LAPLinkManager.Cleanup();
             AssetManager.Cleanup();
-            
+
             // Cleanup patches static data
             UncouplePatch.Cleanup();
             KnuckleCouplerPatches.Cleanup();
-            
+
             // Cleanup save system
             SaveManager.Cleanup();
-            
+
             // Cleanup profile registry
             CouplerProfiles.Cleanup();
-            
+
             modEntry.Logger.Log("ZCouplers unloaded successfully");
         }
         catch (System.Exception ex)
@@ -111,7 +164,7 @@ public static class Main
             modEntry.Logger.Error($"Error during ZCouplers unload: {ex.Message}");
             modEntry.Logger.Error(ex.StackTrace);
         }
-        
+
         return true;
     }
 
@@ -124,7 +177,7 @@ public static class Main
         {
             // Remove all GameObjHider components from all objects
             CleanupGameObjHiders();
-            
+
             if (CarSpawner.Instance?.allCars == null)
                 return;
 
@@ -134,13 +187,13 @@ public static class Main
 
                 // Restore air hoses and remove GameObjHider components
                 RestoreAirHoses(car);
-                
+
                 // Restore buffer visibility
                 RestoreBuffers(car);
-                
+
                 // Re-enable coupler components that may have been disabled
                 RestoreCouplerComponents(car);
-                
+
                 // Reset coupler states to vanilla
                 ResetCouplerStates(car);
             }
@@ -166,13 +219,13 @@ public static class Main
                     // Restore the object before destroying the component
                     var gameObj = hider.gameObject;
                     gameObj.SetActive(true);
-                    
+
                     var renderers = gameObj.GetComponentsInChildren<MeshRenderer>(true);
                     foreach (var renderer in renderers)
                     {
                         renderer.enabled = true;
                     }
-                    
+
                     UnityEngine.Object.Destroy(hider);
                 }
             }
@@ -204,7 +257,7 @@ public static class Main
 
                 // Restore visibility
                 hosesTransform.gameObject.SetActive(true);
-                
+
                 // Restore renderer components
                 var renderers = hosesTransform.GetComponentsInChildren<MeshRenderer>(true);
                 foreach (var renderer in renderers)
@@ -295,24 +348,40 @@ public static class Main
         }
     }
 
-	public static void DebugLog(TrainCar car, Func<string> message)
-	{
-		if (car == PlayerManager.Car)
-		{
-			DebugLog(message);
-		}
-	}
+    public static void DebugLog(Func<string> message, [CallerFilePath] string sourceFilePath = "")
+    {
+        if (settings.enableLogging)
+        {
+            string prefix = GetLogPrefix(sourceFilePath);
+            mod?.Logger.Log(prefix + message());
+        }
+    }
 
-	public static void DebugLog(Func<string> message)
-	{
-		if (settings.enableLogging)
-		{
-			mod?.Logger.Log(message());
-		}
-	}
+    public static void ErrorLog(Func<string> message, [CallerFilePath] string sourceFilePath = "")
+    {
+        string prefix = GetLogPrefix(sourceFilePath);
+        mod?.Logger.Log(prefix + message());
+    }
 
-	public static void ErrorLog(Func<string> message)
-	{
-		mod?.Logger.Log(message());
-	}
+    /// <summary>
+    /// Get a log prefix in the format [ClassName] based on caller information.
+    /// </summary>
+    private static string GetLogPrefix(string sourceFilePath)
+    {
+        if (string.IsNullOrEmpty(sourceFilePath))
+            return "";
+
+        try
+        {
+            // Extract the file name without extension (e.g., "HookManager" from "HookManager.cs")
+            string fileName = System.IO.Path.GetFileNameWithoutExtension(sourceFilePath);
+
+            // Return formatted prefix
+	        return $"[{fileName}] ";
+        }
+        catch
+        {
+            return "";
+        }
+    }
 }

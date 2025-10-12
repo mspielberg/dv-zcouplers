@@ -4,7 +4,7 @@
     <LangVersion>12.0</LangVersion>
     <Nullable>enable</Nullable>
     <RootNamespace>DvMod.ZCouplers</RootNamespace>
-    <InformationalVersion>2.2.2</InformationalVersion>
+    <InformationalVersion>2.3.1</InformationalVersion>
     <!-- Prevent copying dependencies to output directory -->
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
     <PrivateAssets>all</PrivateAssets>
@@ -20,7 +20,9 @@
     <Reference Include="UnityEngine.AssetBundleModule" Private="false"/>
     <Reference Include="UnityEngine.AudioModule" Private="false"/>
     <Reference Include="UnityEngine.CoreModule" Private="false"/>
+    <Reference Include="UnityEngine.IMGUIModule" Private="false"/>
     <Reference Include="UnityEngine.PhysicsModule" Private="false"/>
+	<Reference Include="UnityEngine" Private="false"/>
   </ItemGroup>
 
   <ItemGroup>

@@ -1,4 +1,6 @@
 ﻿using System;
+using DvMod.ZCouplers.Core;
+using DvMod.ZCouplers.Visuals;
 using HarmonyLib;
 using DvMod.ZCouplers.Core;
 using DvMod.ZCouplers.Visuals;

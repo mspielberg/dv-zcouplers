@@ -1,9 +1,7 @@
 using System;
-using System.Reflection;
 using HarmonyLib;
-using DV;
 using DvMod.ZCouplers.Core;
-using DvMod.ZCouplers.Visuals;
+using DvMod.ZCouplers.Physics;
 using UnityEngine;
 
 namespace DvMod.ZCouplers.Patches
@@ -36,7 +34,7 @@ namespace DvMod.ZCouplers.Patches
                     if (car != null)
                     {
                         Main.DebugLog(() => $"Detected [walkable] GameObject activation for car {car.ID}, re-applying buffer collider management");
-                        BufferVisualManager.ApplyBufferCollidersForCar(car);
+                        BufferCollisionManager.ApplyBufferCollidersForCar(car);
                     }
                 }
             }

@@ -1,14 +1,11 @@
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using UnityEngine;
-using DvMod.ZCouplers.Core;
-
 
 namespace DvMod.ZCouplers.Core.Utils
 {
     /// <summary>
-    /// Tracks recently uncoupled coupler pairs to prevent immediate recoupling 
+    /// Tracks recently uncoupled coupler pairs to prevent immediate recoupling
     /// until they've achieved minimum separation distance.
     /// </summary>
     public static class RecouplingPrevention
@@ -16,7 +13,7 @@ namespace DvMod.ZCouplers.Core.Utils
         /// <summary>
         /// Tracks coupler pairs that recently uncoupled and their uncoupling positions.
         /// </summary>
-        private static readonly Dictionary<CouplerPair, UncouplingRecord> recentlyUncoupled = 
+        private static readonly Dictionary<CouplerPair, UncouplingRecord> recentlyUncoupled =
             new Dictionary<CouplerPair, UncouplingRecord>();
 
         /// <summary>
@@ -80,8 +77,8 @@ namespace DvMod.ZCouplers.Core.Utils
 
             public override bool Equals(object obj)
             {
-                return obj is CouplerPair other && 
-                       coupler1 == other.coupler1 && 
+                return obj is CouplerPair other &&
+                       coupler1 == other.coupler1 &&
                        coupler2 == other.coupler2;
             }
 
@@ -109,7 +106,7 @@ namespace DvMod.ZCouplers.Core.Utils
                 {
                     coroutineRunner = UnityEngine.Object.FindObjectOfType<MonoBehaviour>();
                 }
-                
+
                 if (coroutineRunner != null && distanceCheckCoroutine == null)
                 {
                     distanceCheckCoroutine = coroutineRunner.StartCoroutine(DistanceCheckCoroutine());
@@ -151,17 +148,17 @@ namespace DvMod.ZCouplers.Core.Utils
         private static void UpdateBlockedPairs()
         {
             var toRemove = new List<CouplerPair>();
-            
+
             foreach (var kvp in recentlyUncoupled)
             {
                 var pair = kvp.Key;
                 var record = kvp.Value;
-                
+
                 try
                 {
                     var coupler1 = pair.GetCoupler1();
                     var coupler2 = pair.GetCoupler2();
-                    
+
                     if (coupler1 == null || coupler2 == null)
                     {
                         toRemove.Add(pair);
@@ -170,10 +167,10 @@ namespace DvMod.ZCouplers.Core.Utils
 
                     // Calculate current separation distance between the couplers
                     var currentDistance = Vector3.Distance(coupler1.transform.position, coupler2.transform.position);
-                    
+
                     // Get the initial distance when they uncoupled
                     var initialDistance = record.InitialDistance;
-                    
+
                     // Check if they've separated by the minimum required distance from their initial separation
                     var actualSeparation = currentDistance - initialDistance;
 
@@ -222,7 +219,7 @@ namespace DvMod.ZCouplers.Core.Utils
             blockedPairs.Add(pair); // Initially blocked
 
             Main.DebugLog(() => $"Recorded uncoupling: {coupler1.train.ID} <-> {coupler2.train.ID} at distance {initialDistance:F3}m");
-            
+
             // Ensure coroutine is running
             EnsureInitialized();
         }
@@ -248,7 +245,7 @@ namespace DvMod.ZCouplers.Core.Utils
                 return;
 
             var toRemove = new List<CouplerPair>();
-            
+
             foreach (var pair in recentlyUncoupled.Keys)
             {
                 try

@@ -55,8 +55,8 @@ namespace DvMod.ZCouplers.Core.Utils
 
             private IEnumerator ApplyStatesAfterDelay()
             {
-                // Wait longer for the native save system to restore coupler states
-                yield return new WaitForSeconds(3.0f);
+                // Wait for the game to finish loading cars and jobs
+                yield return new WaitUntil(() => AStartGameData.carsAndJobsLoadingFinished);
 
                 // Additional wait for physics frames to ensure everything is stable
                 for (int i = 0; i < 30; i++)

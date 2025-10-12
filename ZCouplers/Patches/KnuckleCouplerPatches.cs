@@ -227,7 +227,7 @@ namespace DvMod.ZCouplers.Patches
                                 var finalPosition = basePosition;
 
                                 // Apply SA3-specific offset if using SA3 couplers
-                                if (Main.settings.couplerType == CouplerType.SA3Knuckle)
+                                if (CouplerProfiles.Current == CouplerProfiles.GetById("SA3"))
                                 {
                                     // Move SA3 coupler head 0.035 units to the left
                                     finalPosition += new Vector3(-0.035f, 0f, 0f);
@@ -525,7 +525,7 @@ namespace DvMod.ZCouplers.Patches
                 // Check for the specific teleport bug: one coupler Parked, partner Attached_Tight, but both have joints
                 CheckCouplerForTeleportIssues(car.frontCoupler);
                 CheckCouplerForTeleportIssues(car.rearCoupler);
-                
+
                 // Also check coupled cars to ensure the fix is applied comprehensively
                 // This is important because TrainCar.Start might only be called for one car in a teleported consist
                 var processedCars = new HashSet<TrainCar> { car };
@@ -661,7 +661,7 @@ namespace DvMod.ZCouplers.Patches
                 __result.StartCoroutine(DelayedBufferColliderForCar(__result));
 
                 // If using Scharfenberg couplers, also deactivate air hoses on the newly spawned car
-                if (Main.settings.couplerType == CouplerType.Scharfenberg)
+                if (CouplerProfiles.Current != null && CouplerProfiles.Current.Options.AlwaysHideAirHoses)
                 {
                     __result.StartCoroutine(DelayedAirHoseDeactivationForCar(__result));
                 }
@@ -796,13 +796,13 @@ namespace DvMod.ZCouplers.Patches
                     // Deactivate air hoses on both couplers of the new car
                     if (trainCar.frontCoupler != null)
                     {
-                        KnuckleCouplers.DeactivateAirHoseForCoupler(trainCar.frontCoupler);
+                        HookManager.ToggleAirHose(trainCar.frontCoupler, false);
                         deactivatedCouplers++;
                     }
 
                     if (trainCar.rearCoupler != null)
                     {
-                        KnuckleCouplers.DeactivateAirHoseForCoupler(trainCar.rearCoupler);
+	                    HookManager.ToggleAirHose(trainCar.rearCoupler, false);
                         deactivatedCouplers++;
                     }
 
@@ -821,7 +821,7 @@ namespace DvMod.ZCouplers.Patches
             {
                 // Wait longer for the car and its interior to be fully initialized
                 yield return new UnityEngine.WaitForSeconds(2.0f);
-                
+
                 // Additional wait for physics frames
                 for (int i = 0; i < 10; i++)
                 {
@@ -833,7 +833,7 @@ namespace DvMod.ZCouplers.Patches
 
                 try
                 {
-                    BufferVisualManager.ApplyBufferCollidersForCar(trainCar);
+                    BufferCollisionManager.ApplyBufferCollidersForCar(trainCar);
                 }
                 catch (System.Exception ex)
                 {
@@ -916,7 +916,7 @@ namespace DvMod.ZCouplers.Patches
                     return true; // Let original method run when knuckle couplers are disabled
 
                 // Handle LAP coupler link destruction before uncoupling
-                if (Main.settings.couplerType == CouplerType.LAPCoupler && __instance.couplerAdapter?.coupler != null)
+                if (CouplerProfiles.Current == CouplerProfiles.GetById("LAP") && __instance.couplerAdapter?.coupler != null)
                 {
                     var thisCoupler = __instance.couplerAdapter.coupler;
                     var otherCoupler = thisCoupler.coupledTo;
@@ -1370,7 +1370,7 @@ namespace DvMod.ZCouplers.Patches
                 if (!KnuckleCouplers.enabled)
                     return true; // Let original method run when knuckle couplers are disabled
 
-                
+
                 // When knuckle couplers are enabled, handle knuckle coupler-specific text
                 if (infoType == HookManager.KnuckleCouplerReady)
                 {

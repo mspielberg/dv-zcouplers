@@ -104,7 +104,7 @@ namespace DvMod.ZCouplers.Core
         private static IEnumerator TriggerDeferredApplicationCoroutine()
         {
             // Wait for all cars to be loaded and physics to stabilize
-            yield return new WaitForSeconds(2.0f);
+            yield return new WaitUntil(() => AStartGameData.carsAndJobsLoadingFinished);
 
             // Wait for additional physics frames to ensure save loading is complete
             for (int i = 0; i < 20; i++)

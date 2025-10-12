@@ -1,51 +1,212 @@
-using DvMod.ZCouplers.Core.Helpers;
+using System;
+using System.Linq;
+using System.Xml.Serialization;
 using DvMod.ZCouplers.Core.Profiles;
+using UnityEngine;
 using UnityModManagerNet;
 
 namespace DvMod.ZCouplers.Core
 {
     public enum strengthPreset { Custom, Recommended }
+
     public class Settings : UnityModManager.ModSettings, IDrawable
     {
-        [Draw("Coupler type (requires restart)")]
-        public CouplerType couplerType = CouplerType.AARKnuckle;
+        // Property to get the actual profile object from the selected ID
+        [XmlIgnore]
+        public ICouplerProfile? couplerProfile => CouplerProfiles.GetById(selectedCoupler);
 
-        [Draw("Toggle Buffers Visuals", Tooltip = "Also modifies the physics to account for buffer absence")]
+        public string selectedCoupler = "";
         public bool showBuffersWithKnuckles = false;
-        [Draw(DrawType.ToggleGroup)]
         public strengthPreset strengthValues = strengthPreset.Recommended;
-        [Draw("Knuckle strength (Mn)", VisibleOn = "strengthValues|Custom", Min = 0.1f)]
         public float knuckleStrength = 1.78f;
-        [Draw("Tension spring rate (Mn/m)", VisibleOn = "strengthValues|Custom", Min = 0f)]
         public float drawgearSpringRate = 2f; // 2 MN/m = 2e6 N/m
-        [Draw("Compression damper rate (kN*s/m)", VisibleOn = "strengthValues|Custom", Min = 0f)]
         public float drawgearDamperRate = 100f;
-        [Draw("Auto couple threshold (mm)", Min = 0f)]
         public float autoCoupleThreshold = 20f;
-        [Draw("Minimum separation distance (m)", Min = 0.1f, Tooltip = "Minimum distance couplers must separate before they can recouple again")]
         public float minimumSeparationDistance = 1.0f;
 
-        [Draw("Auto Air & MU Mode", Tooltip = "Automatically connect air hoses, open brake valves, and connect MU cables when coupling. Enforced by Scharfenberg couplers.")]
         public bool autoAirAndMuMode = false;
-
-        [Draw("Auto Coupling Mode", Tooltip = "Automatically couple even when couplers are not ready. Enforced by Scharfenberg couplers.")]
         public bool autoCouplingMode = false;
 
         /// <summary>
         /// Gets the effective Auto Air & MU Mode setting, considering Scharfenberg coupler requirements.
         /// Scharfenberg couplers automatically force Auto Air & MU Mode to be active.
         /// </summary>
-        public bool EffectiveAutoAirAndMuMode => autoAirAndMuMode || couplerType == CouplerType.Scharfenberg;
+        [XmlIgnore]
+        public bool EffectiveAutoAirAndMuMode => autoAirAndMuMode || couplerProfile?.ProfileId == "Scharfenberg";
 
-        [Draw("Disable Front Couplers on S282")]
         public bool disableFrontCouplersOnSteamLocos = false;
 
-        [Draw("Enable debug logging")]
         public bool enableLogging = false;
-
-        [Draw("Enable error logging")]
         public bool enableErrorLogging = true;
+
+        [XmlIgnore]
         public readonly string? version = Main.mod?.Info.Version;
+
+        // Override OnGUI to draw all settings manually
+        public void OnGUI(UnityModManager.ModEntry modEntry)
+        {
+            // Draw coupler profile popup dropdown
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Coupler Profile: ", GUILayout.Width(120));
+
+            var couplerProfiles = CouplerProfiles.GetAllProfiles().ToArray();
+            var names = couplerProfiles.Select(p => p.DisplayName).ToArray();
+            var ids = couplerProfiles.Select(p => p.ProfileId).ToArray();
+
+            int currentIndex = Array.FindIndex(ids, id => id == selectedCoupler);
+            if (currentIndex < 0 && ids.Length > 0) currentIndex = 0;
+
+            // Use PopupToggleGroup for a dropdown (requires ref parameter)
+            int newIndex = currentIndex;
+            GUILayout.BeginVertical(GUILayout.Width(150));
+            UnityModManager.UI.PopupToggleGroup(ref newIndex, names);
+            GUILayout.EndVertical();
+
+            if (newIndex != currentIndex && newIndex >= 0 && newIndex < ids.Length)
+            {
+                selectedCoupler = ids[newIndex];
+                OnChange();
+            }
+
+            GUILayout.EndHorizontal();
+            GUILayout.Space(10);
+
+            // Toggle Buffers Visuals
+            var newShowBuffers = GUILayout.Toggle(showBuffersWithKnuckles, "Toggle Buffers Visuals");
+            if (newShowBuffers != showBuffersWithKnuckles)
+            {
+                showBuffersWithKnuckles = newShowBuffers;
+                OnChange();
+            }
+
+            GUILayout.Space(5);
+
+            // Strength preset toggle group
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Strength Values: ", GUILayout.ExpandWidth(false));
+            var newPreset = (strengthPreset)GUILayout.SelectionGrid((int)strengthValues,
+                new[] { "Custom", "Recommended" }, 2, GUILayout.ExpandWidth(false));
+            if (newPreset != strengthValues)
+            {
+                strengthValues = newPreset;
+                OnChange();
+            }
+            GUILayout.EndHorizontal();
+
+            // Custom strength values (only visible when Custom is selected)
+            if (strengthValues == strengthPreset.Custom)
+            {
+                GUILayout.Space(5);
+
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("Coupler strength (MN): ", GUILayout.Width(200));
+                var strengthStr = GUILayout.TextField(knuckleStrength.ToString("F2"), GUILayout.Width(100));
+                if (float.TryParse(strengthStr, out float newStrength) && newStrength >= 0.1f && Math.Abs(newStrength - knuckleStrength) > 0.001f)
+                {
+                    knuckleStrength = newStrength;
+                    OnChange();
+                }
+                GUILayout.EndHorizontal();
+
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("Tension spring rate (MN/m): ", GUILayout.Width(200));
+                var springStr = GUILayout.TextField(drawgearSpringRate.ToString("F2"), GUILayout.Width(100));
+                if (float.TryParse(springStr, out float newSpring) && newSpring >= 0f && Math.Abs(newSpring - drawgearSpringRate) > 0.001f)
+                {
+                    drawgearSpringRate = newSpring;
+                    OnChange();
+                }
+                GUILayout.Label(" (Needs recoupling or restart)", GUILayout.ExpandWidth(false));
+                GUILayout.EndHorizontal();
+
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("Compression damper rate (kN*s/m): ", GUILayout.Width(200));
+                var damperStr = GUILayout.TextField(drawgearDamperRate.ToString("F2"), GUILayout.Width(100));
+                if (float.TryParse(damperStr, out float newDamper) && newDamper >= 0f && Math.Abs(newDamper - drawgearDamperRate) > 0.001f)
+                {
+                    drawgearDamperRate = newDamper;
+                    OnChange();
+                }
+                GUILayout.Label(" (Needs recoupling or restart)", GUILayout.ExpandWidth(false));
+                GUILayout.EndHorizontal();
+            }
+
+            GUILayout.Space(10);
+
+            // Auto couple threshold
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Auto couple threshold (mm): ", GUILayout.Width(200));
+            var thresholdStr = GUILayout.TextField(autoCoupleThreshold.ToString("F1"), GUILayout.Width(100));
+            if (float.TryParse(thresholdStr, out float newThreshold) && newThreshold >= 0f && Math.Abs(newThreshold - autoCoupleThreshold) > 0.001f)
+            {
+                autoCoupleThreshold = newThreshold;
+                OnChange();
+            }
+            GUILayout.EndHorizontal();
+
+            // Minimum separation distance
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Minimum separation distance (m): ", GUILayout.Width(200));
+            var separationStr = GUILayout.TextField(minimumSeparationDistance.ToString("F2"), GUILayout.Width(100));
+            if (float.TryParse(separationStr, out float newSeparation) && newSeparation >= 0.1f && Math.Abs(newSeparation - minimumSeparationDistance) > 0.001f)
+            {
+                minimumSeparationDistance = newSeparation;
+                OnChange();
+            }
+            GUILayout.EndHorizontal();
+
+            GUILayout.Space(10);
+
+            // Auto Air & MU Mode
+            var newAutoAir = GUILayout.Toggle(autoAirAndMuMode, "Auto Air & MU Mode (Automatically connect air hoses, open brake valves, and connect MU cables when coupling. Enforced by Scharfenberg couplers.)");
+            if (newAutoAir != autoAirAndMuMode)
+            {
+                autoAirAndMuMode = newAutoAir;
+                OnChange();
+            }
+
+            // Auto Coupling Mode
+            var newAutoCoupling = GUILayout.Toggle(autoCouplingMode, "Auto Coupling Mode (Automatically couple even when couplers are not ready. Enforced by Scharfenberg couplers.)");
+            if (newAutoCoupling != autoCouplingMode)
+            {
+                autoCouplingMode = newAutoCoupling;
+                OnChange();
+            }
+
+            // Disable Front Couplers on S282
+            var newDisableFront = GUILayout.Toggle(disableFrontCouplersOnSteamLocos, "Disable Front Couplers on S282");
+            if (newDisableFront != disableFrontCouplersOnSteamLocos)
+            {
+                disableFrontCouplersOnSteamLocos = newDisableFront;
+                OnChange();
+            }
+
+            GUILayout.Space(10);
+
+            // Enable debug logging
+            var newDebugLog = GUILayout.Toggle(enableLogging, "Enable debug logging");
+            if (newDebugLog != enableLogging)
+            {
+                enableLogging = newDebugLog;
+                OnChange();
+            }
+
+            // Enable error logging
+            var newErrorLog = GUILayout.Toggle(enableErrorLogging, "Enable error logging");
+            if (newErrorLog != enableErrorLogging)
+            {
+                enableErrorLogging = newErrorLog;
+                OnChange();
+            }
+
+            GUILayout.Space(10);
+
+            // Display version
+            if (!string.IsNullOrEmpty(version))
+            {
+                GUILayout.Label($"Version: {version}");
+            }
+        }
 
         public override void Save(UnityModManager.ModEntry entry)
         {
@@ -56,6 +217,27 @@ namespace DvMod.ZCouplers.Core
         {
             Couplers.UpdateAllCompressionJoints();
             KnuckleCouplers.OnSettingsChanged();
+
+            // Handle coupler type change at runtime
+            HandleCouplerTypeChange();
+        }
+
+        [XmlIgnore]
+        public ICouplerProfile? lastCouplerProfile = null;
+
+        /// <summary>
+        /// Handle runtime coupler type changes by recreating all coupler visuals and physics
+        /// </summary>
+        private void HandleCouplerTypeChange()
+        {
+            var currentProfile = couplerProfile;
+            if (lastCouplerProfile != null && lastCouplerProfile != currentProfile)
+            {
+                Main.DebugLog(() => $"Coupler type changed from {lastCouplerProfile.DisplayName} to {currentProfile?.DisplayName}, switching at runtime");
+                if (currentProfile != null)
+                    KnuckleCouplers.SwitchCouplerTypeAtRuntime(lastCouplerProfile, currentProfile);
+            }
+            lastCouplerProfile = currentProfile;
         }
 
         public float GetCouplerStrength()
@@ -63,7 +245,7 @@ namespace DvMod.ZCouplers.Core
             if (strengthValues == strengthPreset.Recommended)
             {
                 // Use profile default values
-                var profile = CouplerProfiles.Get(couplerType);
+                var profile = couplerProfile;
                 return profile?.Options.CouplerStrength ?? 1.78e6f;
             }
             else
@@ -78,7 +260,7 @@ namespace DvMod.ZCouplers.Core
             if (strengthValues == strengthPreset.Recommended)
             {
                 // Use profile default values
-                var profile = CouplerProfiles.Get(couplerType);
+                var profile = couplerProfile;
                 return profile?.Options.SpringRate ?? 2e6f;
             }
             else
@@ -93,7 +275,7 @@ namespace DvMod.ZCouplers.Core
             if (strengthValues == strengthPreset.Recommended)
             {
                 // Use profile default values
-                var profile = CouplerProfiles.Get(couplerType);
+                var profile = couplerProfile;
                 return profile?.Options.DamperRate ?? 100e3f;
             }
             else

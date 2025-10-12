@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using DV;
 using DvMod.ZCouplers.Core;
 using DvMod.ZCouplers.Core.Helpers;
 using DvMod.ZCouplers.Core.Utils;
@@ -50,7 +49,7 @@ public static class UncouplePatch
     {
         // Track whether this coupler was actually coupled before the uncoupling attempt
         wasActuallyCoupled[__instance] = __instance.IsCoupled();
-        
+
         Main.DebugLog(() => "Uncoupling " + __instance.train.ID + " from " + __instance.coupledTo?.train.ID + " (was coupled: " + wasActuallyCoupled[__instance] + ")");
         if (__instance.coupledTo != null)
         {
@@ -99,7 +98,7 @@ public static class UncouplePatch
             CouplingScannerPatches.RestartCouplingScanner(__instance.coupledTo);
             // Record uncoupling for distance-based recoupling prevention
             RecouplingPrevention.RecordUncoupling(__instance, __instance.coupledTo);
-            
+
             // Enable fake buffer colliders for uncoupled cars (like game's loose mode)
             CollisionHandler.EnableFakeBufferColliders(__instance, __instance.coupledTo);
         }
@@ -152,7 +151,7 @@ public static class UncouplePatch
             if (__instance.IsCoupled())
             {
                 __instance.rigidCJ = value;
-                Main.DebugLog(() => "Restored rigidCJ for " + __instance.train.ID + " - uncoupling failed, still coupled to " + __instance.coupledTo?.train.ID);
+                Main.ErrorLog(() => "Restored rigidCJ for " + __instance.train.ID + " - uncoupling failed, still coupled to " + __instance.coupledTo?.train.ID);
             }
             else
             {
@@ -169,7 +168,7 @@ public static class UncouplePatch
             if (__instance.IsCoupled())
             {
                 __instance.jointCoroRigid = value2;
-                Main.DebugLog(() => "Restored jointCoroRigid for " + __instance.train.ID + " - uncoupling failed");
+                Main.ErrorLog(() => "Restored jointCoroRigid for " + __instance.train.ID + " - uncoupling failed");
             }
             else
             {
@@ -215,7 +214,8 @@ public static class UncouplePatch
                 Main.DebugLog(() => "Reset partner coupler state to Parked: " + partnerCoupler.train.ID + " " + partnerCoupler.Position());
             }
             // Update visual state for partner coupler too - defer to avoid NRE
-            if (partnerCoupler.visualCoupler?.chainAdapter?.chainScript != null)
+            if (partnerCoupler.visualCoupler?.chainAdapter?.chainScript != null &&
+                partnerCoupler.visualCoupler.chainAdapter.chainScript.gameObject.activeInHierarchy)
             {
 	            partnerCoupler.visualCoupler.chainAdapter.chainScript.StartCoroutine(DelayedVisualStateUpdate(partnerCoupler));
             }
@@ -235,11 +235,12 @@ public static class UncouplePatch
                 Main.DebugLog(() => "Reset coupler state to Parked: " + __instance.train.ID);
             }
         }
-        
+
         // Clean up tracking data
         wasActuallyCoupled.Remove(__instance);
         // Update visual state with deferred approach to avoid NRE during button-triggered uncoupling
-        if (__instance.visualCoupler?.chainAdapter?.chainScript != null)
+        if (__instance.visualCoupler?.chainAdapter?.chainScript != null &&
+            __instance.visualCoupler.chainAdapter.chainScript.gameObject.activeInHierarchy)
         {
 	        __instance.visualCoupler.chainAdapter.chainScript.StartCoroutine(DelayedVisualStateUpdate(__instance));
         }
