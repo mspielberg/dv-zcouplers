@@ -124,6 +124,7 @@ public static class BufferCollisionManager
 		                .ToList();
 
 	                // Find colliders that form a rectangular pattern (same Y, two X pairs, two Z pairs)
+	                /* Temporary disable
 	                var targetColliders = IdentifyRectangularColliderPattern(allColliders);
 
 	                foreach (var collider in targetColliders)
@@ -134,6 +135,7 @@ public static class BufferCollisionManager
 		                Main.DebugLog(() =>
 			                $"Toggled collider '{collider.name}' (type: {collider.GetType().Name}) to {visible} for {liveryId} by rectangular pattern");
 	                }
+	                */
                 }
             }
 
