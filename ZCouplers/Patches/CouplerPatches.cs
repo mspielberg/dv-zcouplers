@@ -1,3 +1,4 @@
+using DV.ThingTypes;
 using DvMod.ZCouplers.Core;
 using DvMod.ZCouplers.Physics;
 using HarmonyLib;
@@ -23,6 +24,16 @@ namespace DvMod.ZCouplers.Patches
                 if (__instance.train.GetComponent<DV.SteamTenderAutoCoupleMechanism>() != null && !__instance.isFrontCoupler)
                 {
                     return true;
+                }
+
+                if (Main.IsCCLLoaded)
+                {
+	                var cclType = System.Type.GetType("CCL.Importer.Components.CarAutoCouplerInternal, CCL.Importer");
+	                if (cclType != null && __instance.train.GetComponent(cclType) != null && !__instance.isFrontCoupler && CarTypes.IsLocomotive(__instance.train.carLivery))
+	                {
+		                Main.DebugLog(() => $"{__instance.train.ID} is a CCL Loco with CarAutoCouplerInternal, skipping");
+		                return true;
+	                }
                 }
 
                 // Prevent joint creation during save loading to avoid physics instability

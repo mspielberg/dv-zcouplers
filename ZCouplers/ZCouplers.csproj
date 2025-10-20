@@ -23,6 +23,7 @@
     <Reference Include="UnityEngine.IMGUIModule" Private="false"/>
     <Reference Include="UnityEngine.PhysicsModule" Private="false"/>
 	<Reference Include="UnityEngine" Private="false"/>
+	<Reference Include="CCL.Importer" Private="false"/>
   </ItemGroup>
 
   <ItemGroup>
