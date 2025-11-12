@@ -107,7 +107,7 @@ namespace DvMod.ZCouplers.Core.Utils
                 }
                 catch
                 {
-                    Main.DebugLog(() => "[RecouplingPrevention] Coroutine runner is invalid, reinitializing");
+                    Main.DebugLog(() => "Coroutine runner is invalid, reinitializing");
                     coroutineRunner = null;
                     distanceCheckCoroutine = null;
                     needsInit = true;
@@ -141,11 +141,11 @@ namespace DvMod.ZCouplers.Core.Utils
                 if (coroutineRunner != null)
                 {
                     distanceCheckCoroutine = coroutineRunner.StartCoroutine(DistanceCheckCoroutine());
-                    Main.DebugLog(() => "[RecouplingPrevention] Coroutine started successfully");
+                    Main.DebugLog(() => "Coroutine started successfully");
                 }
                 else
                 {
-                    Main.ErrorLog(() => "[RecouplingPrevention] Failed to find MonoBehaviour for coroutine runner!");
+                    Main.ErrorLog(() => "Failed to find MonoBehaviour for coroutine runner!");
                 }
             }
         }
@@ -212,25 +212,19 @@ namespace DvMod.ZCouplers.Core.Utils
                     // Calculate current separation distance between the couplers
                     var currentDistance = Vector3.Distance(coupler1.transform.position, coupler2.transform.position);
 
-                    // Get the initial distance when they uncoupled
-                    var initialDistance = record.InitialDistance;
+                    Main.DebugLog(() => $"{coupler1.train.ID} <-> {coupler2.train.ID}: current={currentDistance:F3}m, required={Main.settings.minimumSeparationDistance:F3}m");
 
-                    // Check if they've separated by the minimum required distance from their initial separation
-                    var actualSeparation = currentDistance - initialDistance;
-
-                    Main.DebugLog(() => $"{coupler1.train.ID} <-> {coupler2.train.ID}: current={currentDistance:F3}m, initial={initialDistance:F3}m, separation={actualSeparation:F3}m, required={Main.settings.minimumSeparationDistance:F3}m");
-
-                    // Check if separation requirement is met
-                    if (actualSeparation >= Main.settings.minimumSeparationDistance)
+                    // Check if couplers are far enough apart (absolute distance check)
+                    if (currentDistance >= Main.settings.minimumSeparationDistance)
                     {
                         // Remove from both tracking dictionaries
                         toRemove.Add(pair);
                         blockedPairs.Remove(pair);
-                        Main.DebugLog(() => $"Separation requirement met: {coupler1.train.ID} <-> {coupler2.train.ID}, actual separation: {actualSeparation:F3}m (current: {currentDistance:F3}m, initial: {initialDistance:F3}m)");
+                        Main.DebugLog(() => $"Separation requirement met: {coupler1.train.ID} <-> {coupler2.train.ID}, distance: {currentDistance:F3}m");
                     }
                     else
                     {
-                        // Still blocked
+                        // Still blocked - couplers are too close
                         blockedPairs.Add(pair);
                     }
                 }
@@ -320,6 +314,60 @@ namespace DvMod.ZCouplers.Core.Utils
             if (toRemove.Count > 0)
             {
                 Main.DebugLog(() => $"Cleaned up {toRemove.Count} uncoupling records for coupler {coupler.train.ID}");
+            }
+        }
+
+        /// <summary>
+        /// Clear all blocking records for a specific coupler.
+        /// This is useful when the coupler is reset to Parked state.
+        /// </summary>
+        public static void ClearRecordsForCoupler(Coupler coupler)
+        {
+            if (coupler == null)
+                return;
+
+            var toRemove = new List<CouplerPair>();
+
+            foreach (var pair in recentlyUncoupled.Keys)
+            {
+                try
+                {
+                    if (pair.GetCoupler1() == coupler || pair.GetCoupler2() == coupler)
+                    {
+                        toRemove.Add(pair);
+                    }
+                }
+                catch
+                {
+                    toRemove.Add(pair);
+                }
+            }
+
+            foreach (var key in toRemove)
+            {
+                recentlyUncoupled.Remove(key);
+                blockedPairs.Remove(key);
+            }
+
+            if (toRemove.Count > 0)
+            {
+                Main.DebugLog(() => $"Cleared {toRemove.Count} blocking records for coupler {coupler.train.ID}");
+            }
+        }
+
+        /// <summary>
+        /// Clear all uncoupling records.
+        /// Called during save loading to prevent stale records from persisting.
+        /// </summary>
+        public static void ClearAllRecords()
+        {
+            int recordCount = recentlyUncoupled.Count;
+            recentlyUncoupled.Clear();
+            blockedPairs.Clear();
+
+            if (recordCount > 0)
+            {
+                Main.DebugLog(() => $"Cleared all {recordCount} uncoupling/blocking records");
             }
         }
     }
