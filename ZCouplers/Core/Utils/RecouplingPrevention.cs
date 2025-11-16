@@ -289,44 +289,6 @@ namespace DvMod.ZCouplers.Core.Utils
         }
 
         /// <summary>
-        /// Clear all blocking records for a specific coupler.
-        /// This is useful when the coupler is reset to Parked state.
-        /// </summary>
-        public static void ClearRecordsForCoupler(Coupler coupler)
-        {
-            if (coupler == null)
-                return;
-
-            var toRemove = new List<CouplerPair>();
-
-            foreach (var pair in recentlyUncoupled.Keys)
-            {
-                try
-                {
-                    if (pair.GetCoupler1() == coupler || pair.GetCoupler2() == coupler)
-                    {
-                        toRemove.Add(pair);
-                    }
-                }
-                catch
-                {
-                    toRemove.Add(pair);
-                }
-            }
-
-            foreach (var key in toRemove)
-            {
-                recentlyUncoupled.Remove(key);
-                blockedPairs.Remove(key);
-            }
-
-            if (toRemove.Count > 0)
-            {
-                Main.DebugLog(() => $"Cleared {toRemove.Count} blocking records for coupler {coupler.train.ID}");
-            }
-        }
-
-        /// <summary>
         /// Clear all uncoupling records.
         /// Called during save loading to prevent stale records from persisting.
         /// </summary>
