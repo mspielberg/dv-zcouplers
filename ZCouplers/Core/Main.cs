@@ -359,14 +359,14 @@ public static class Main
     {
         if (settings.enableLogging)
         {
-            string prefix = GetLogPrefix(sourceFilePath);
+            string prefix = GetLogPrefix(sourceFilePath) + "[Debug] ";
             mod?.Logger.Log(prefix + message());
         }
     }
 
     public static void ErrorLog(Func<string> message, [CallerFilePath] string sourceFilePath = "")
     {
-        string prefix = GetLogPrefix(sourceFilePath);
+        string prefix = GetLogPrefix(sourceFilePath) + "[Error] ";
         mod?.Logger.Log(prefix + message());
     }
 
