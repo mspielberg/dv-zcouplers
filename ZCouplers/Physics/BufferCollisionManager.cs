@@ -141,7 +141,7 @@ public static class BufferCollisionManager
 
             if (!foundOldGroup && !foundColliders)
             {
-                Main.ErrorLog(() => $"No [old] group or relevant colliders found under interior/[walkable]/ for {liveryId}");
+                Main.DebugLog(() => $"No [old] group or relevant colliders found under interior/[walkable]/ for {liveryId}");
             }
         }
         catch (Exception ex)
