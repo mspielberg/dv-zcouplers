@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -27,9 +28,9 @@ namespace DvMod.ZCouplers.Core.Utils
         private static Coroutine? distanceCheckCoroutine;
 
         /// <summary>
-        /// MonoBehaviour instance for running coroutines.
+        /// Flag to track if the coroutine is actively running.
         /// </summary>
-        private static MonoBehaviour? coroutineRunner;
+        private static bool isCoroutineRunning;
 
         /// <summary>
         /// Record of an uncoupling event.
@@ -94,60 +95,13 @@ namespace DvMod.ZCouplers.Core.Utils
         /// </summary>
         private static void EnsureInitialized()
         {
-            // Check if we need to (re)initialize
-            bool needsInit = coroutineRunner == null || distanceCheckCoroutine == null;
-
-            // Also check if the coroutine runner object is destroyed/invalid
-            if (coroutineRunner != null)
-            {
-                try
-                {
-                    // Try to access the gameObject - if it's destroyed, this will throw
-                    var _ = coroutineRunner.gameObject;
-                }
-                catch
-                {
-                    Main.DebugLog(() => "Coroutine runner is invalid, reinitializing");
-                    coroutineRunner = null;
-                    distanceCheckCoroutine = null;
-                    needsInit = true;
-                }
-            }
-
-            if (needsInit)
-            {
-                // Stop old coroutine if it exists
-                if (coroutineRunner != null && distanceCheckCoroutine != null)
-                {
-                    try
-                    {
-                        coroutineRunner.StopCoroutine(distanceCheckCoroutine);
-                    }
-                    catch { }
-                    distanceCheckCoroutine = null;
-                }
-
-                // Find any available MonoBehaviour to run our coroutine
-                coroutineRunner = UnityEngine.Object.FindObjectOfType<CouplingScanner>();
-                if (coroutineRunner == null)
-                {
-                    coroutineRunner = UnityEngine.Object.FindObjectOfType<CarSpawner>();
-                }
-                if (coroutineRunner == null)
-                {
-                    coroutineRunner = UnityEngine.Object.FindObjectOfType<MonoBehaviour>();
-                }
-
-                if (coroutineRunner != null)
-                {
-                    distanceCheckCoroutine = coroutineRunner.StartCoroutine(DistanceCheckCoroutine());
-                    Main.DebugLog(() => "Coroutine started successfully");
-                }
-                else
-                {
-                    Main.ErrorLog(() => "Failed to find MonoBehaviour for coroutine runner!");
-                }
-            }
+	        if (isCoroutineRunning)
+	        {
+		        return; // Already running
+	        }
+	        distanceCheckCoroutine = CoroutineManager.Instance.StartCoroutine(DistanceCheckCoroutine());
+	        Main.DebugLog(() => "Distance check coroutine started successfully");
+            isCoroutineRunning = true;
         }
 
         /// <summary>
@@ -155,14 +109,21 @@ namespace DvMod.ZCouplers.Core.Utils
         /// </summary>
         public static void Shutdown()
         {
-            if (coroutineRunner != null && distanceCheckCoroutine != null)
-            {
-                coroutineRunner.StopCoroutine(distanceCheckCoroutine);
-                distanceCheckCoroutine = null;
-            }
-            recentlyUncoupled.Clear();
-            blockedPairs.Clear();
-            coroutineRunner = null;
+	        try
+	        {
+		        CoroutineManager.Instance.StopCoroutine(distanceCheckCoroutine);
+		        distanceCheckCoroutine = null;
+	        }
+	        catch (Exception e)
+	        {
+		        Main.ErrorLog((() => "Error stopping distance check coroutine: " + e.Message));
+	        }
+	        finally
+	        {
+		        isCoroutineRunning = false;
+		        recentlyUncoupled.Clear();
+		        blockedPairs.Clear();
+	        }
         }
 
         /// <summary>
@@ -170,10 +131,20 @@ namespace DvMod.ZCouplers.Core.Utils
         /// </summary>
         private static IEnumerator DistanceCheckCoroutine()
         {
-            while (true)
+            try
             {
-                yield return new WaitForSeconds(1f);
-                UpdateBlockedPairs();
+                Main.DebugLog(() => "Distance check coroutine loop started");
+                while (true)
+                {
+                    yield return new WaitForSeconds(1f);
+                    UpdateBlockedPairs();
+                }
+            }
+            finally
+            {
+                // Always clear the running flag when coroutine exits
+                isCoroutineRunning = false;
+                Main.DebugLog(() => "Distance check coroutine stopped, flag cleared");
             }
         }
 
