@@ -99,9 +99,12 @@ public static class BufferCollisionManager
                 {
 	                // Skip if not at least two buffers were found
 	                if (relatedObjects.Length <= 1) continue;
+
 	                if (!IsChildOf(bufferObj, oldGroup)) continue;
+
 	                // Handle buffer objects that have any type of colliders (MeshCollider, CapsuleCollider, BoxCollider, etc.)
 	                var bufferColliders = bufferObj.GetComponentsInChildren<Collider>(true);
+
 	                foreach (var collider in bufferColliders)
 	                {
 		                collider.enabled = visible;
@@ -122,21 +125,37 @@ public static class BufferCollisionManager
 	                var allColliders = oldGroup.GetComponentsInChildren<Collider>(true)
 		                .Where(c => c is not MeshCollider) // Exclude mesh colliders
 		                .ToList();
-
-	                // Find colliders that form a rectangular pattern (same Y, two X pairs, two Z pairs)
-	                /* Temporary disable
-	                var targetColliders = IdentifyRectangularColliderPattern(allColliders);
-
-	                foreach (var collider in targetColliders)
-	                {
-		                collider.enabled = visible;
-		                foundColliders = true;
-
-		                Main.DebugLog(() =>
-			                $"Toggled collider '{collider.name}' (type: {collider.GetType().Name}) to {visible} for {liveryId} by rectangular pattern");
-	                }
-	                */
                 }
+            }
+
+			// Process CCL cars separately
+            if (isCCL(TrainCar.Resolve(interiorGO)))
+            {
+	            // Find all Transform objects that might be buffer-related by name patterns
+	            var bufferRelatedObjects = walkable.GetComponentsInChildren<Transform>(true)
+		            .Where(t => IsBufferRelatedName(t.name));
+
+	            var relatedObjects = bufferRelatedObjects as Transform[] ?? bufferRelatedObjects.ToArray();
+
+	            foreach (var bufferObj in relatedObjects)
+	            {
+		            // Skip if not at least two buffers were found
+		            if (relatedObjects.Length <= 1) continue;
+
+		            // Handle buffer objects that have any type of colliders (MeshCollider, CapsuleCollider, BoxCollider, etc.)
+		            var bufferColliders = bufferObj.GetComponentsInChildren<Collider>(true);
+
+		            foreach (var collider in bufferColliders)
+		            {
+			            collider.enabled = visible;
+			            Main.DebugLog(() =>
+				            $"Toggled collider '{collider.name}' (type: {collider.GetType().Name}) to {visible} for {liveryId} by name pattern");
+		            }
+
+		            // Handle buffer GameObjects themselves
+		            bufferObj.gameObject.SetActive(visible);
+		            foundColliders = true;
+	            }
             }
 
             if (!foundOldGroup && !foundColliders)
@@ -148,6 +167,15 @@ public static class BufferCollisionManager
         {
             Main.ErrorLog(() => $"Error in ProcessInteriorObject for {liveryId}: {ex.Message}");
         }
+    }
+
+    private static bool isCCL(TrainCar car)
+    {
+	    if (Main.IsCCLLoaded)
+	    {
+		    return car.carLivery is CCL.Importer.Types.CCL_CarVariant;
+	    }
+	    return false;
     }
 
     /// <summary>
