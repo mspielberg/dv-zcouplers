@@ -1,6 +1,5 @@
 using System.Linq;
 using DvMod.ZCouplers.Core;
-using DvMod.ZCouplers.Core.Helpers;
 using DvMod.ZCouplers.Core.Profiles;
 using DvMod.ZCouplers.Core.Utils;
 using DvMod.ZCouplers.Visuals;
@@ -16,11 +15,10 @@ namespace DvMod.ZCouplers.Physics
 
         public void Start()
         {
-            this.GetComponent<Coupler>().Uncoupled += OnUncoupled;
+            GetComponent<Coupler>().Uncoupled += OnUncoupled;
         }
 
-        private const float PerFrameBreakChance = 0.01f;
-        private const float BaseSpringRate = 2e6f; // 2 MN/m baseline spring rate for force normalization
+        private float PerFrameBreakChance = 0.5f;
 
         public void FixedUpdate()
         {

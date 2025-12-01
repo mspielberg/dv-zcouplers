@@ -103,6 +103,9 @@ namespace DvMod.ZCouplers.Core
         /// </summary>
         private static IEnumerator TriggerDeferredApplicationCoroutine()
         {
+            // Clear all recoupling prevention records to prevent stale data from persisting across saves
+            RecouplingPrevention.ClearAllRecords();
+
             // Wait for all cars to be loaded and physics to stabilize
             yield return new WaitUntil(() => AStartGameData.carsAndJobsLoadingFinished);
 

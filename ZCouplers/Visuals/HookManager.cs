@@ -749,7 +749,7 @@ namespace DvMod.ZCouplers.Visuals
                 return;
             }
 
-            var hook = GameObject.Instantiate(hookPrefab);
+            var hook = GameObject.Instantiate(hookPrefab, pivot, false);
             if (hook == null)
             {
                 Main.ErrorLog(() => "Failed to instantiate hook from prefab");
@@ -759,7 +759,6 @@ namespace DvMod.ZCouplers.Visuals
             hook.SetActive(false); // Defer Awake() until all components are added and initialized
             hook.name = desiredName; // Use the desired name instead of always "hook"
             hook.layer = LayerMask.NameToLayer("Interactable");
-            hook.transform.SetParent(pivot, false);
 
             // Set initial position with offsets
             var basePosition = PivotLength * Vector3.forward;

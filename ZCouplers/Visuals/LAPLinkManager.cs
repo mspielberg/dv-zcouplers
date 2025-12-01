@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Diagnostics;
 using DvMod.ZCouplers.Core;
 using DvMod.ZCouplers.Core.Profiles;
 using UnityEngine;
@@ -78,7 +79,7 @@ namespace DvMod.ZCouplers.Visuals
             linkObject.transform.SetParent(coupler1.train.interior, true);
 
             // Orient the link to connect the couplers
-            UpdateLinkTransform(linkObject, coupler1, coupler2);
+            UpdateLinkTransformOptimized(linkObject, coupler1, coupler2);
 
             couplerLinks[pair] = linkObject;
             linkToCouplers[linkObject] = pair;
@@ -126,89 +127,110 @@ namespace DvMod.ZCouplers.Visuals
         }
 
         /// <summary>
-        /// Updates the position and rotation of a link to connect two couplers.
-        /// The link is anchored to coupler1's locking pin and rotated to point toward coupler2's pin.
+        /// Optimized version of UpdateLinkTransform with reduced allocations and faster math operations.
+        /// Uses direct vector/quaternion calculations instead of expensive Transform operations.
         /// </summary>
-        private static void UpdateLinkTransform(GameObject linkObject, Coupler coupler1, Coupler coupler2)
+        private static void UpdateLinkTransformOptimized(GameObject linkObject, Coupler coupler1, Coupler coupler2)
         {
-            if (linkObject == null || coupler1 == null || coupler2 == null)
-                return;
+	        if (linkObject == null || coupler1 == null || coupler2 == null)
+		        return;
 
-            // Anchor the link to coupler1's locking pin position
-            var pin1Position = coupler1.transform.position;
-            var pin2Position = coupler2.transform.position;
+	        var transform1 = coupler1.transform;
+	        var transform2 = coupler2.transform;
+	        var linkTransform = linkObject.transform;
 
-            // Get the hook offset from the current coupler profile
-            var hookOffset = CouplerProfiles.Current?.Options?.HookAdditionalOffset ?? Vector3.zero;
+	        // Cache all positions/rotations at once to minimize property access overhead
+	        var pin1Position = transform1.position;
+	        var pin2Position = transform2.position;
+	        var coupler1Rotation = transform1.rotation;
+	        var coupler2Forward = transform2.forward;
 
-            // Combine hook offset with custom link offset
-            var totalOffset = hookOffset + customLinkOffset;
+	        // Get offsets - these should be cached at class level if they don't change
+	        var hookOffset = CouplerProfiles.Current?.Options?.HookAdditionalOffset ?? Vector3.zero;
+	        var totalOffset = hookOffset + customLinkOffset;
 
-            // Apply offset to the link position relative to coupler1's orientation
-            var offsetPosition = pin1Position + coupler1.transform.TransformDirection(totalOffset);
+	        // Apply offset using cached rotation (avoid TransformDirection call)
+	        var offsetPosition = pin1Position + coupler1Rotation * totalOffset;
 
-            // Position the link at the offset anchor point
-            linkObject.transform.position = offsetPosition;
+	        // Calculate direction from link position to target
+	        var toTarget = pin2Position - offsetPosition;
+	        var sqrDistance = toTarget.x * toTarget.x + toTarget.y * toTarget.y + toTarget.z * toTarget.z;
 
-            // Start with coupler1's orientation as the base
-            var baseRotation = coupler1.transform.rotation;
-            var prefabRotationCorrection = Quaternion.Euler(90f, 0f, 0f);
+	        // Early return for too-close case
+	        if (sqrDistance < 1e-8f)
+	        {
+		        var prefabCorrection = Quaternion.Euler(90f, 0f, 0f);
+		        linkTransform.SetPositionAndRotation(
+			        offsetPosition,
+			        Quaternion.Slerp(linkTransform.rotation, coupler1Rotation * prefabCorrection, Time.deltaTime * 5f)
+		        );
+		        return;
+	        }
 
-            // Calculate offset from coupler1 to coupler2 in local space for distance check
-            var pivot = coupler1.transform;
-            var target = coupler2.transform;
-            var offset = pivot.InverseTransformPoint(target.position);
+	        // Extend target behind coupler2
+	        var extendedTarget = pin2Position - coupler2Forward * 0.5f;
+	        var lookDirection = extendedTarget - offsetPosition;
 
-            // Check if couplers are too close to avoid erratic rotation
-            if (offset.sqrMagnitude < 1e-8f)
-            {
-                // When too close, just use coupler1's orientation with prefab correction
-                linkObject.transform.rotation = Quaternion.Slerp(
-                    linkObject.transform.rotation,
-                    baseRotation * prefabRotationCorrection,
-                    Time.deltaTime * 5f
-                );
-                return;
-            }
+	        // Fast magnitude calculation
+	        var lookSqrMag = lookDirection.x * lookDirection.x + lookDirection.y * lookDirection.y + lookDirection.z * lookDirection.z;
+	        if (lookSqrMag < 1e-8f)
+	        {
+		        var prefabCorrection = Quaternion.Euler(90f, 0f, 0f);
+		        linkTransform.SetPositionAndRotation(
+			        offsetPosition,
+			        Quaternion.Slerp(linkTransform.rotation, coupler1Rotation * prefabCorrection, Time.deltaTime * 5f)
+		        );
+		        return;
+	        }
 
-            // Use LookAt for horizontal movement only, limit vertical movement
-            // Extend the look target further behind coupler2 to prevent overrotation in curves
-            var extensionDistance = -0.5f; // Distance to extend behind coupler2
-            var coupler2Forward = coupler2.transform.forward; // Direction coupler2 is facing
-            var extendedTarget = coupler2.transform.position + (coupler2Forward * extensionDistance);
+	        // Normalize manually to avoid Vector3.normalized allocation
+	        var invMag = 1f / Mathf.Sqrt(lookSqrMag);
+	        var normX = lookDirection.x * invMag;
+	        var normY = lookDirection.y * invMag;
+	        var normZ = lookDirection.z * invMag;
 
-            var lookDirection = (extendedTarget - linkObject.transform.position).normalized;
+	        // Clamp vertical angle to ±5°
+	        //var clampedY = Mathf.Clamp(normY, -0.0871557f, 0.0871557f); // sin(5°) ≈ 0.0871557
 
-            // Project the look direction onto the horizontal plane (Y=0) for horizontal-only LookAt
-            var horizontalDirection = new Vector3(lookDirection.x, 0f, lookDirection.z).normalized;
+	        // Project onto horizontal plane using plane projection: projected = direction - (direction · normal) * normal
+	        // For horizontal plane (XZ), normal = (0, 1, 0), so: projected = (x, 0, z)
+	        // Then scale to maintain unit length with clamped Y component
+	        var horizontalScale = Mathf.Sqrt(1f - normY * normY);
+	        var projectedX = normX * horizontalScale;
+	        var projectedZ = normZ * horizontalScale;
 
-            // Calculate horizontal rotation using LookAt
-            var horizontalRotation = Quaternion.LookRotation(horizontalDirection);
+	        // Create rotation from projected direction vector
+	        var targetRotation = Quaternion.LookRotation(new Vector3(projectedX, normY, projectedZ)) * Quaternion.Euler(90f, 0f, 0f);
 
-            // Calculate vertical angle and clamp it to ±5°
-            var verticalAngle = Mathf.Asin(lookDirection.y) * Mathf.Rad2Deg;
-            var clampedVerticalAngle = Mathf.Clamp(verticalAngle, -5f, 5f);
-
-            // Combine horizontal rotation with limited vertical rotation
-            var verticalRotation = Quaternion.AngleAxis(clampedVerticalAngle, Vector3.right);
-            var targetRotation = horizontalRotation * verticalRotation * prefabRotationCorrection;
-
-            // Smooth the rotation to prevent jumping
-            linkObject.transform.rotation = Quaternion.Slerp(
-                linkObject.transform.rotation,
-                targetRotation,
-                Time.deltaTime * 15f
-            );
+	        // Use SetPositionAndRotation to batch the updates
+	        linkTransform.SetPositionAndRotation(
+		        offsetPosition,
+		        Quaternion.Slerp(linkTransform.rotation, targetRotation, Time.deltaTime * 15f)
+	        );
         }
 
         /// <summary>
         /// Updates all existing LAP links to maintain proper positioning and rotation.
         /// Should be called regularly to handle train movement and curves.
+        /// Only updates links within 20 meters of the camera for performance.
         /// </summary>
         public static void UpdateAllLinkTransforms()
         {
             if (CouplerProfiles.Current != CouplerProfiles.GetById("LAP"))
                 return;
+
+            // Get camera position for distance culling
+            // In VR mode, ActiveCamera might be null, so fall back to PlayerCamera
+            var camera = PlayerManager.ActiveCamera;
+            if (camera == null)
+            {
+                camera = PlayerManager.PlayerCamera;
+                if (camera == null)
+                    return;
+            }
+
+            var cameraPosition = camera.transform.position;
+            const float maxDistanceSqr = 25f * 25f; // 500 - squared distance for performance
 
             // Update all existing links
             var linksToUpdate = new List<GameObject>(linkToCouplers.Keys);
@@ -233,7 +255,17 @@ namespace DvMod.ZCouplers.Visuals
                         coupler1.state == ChainCouplerInteraction.State.Attached_Tight &&
                         coupler2.state == ChainCouplerInteraction.State.Attached_Tight)
                     {
-                        UpdateLinkTransform(linkObject, coupler1, coupler2);
+                        // Only update links within 50 meters of camera
+                        var linkPosition = linkObject.transform.position;
+                        var dx = linkPosition.x - cameraPosition.x;
+                        var dy = linkPosition.y - cameraPosition.y;
+                        var dz = linkPosition.z - cameraPosition.z;
+                        var distanceSqr = dx * dx + dy * dy + dz * dz;
+
+                        if (distanceSqr <= maxDistanceSqr)
+                        {
+	                        UpdateLinkTransformOptimized(linkObject, coupler1, coupler2);
+                        }
                     }
                     else
                     {

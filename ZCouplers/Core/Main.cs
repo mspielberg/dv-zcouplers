@@ -19,6 +19,7 @@ public static class Main
     public static Harmony? harmony;
 
     public static Settings settings = null!; // Will be initialized in Load() after profiles are registered
+    public static bool IsCCLLoaded { get; private set; }
 
     public static bool Load(UnityModManager.ModEntry modEntry)
     {
@@ -84,6 +85,12 @@ public static class Main
 
         KnuckleCouplers.Initialize();
         mod.Logger.Log($"Loaded ZCouplers with profile: {Main.settings.couplerProfile?.DisplayName ?? Main.settings.selectedCoupler}");
+
+        var ccl = UnityModManager.modEntries.FirstOrDefault(mod => mod.Info.Id == "DVCustomCarLoader");
+        if (ccl is not { Active: true }) return true;
+        IsCCLLoaded = true;
+        mod.Logger.Log("Found CCL!");
+
         MpShim.TryInitialize(modEntry);
         return true;
     }
@@ -353,14 +360,14 @@ public static class Main
     {
         if (settings.enableLogging)
         {
-            string prefix = GetLogPrefix(sourceFilePath);
+            string prefix = GetLogPrefix(sourceFilePath) + "[Debug] ";
             mod?.Logger.Log(prefix + message());
         }
     }
 
     public static void ErrorLog(Func<string> message, [CallerFilePath] string sourceFilePath = "")
     {
-        string prefix = GetLogPrefix(sourceFilePath);
+        string prefix = GetLogPrefix(sourceFilePath) + "[Error] ";
         mod?.Logger.Log(prefix + message());
     }
 

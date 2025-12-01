@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using DvMod.ZCouplers.Core;
 using DvMod.ZCouplers.Core.Helpers;
-using HarmonyLib;
 using UnityEngine;
 
 namespace DvMod.ZCouplers.Physics
@@ -165,87 +164,10 @@ namespace DvMod.ZCouplers.Physics
                 var hingeJoints = car.GetComponents<HingeJoint>();
 
                 Main.DebugLog(() => $"Joint summary {context} - {car.ID}: Configurable={allJoints.Length}, Fixed={fixedJoints.Length}, Spring={springJoints.Length}, Hinge={hingeJoints.Length}");
-
-                foreach (var joint in allJoints)
-                {
-                    if (joint?.connectedBody != null)
-                    {
-                        var connectedCar = TrainCar.Resolve(joint.connectedBody.gameObject);
-                        // Detailed joint listing intentionally omitted to reduce log volume
-                    }
-                }
-
-                foreach (var joint in fixedJoints)
-                {
-                    if (joint?.connectedBody != null)
-                    {
-                        var connectedCar = TrainCar.Resolve(joint.connectedBody.gameObject);
-                        // Detailed joint listing intentionally omitted to reduce log volume
-                    }
-                }
             }
             catch (System.Exception ex)
             {
                 Main.ErrorLog(() => $"Error logging joints for {car.ID}: {ex.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Enhanced collision response for train car collisions
-        /// </summary>
-        [HarmonyPatch(typeof(TrainCarCollisions), nameof(TrainCarCollisions.OnCollisionEnter))]
-        public static class TrainCarCollisionsPatch
-        {
-            public static void Postfix(TrainCarCollisions __instance, Collision collision)
-            {
-                try
-                {
-                    // Check if this is a collision between two train cars
-                    var thisCar = TrainCar.Resolve(__instance.gameObject);
-                    var otherCar = TrainCar.Resolve(collision.gameObject);
-
-                    if (thisCar == null || otherCar == null || thisCar == otherCar)
-                        return;
-
-                    // Only apply buffer forces if cars are not coupled (to avoid interfering with coupling physics)
-                    bool areCoupled = (thisCar.frontCoupler?.IsCoupled() == true && thisCar.frontCoupler.coupledTo?.train == otherCar) ||
-                                    (thisCar.rearCoupler?.IsCoupled() == true && thisCar.rearCoupler.coupledTo?.train == otherCar);
-
-                    if (areCoupled)
-                        return;
-
-                    ApplySimpleBufferResponse(__instance, thisCar, otherCar, collision);
-                }
-                catch (System.Exception ex)
-                {
-                    Main.ErrorLog(() => $"Error in collision patch: {ex.Message}");
-                }
-            }
-
-            private static void ApplySimpleBufferResponse(TrainCarCollisions collisionComponent, TrainCar thisCar, TrainCar otherCar, Collision collision)
-            {
-                var thisRigidbody = thisCar.GetComponent<Rigidbody>();
-                var otherRigidbody = otherCar.GetComponent<Rigidbody>();
-
-                if (thisRigidbody == null || otherRigidbody == null)
-                    return;
-
-                // Get collision info
-                var contact = collision.contacts[0];
-                var collisionNormal = contact.normal;
-                var relativeVelocity = collision.relativeVelocity;
-                var velocityMagnitude = relativeVelocity.magnitude;
-
-                // Simple approach: just add a small additional repelling force proportional to collision severity
-                // This enhances Unity's natural collision response without overriding it
-                // Use damper rate since we're applying force proportional to velocity (F = c * v)
-                float additionalForce = velocityMagnitude * Main.settings.GetDamperRate() * 0.001f; // Small multiplier for damping effect
-
-                // Apply the additional force at the collision point
-                Vector3 forceVector = collisionNormal * additionalForce;
-                thisRigidbody.AddForceAtPosition(forceVector, contact.point);
-
-                Main.DebugLog(() => $"Enhanced collision response: {thisCar.ID} <-> {otherCar.ID}, force={additionalForce:F1}, v={velocityMagnitude:F2}");
             }
         }
 
