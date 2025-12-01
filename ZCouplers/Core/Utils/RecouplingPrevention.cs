@@ -20,7 +20,7 @@ namespace DvMod.ZCouplers.Core.Utils
         /// <summary>
         /// Tracks coupler pairs that are currently blocked from recoupling.
         /// </summary>
-        private static readonly HashSet<CouplerPair> blockedPairs = new HashSet<CouplerPair>();
+        public static readonly HashSet<CouplerPair> blockedPairs = new HashSet<CouplerPair>();
 
         /// <summary>
         /// Reference to the running distance check coroutine.
@@ -48,7 +48,7 @@ namespace DvMod.ZCouplers.Core.Utils
         /// <summary>
         /// Represents a pair of couplers (order-independent).
         /// </summary>
-        private struct CouplerPair
+        public struct CouplerPair
         {
             private readonly Coupler coupler1;
             private readonly Coupler coupler2;
@@ -93,7 +93,7 @@ namespace DvMod.ZCouplers.Core.Utils
         /// Initialize the recoupling prevention system with a MonoBehaviour for running coroutines.
         /// Called lazily when first needed.
         /// </summary>
-        private static void EnsureInitialized()
+        public static void EnsureInitialized()
         {
 	        if (isCoroutineRunning)
 	        {
@@ -151,7 +151,7 @@ namespace DvMod.ZCouplers.Core.Utils
         /// <summary>
         /// Update the blocked pairs based on current distances.
         /// </summary>
-        private static void UpdateBlockedPairs()
+        public static void UpdateBlockedPairs()
         {
             if (recentlyUncoupled.Count == 0)
                 return; // No need to log if there's nothing to check
