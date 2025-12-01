@@ -86,12 +86,13 @@ public static class Main
         KnuckleCouplers.Initialize();
         mod.Logger.Log($"Loaded ZCouplers with profile: {Main.settings.couplerProfile?.DisplayName ?? Main.settings.selectedCoupler}");
 
+        MpShim.TryInitialize(modEntry);
+
         var ccl = UnityModManager.modEntries.FirstOrDefault(mod => mod.Info.Id == "DVCustomCarLoader");
         if (ccl is not { Active: true }) return true;
         IsCCLLoaded = true;
         mod.Logger.Log("Found CCL!");
 
-        MpShim.TryInitialize(modEntry);
         return true;
     }
 
