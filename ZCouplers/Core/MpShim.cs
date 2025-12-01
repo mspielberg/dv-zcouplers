@@ -26,7 +26,7 @@ namespace DvMod.ZCouplers.Core
 		{
 			try
 			{
-				mod?.Logger.Log("hecking for MultiplayerAPI and optional MP plugin...");
+				mod?.Logger.Log("Checking for MultiplayerAPI and optional MP plugin...");
 				var mpApiType = Type.GetType("MPAPI.MultiplayerAPI, MultiplayerAPI", throwOnError: false);
 				if (mpApiType == null)
 				{
@@ -59,9 +59,10 @@ namespace DvMod.ZCouplers.Core
 				var type = Type.GetType("DvMod.ZCouplers.MultiplayerIntegration, ZCouplers.MP", throwOnError: true);
 				couplerToggleRequest = type?.GetMethod("SendCouplerToggleRequest", BindingFlags.Public | BindingFlags.Static);
 			}
-			catch (Exception)
+			catch (Exception ex)
 			{
-				mod?.Logger.Log("Optional MP initialization failed (continuing without MP).");
+				mod?.Logger.Log($"Optional MP initialization failed (continuing without MP): {ex.Message}");
+				mod?.Logger.Log($"Stack trace: {ex.StackTrace}");
 			}
 		}
 
