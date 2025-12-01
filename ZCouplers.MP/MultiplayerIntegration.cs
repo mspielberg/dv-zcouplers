@@ -36,6 +36,10 @@ namespace DvMod.ZCouplers
         private static readonly HashSet<string> clientKnownTensionPairs = new();
         private static readonly HashSet<string> clientKnownCompressionPairs = new();
 
+        // Client: Store pending joint packets for cars that aren't loaded yet
+        private static readonly List<JointCreate> clientPendingJoints = new();
+        private static readonly List<JointDestroy> clientPendingDestroys = new();
+
         // Build an ordered pair key from two endpoints
         private static string PairKey(ushort id1, bool f1, ushort id2, bool f2)
         {
@@ -118,6 +122,10 @@ namespace DvMod.ZCouplers
                 client.RegisterPacket<JointDestroy>(OnClientJointDestroy);
                 client.RegisterPacket<RecouplingBlock>(OnClientRecouplingBlock);
                 client.RegisterPacket<RecouplingUnblock>(OnClientRecouplingUnblock);
+
+                // Update MpShim flags so core code knows we're a client
+                MpShim.SetIsClientActive(true);
+
                 Main.DebugLog(() => "[MP] Client integration ready");
             }
             catch (Exception e)
@@ -143,10 +151,15 @@ namespace DvMod.ZCouplers
 
         private static void OnClientStopped()
         {
-            // Nothing special for now
+            // Clear all client state
             ClientAllowsJointOps = false;
             clientKnownTensionPairs.Clear();
             clientKnownCompressionPairs.Clear();
+            clientPendingJoints.Clear();
+            clientPendingDestroys.Clear();
+
+            // Update MpShim flag so core code knows we're no longer a client
+            MpShim.SetIsClientActive(false);
         }
 
         private static void OnTickHost(uint tick)
@@ -392,8 +405,23 @@ namespace DvMod.ZCouplers
 
         private static void OnClientJointCreate(JointCreate packet)
         {
-            if (!TryResolveCoupler(packet.ACarNetId, packet.AIsFront, out var a)) return;
-            if (!TryResolveCoupler(packet.BCarNetId, packet.BIsFront, out var b)) return;
+            if (!TryResolveCoupler(packet.ACarNetId, packet.AIsFront, out var a) ||
+                !TryResolveCoupler(packet.BCarNetId, packet.BIsFront, out var b))
+            {
+                // Cars not loaded yet - queue for later
+                clientPendingJoints.Add(packet);
+                Main.DebugLog(() => $"[MP] Client queued pending joint (cars not loaded): {packet.ACarNetId}:{packet.AIsFront} <-> {packet.BCarNetId}:{packet.BIsFront}");
+                return;
+            }
+
+            ApplyJointCreate(packet, a, b);
+        }
+
+        /// <summary>
+        /// Apply a joint create operation with the resolved couplers.
+        /// </summary>
+        private static void ApplyJointCreate(JointCreate packet, Coupler a, Coupler b)
+        {
             try
             {
                 var key = PairKey(packet.ACarNetId, packet.AIsFront, packet.BCarNetId, packet.BIsFront);
@@ -407,14 +435,16 @@ namespace DvMod.ZCouplers
                     if (a == null || b == null || a.coupledTo != b)
                     {
                         ClientAllowsJointOps = true; // allow joint creation triggered by CoupleTo
+                        MpShim.SetClientAllowsJointOps(true);
                         try
                         {
                             a?.CoupleTo(b, viaChainInteraction: true);
-                            Main.DebugLog(() => $"CoupleTo {a?.train.ID} <-> {b?.train.ID} (client)");
+                            Main.DebugLog(() => $"[MP] Client CoupleTo {a?.train.ID} <-> {b?.train.ID} (this merges trainsets)");
                         }
                         finally
                         {
                             ClientAllowsJointOps = false;
+                            MpShim.SetClientAllowsJointOps(false);
                         }
                     }
                 }
@@ -422,6 +452,7 @@ namespace DvMod.ZCouplers
                 {
                     // Compression joints don't affect TrainSet membership; just mirror host
                     ClientAllowsJointOps = true;
+                    MpShim.SetClientAllowsJointOps(true);
                     try
                     {
                         JointManager.CreateCompressionJoint(a, b);
@@ -429,6 +460,7 @@ namespace DvMod.ZCouplers
                     finally
                     {
                         ClientAllowsJointOps = false;
+                        MpShim.SetClientAllowsJointOps(false);
                     }
                 }
             }
@@ -629,6 +661,103 @@ namespace DvMod.ZCouplers
             catch (Exception e)
             {
                 Main.ErrorLog(() => $"[MP] Client recoupling unblock failed: {e.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Client: Process pending joint operations for a car that just loaded.
+        /// This ensures CoupleTo gets called for trainset merging even when cars load asynchronously.
+        /// Call this when a car finishes loading on the client.
+        /// </summary>
+        public static void ClientProcessPendingJointsForCar(TrainCar car)
+        {
+            if (!IsClientActive || car == null)
+                return;
+
+            try
+            {
+                if (!TryGetCarNetId(car, out var carNetId))
+                    return;
+
+                // Try to apply pending joint creates
+                for (int i = clientPendingJoints.Count - 1; i >= 0; i--)
+                {
+                    var packet = clientPendingJoints[i];
+
+                    // Check if this packet involves the newly loaded car
+                    if (packet.ACarNetId != carNetId && packet.BCarNetId != carNetId)
+                        continue;
+
+                    // Try to resolve both couplers
+                    if (!TryResolveCoupler(packet.ACarNetId, packet.AIsFront, out var a) ||
+                        !TryResolveCoupler(packet.BCarNetId, packet.BIsFront, out var b))
+                        continue; // Still can't resolve, leave it queued
+
+                    // Both cars are now loaded - apply the joint and remove from queue
+                    Main.DebugLog(() => $"[MP] Client applying pending joint (cars now loaded): {packet.ACarNetId}:{packet.AIsFront} <-> {packet.BCarNetId}:{packet.BIsFront}");
+                    ApplyJointCreate(packet, a, b);
+                    clientPendingJoints.RemoveAt(i);
+                }
+
+                // Try to apply pending joint destroys
+                for (int i = clientPendingDestroys.Count - 1; i >= 0; i--)
+                {
+                    var packet = clientPendingDestroys[i];
+
+                    // Check if this packet involves the newly loaded car
+                    if (packet.ACarNetId != carNetId && packet.BCarNetId != carNetId)
+                        continue;
+
+                    // Try to resolve both couplers
+                    if (!TryResolveCoupler(packet.ACarNetId, packet.AIsFront, out var a) ||
+                        !TryResolveCoupler(packet.BCarNetId, packet.BIsFront, out var b))
+                        continue; // Still can't resolve, leave it queued
+
+                    // Both cars are now loaded - apply the destroy and remove from queue
+                    Main.DebugLog(() => $"[MP] Client applying pending joint destroy (cars now loaded): {packet.ACarNetId}:{packet.AIsFront} <-> {packet.BCarNetId}:{packet.BIsFront}");
+
+                    var key = PairKey(packet.ACarNetId, packet.AIsFront, packet.BCarNetId, packet.BIsFront);
+                    var set = packet.Kind == JointKind.Tension ? clientKnownTensionPairs : clientKnownCompressionPairs;
+
+                    if (set.Contains(key))
+                    {
+                        if (packet.Kind == JointKind.Tension)
+                        {
+                            ClientAllowsJointOps = true;
+                            MpShim.SetClientAllowsJointOps(true);
+                            try
+                            {
+                                a?.Uncouple(playAudio: false, calledOnOtherCoupler: false, dueToBrokenCouple: false, viaChainInteraction: true);
+                            }
+                            finally
+                            {
+                                ClientAllowsJointOps = false;
+                                MpShim.SetClientAllowsJointOps(false);
+                            }
+                        }
+                        else
+                        {
+                            ClientAllowsJointOps = true;
+                            MpShim.SetClientAllowsJointOps(true);
+                            try
+                            {
+                                JointManager.DestroyCompressionJoint(a, caller: "MP-Pending");
+                            }
+                            finally
+                            {
+                                ClientAllowsJointOps = false;
+                                MpShim.SetClientAllowsJointOps(false);
+                            }
+                        }
+                        set.Remove(key);
+                    }
+
+                    clientPendingDestroys.RemoveAt(i);
+                }
+            }
+            catch (Exception e)
+            {
+                Main.ErrorLog(() => $"[MP] Client process pending joints failed: {e.Message}");
             }
         }
     }

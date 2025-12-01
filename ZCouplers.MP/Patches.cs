@@ -1,8 +1,10 @@
+using System.Collections;
 using System.Collections.Generic;
 using DvMod.ZCouplers.Core;
 using DvMod.ZCouplers.Core.Utils;
 using DvMod.ZCouplers.Physics;
 using HarmonyLib;
+using UnityEngine;
 
 namespace DvMod.ZCouplers
 {
@@ -156,6 +158,57 @@ namespace DvMod.ZCouplers
 				{
 					Main.DebugLog(() => $"[MP] DestroyTensionJoint - coupler.coupledTo is null, can't record");
 				}
+			}
+		}
+
+		// Patch TrainCar.Awake to process pending joints when a car finishes loading on the client
+		[HarmonyPatch(typeof(TrainCar), "Awake")]
+		public static class ProcessPendingJointsOnCarLoad
+		{
+			public static void Postfix(TrainCar __instance)
+			{
+				// Only process on client
+				if (!MultiplayerIntegration.IsClientActive || __instance == null)
+					return;
+
+				// Start a coroutine to wait for the car to be fully initialized and network-registered
+				__instance.StartCoroutine(WaitForCarLoadThenProcessPending(__instance));
+			}
+
+			private static IEnumerator WaitForCarLoadThenProcessPending(TrainCar car)
+			{
+				// Wait a frame for the car to be fully initialized
+				yield return new WaitForEndOfFrame();
+
+				// Wait until the car's logicCar is properly set up
+				int attempts = 0;
+				while ((car?.logicCar == null || string.IsNullOrEmpty(car.ID)) && attempts < 10)
+				{
+					yield return new WaitForEndOfFrame();
+					attempts++;
+				}
+
+				if (car == null)
+				{
+					Main.ErrorLog(() => "[MP] Car became null while waiting for initialization");
+					yield break;
+				}
+
+				// Additional wait for network registration - the MP API may take a few frames to assign NetIds
+				// We'll retry a few times to give the network system time to register the car
+				for (int i = 0; i < 20; i++) // Try for up to 20 frames (~0.33 seconds at 60fps)
+				{
+					yield return new WaitForEndOfFrame();
+
+					// Try to process pending joints - if the car has a NetId, this will work
+					MultiplayerIntegration.ClientProcessPendingJointsForCar(car);
+
+					// If we successfully processed anything, we can stop retrying
+					// The method is safe to call multiple times (it checks if operations were already applied)
+					yield return null;
+				}
+
+				Main.DebugLog(() => $"[MP] Finished processing pending joints for car {car.ID}");
 			}
 		}
 	}

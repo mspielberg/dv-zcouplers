@@ -1,3 +1,4 @@
+using DV.ThingTypes;
 using DvMod.ZCouplers.Core;
 using DvMod.ZCouplers.Physics;
 using HarmonyLib;
