@@ -99,9 +99,24 @@ namespace DvMod.ZCouplers.Core.Utils
 	        {
 		        return; // Already running
 	        }
-	        distanceCheckCoroutine = CoroutineManager.Instance.StartCoroutine(DistanceCheckCoroutine());
-	        Main.DebugLog(() => "Distance check coroutine started successfully");
-            isCoroutineRunning = true;
+	        
+	        if (CoroutineManager.Instance == null)
+	        {
+		        Main.ErrorLog(() => "CoroutineManager.Instance is null, cannot start distance check coroutine");
+		        return;
+	        }
+	        
+	        try
+	        {
+		        distanceCheckCoroutine = CoroutineManager.Instance.StartCoroutine(DistanceCheckCoroutine());
+		        isCoroutineRunning = true;
+		        Main.DebugLog(() => "Distance check coroutine started successfully");
+	        }
+	        catch (Exception ex)
+	        {
+		        Main.ErrorLog(() => $"Failed to start distance check coroutine: {ex.Message}");
+		        isCoroutineRunning = false;
+	        }
         }
 
         /// <summary>
@@ -124,6 +139,19 @@ namespace DvMod.ZCouplers.Core.Utils
 		        recentlyUncoupled.Clear();
 		        blockedPairs.Clear();
 	        }
+        }
+
+        /// <summary>
+        /// Check if the coroutine is still running and restart if needed.
+        /// Called from RecordUncoupling to ensure the coroutine is alive.
+        /// </summary>
+        private static void EnsureCoroutineHealth()
+        {
+            if (!isCoroutineRunning && recentlyUncoupled.Count > 0)
+            {
+                Main.ErrorLog(() => "Detected stopped coroutine with active records, restarting...");
+                EnsureInitialized();
+            }
         }
 
         /// <summary>
@@ -153,65 +181,74 @@ namespace DvMod.ZCouplers.Core.Utils
         /// </summary>
         private static void UpdateBlockedPairs()
         {
-            if (recentlyUncoupled.Count == 0)
-                return; // No need to log if there's nothing to check
-
-            Main.DebugLog(() => $"Checking {recentlyUncoupled.Count} uncoupled pair(s)");
-
-            var toRemove = new List<CouplerPair>();
-
-            foreach (var kvp in recentlyUncoupled)
+            try
             {
-                var pair = kvp.Key;
-                var record = kvp.Value;
+                if (recentlyUncoupled.Count == 0)
+                    return; // No need to log if there's nothing to check
 
-                try
+                Main.DebugLog(() => $"Checking {recentlyUncoupled.Count} uncoupled pair(s)");
+
+                var toRemove = new List<CouplerPair>();
+
+                foreach (var kvp in recentlyUncoupled)
                 {
-                    var coupler1 = pair.GetCoupler1();
-                    var coupler2 = pair.GetCoupler2();
+                    var pair = kvp.Key;
+                    var record = kvp.Value;
 
-                    if (coupler1 == null ||
-                        coupler2 == null ||
-                        coupler1.train.ID == "" ||
-                        coupler2.train.ID == "")
+                    try
                     {
-                        toRemove.Add(pair);
-                        Main.DebugLog(() => "Coupler pair has null coupler/train, removing");
-                        continue;
+                        var coupler1 = pair.GetCoupler1();
+                        var coupler2 = pair.GetCoupler2();
+
+                        if (coupler1 == null ||
+                            coupler2 == null ||
+                            coupler1.train == null ||
+                            coupler2.train == null ||
+                            coupler1.train.ID == "" ||
+                            coupler2.train.ID == "")
+                        {
+                            toRemove.Add(pair);
+                            Main.DebugLog(() => "Coupler pair has null coupler/train, removing");
+                            continue;
+                        }
+
+                        // Calculate current separation distance between the couplers
+                        var currentDistance = Vector3.Distance(coupler1.transform.position, coupler2.transform.position);
+
+                        Main.DebugLog(() => $"{coupler1.train.ID} <-> {coupler2.train.ID}: current={currentDistance:F3}m, required={Main.settings.minimumSeparationDistance:F3}m");
+
+                        // Check if couplers are far enough apart (absolute distance check)
+                        if (currentDistance >= Main.settings.minimumSeparationDistance)
+                        {
+                            // Remove from both tracking dictionaries
+                            toRemove.Add(pair);
+                            blockedPairs.Remove(pair);
+                            Main.DebugLog(() => $"Separation requirement met: {coupler1.train.ID} <-> {coupler2.train.ID}, distance: {currentDistance:F3}m");
+                        }
+                        else
+                        {
+                            // Still blocked - couplers are too close
+                            blockedPairs.Add(pair);
+                        }
                     }
-
-                    // Calculate current separation distance between the couplers
-                    var currentDistance = Vector3.Distance(coupler1.transform.position, coupler2.transform.position);
-
-                    Main.DebugLog(() => $"{coupler1.train.ID} <-> {coupler2.train.ID}: current={currentDistance:F3}m, required={Main.settings.minimumSeparationDistance:F3}m");
-
-                    // Check if couplers are far enough apart (absolute distance check)
-                    if (currentDistance >= Main.settings.minimumSeparationDistance)
+                    catch (Exception ex)
                     {
-                        // Remove from both tracking dictionaries
+                        // If there's any issue accessing the couplers, remove the record
                         toRemove.Add(pair);
                         blockedPairs.Remove(pair);
-                        Main.DebugLog(() => $"Separation requirement met: {coupler1.train.ID} <-> {coupler2.train.ID}, distance: {currentDistance:F3}m");
-                    }
-                    else
-                    {
-                        // Still blocked - couplers are too close
-                        blockedPairs.Add(pair);
+                        Main.ErrorLog(() => $"Exception accessing coupler pair: {ex.Message}\n{ex.StackTrace}");
                     }
                 }
-                catch
+
+                // Remove records that are no longer needed
+                foreach (var pair in toRemove)
                 {
-                    // If there's any issue accessing the couplers, remove the record
-                    toRemove.Add(pair);
-                    blockedPairs.Remove(pair);
-                    Main.DebugLog(() => "Exception accessing coupler pair, removing");
+                    recentlyUncoupled.Remove(pair);
                 }
             }
-
-            // Remove records that are no longer needed
-            foreach (var pair in toRemove)
+            catch (Exception ex)
             {
-                recentlyUncoupled.Remove(pair);
+                Main.ErrorLog(() => $"Critical error in UpdateBlockedPairs: {ex.Message}\n{ex.StackTrace}");
             }
         }
 
@@ -234,6 +271,7 @@ namespace DvMod.ZCouplers.Core.Utils
 
             // Ensure coroutine is running
             EnsureInitialized();
+            EnsureCoroutineHealth();
         }
 
         /// <summary>
