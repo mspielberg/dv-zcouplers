@@ -92,6 +92,15 @@ public static class BufferCollisionManager
                 var bufferRelatedObjects = walkable.GetComponentsInChildren<Transform>(true)
 	                .Where(t => IsBufferRelatedName(t.name));
 
+                // Special handling for DE6 (but not DE6Slug)
+                if (liveryId.Contains("LocoDE6") && !liveryId.Contains("DE6Slug"))
+                {
+                    // DE6 has Capsule 1-4 instead of 4-7
+                    bufferRelatedObjects = walkable.GetComponentsInChildren<Transform>(true)
+                        .Where(t => Regex.IsMatch(t.name, @"capsule \([1-4]\)", RegexOptions.IgnoreCase))
+                        .ToList();
+                }
+
 
                 // Process buffer-related objects by name
                 var relatedObjects = bufferRelatedObjects as Transform[] ?? bufferRelatedObjects.ToArray();
@@ -117,7 +126,7 @@ public static class BufferCollisionManager
 	                foundColliders = true;
                 }
 
-	            // If no name pattern matches, try to identify a rectangular pattern of colliders
+	            // Special handling for DH4 since it has no buffer colliders
                 if (!foundColliders)
                 {
 	                // Skip for LocoDH4 since it has no buffer colliders
