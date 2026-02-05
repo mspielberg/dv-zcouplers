@@ -160,10 +160,9 @@ namespace DvMod.ZCouplers.Visuals
 	        // Early return for too-close case
 	        if (sqrDistance < 1e-8f)
 	        {
-		        var prefabCorrection = Quaternion.Euler(90f, 0f, 0f);
 		        linkTransform.SetPositionAndRotation(
 			        offsetPosition,
-			        Quaternion.Slerp(linkTransform.rotation, coupler1Rotation * prefabCorrection, Time.deltaTime * 5f)
+			        Quaternion.Slerp(linkTransform.rotation, coupler1Rotation, Time.deltaTime * 5f)
 		        );
 		        return;
 	        }
@@ -176,10 +175,9 @@ namespace DvMod.ZCouplers.Visuals
 	        var lookSqrMag = lookDirection.x * lookDirection.x + lookDirection.y * lookDirection.y + lookDirection.z * lookDirection.z;
 	        if (lookSqrMag < 1e-8f)
 	        {
-		        var prefabCorrection = Quaternion.Euler(90f, 0f, 0f);
 		        linkTransform.SetPositionAndRotation(
 			        offsetPosition,
-			        Quaternion.Slerp(linkTransform.rotation, coupler1Rotation * prefabCorrection, Time.deltaTime * 5f)
+			        Quaternion.Slerp(linkTransform.rotation, coupler1Rotation, Time.deltaTime * 5f)
 		        );
 		        return;
 	        }
@@ -201,7 +199,7 @@ namespace DvMod.ZCouplers.Visuals
 	        var projectedZ = normZ * horizontalScale;
 
 	        // Create rotation from projected direction vector
-	        var targetRotation = Quaternion.LookRotation(new Vector3(projectedX, normY, projectedZ)) * Quaternion.Euler(90f, 0f, 0f);
+	        var targetRotation = Quaternion.LookRotation(new Vector3(projectedX, normY, projectedZ));
 
 	        // Use SetPositionAndRotation to batch the updates
 	        linkTransform.SetPositionAndRotation(
