@@ -1,0 +1,9 @@
+# Normalize line endings on all text files
+* text=auto eol=lf
+
+# Keep binary files binary
+*.assetbundle binary
+*.png binary
+*.tga binary
+*.fbx binary
+*.obj binary
