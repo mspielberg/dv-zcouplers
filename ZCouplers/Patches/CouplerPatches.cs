@@ -12,19 +12,24 @@ namespace DvMod.ZCouplers.Patches
     public static class CouplerPatches
     {
 
-        /// <summary>
-        /// Patch for CreateJoints to use custom joint system
-        /// </summary>
-        [HarmonyPatch(typeof(Coupler), nameof(Coupler.CreateJoints))]
-        public static class CreateJointsPatch
-        {
-            public static bool Prefix(Coupler __instance)
-            {
-                // Allow tender joints to use original behavior
-                if (__instance.train.GetComponent<DV.SteamTenderAutoCoupleMechanism>() != null && !__instance.isFrontCoupler)
-                {
-                    return true;
-                }
+		/// <summary>
+		/// Patch for CreateJoints to use custom joint system
+		/// </summary>
+		[HarmonyPatch(typeof(Coupler), nameof(Coupler.CreateJoints))]
+		public static class CreateJointsPatch
+		{
+			public static bool Prefix(Coupler __instance)
+			{
+				// In MP client, never create joints locally unless we're replaying host commands.
+				if (MpShim.IsClientActive && !MpShim.ClientAllowsJointOps)
+				{
+					return true; // let vanilla run, but our other client guards will prevent joint creation in JointManager
+				}
+				// Allow tender joints to use original behavior
+				if (__instance.train.GetComponent<DV.SteamTenderAutoCoupleMechanism>() != null && !__instance.isFrontCoupler)
+				{
+					return true;
+				}
 
                 if (Main.IsCCLLoaded)
                 {

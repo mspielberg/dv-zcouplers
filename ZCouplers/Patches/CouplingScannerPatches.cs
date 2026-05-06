@@ -314,6 +314,30 @@ namespace DvMod.ZCouplers.Patches
 
                 if (coupler.IsCoupled())
                 {
+                    // Already coupled; ensure trainsets are synchronized
+                    if (coupler.coupledTo != null)
+                    {
+                        // Ensure trainsets are properly merged for already-coupled cars
+                        // This handles both save loading AND cars spawning naturally in the world
+                        var trainset1 = coupler.train.trainset;
+                        var trainset2 = coupler.coupledTo.train.trainset;
+
+                        if (trainset1 != null && trainset2 != null && trainset1 != trainset2)
+                        {
+                            Main.DebugLog(() => $"Merging trainsets for already-coupled cars: {coupler.train.ID} (trainset {trainset1.id}) <-> {coupler.coupledTo.train.ID} (trainset {trainset2.id})");
+
+                            // Use the game's native trainset merge logic
+                            try
+                            {
+                                Trainset.Merge(coupler.train, coupler.coupledTo.train);
+                            }
+                            catch (System.Exception ex)
+                            {
+                                Main.ErrorLog(() => $"Error merging trainsets: {ex.Message}");
+                            }
+                        }
+                    }
+
                     // Already coupled; stop the coroutine.
                     __instance.masterCoro = null;
                     yield break;
