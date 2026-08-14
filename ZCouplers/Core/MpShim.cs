@@ -4,19 +4,25 @@ using System.Reflection;
 
 namespace DvMod.ZCouplers.Core
 {
-	/// <summary>
-	/// Lightweight runtime bridge between core and the optional Multiplayer integration.
-	/// No compile-time references to the MP API.
-	/// </summary>
-	public static class MpShim
-	{
-		// Set by the optional MP assembly at runtime
-		public static bool IsClientActive { get; private set; }
-		public static bool ClientAllowsJointOps { get; private set; }
+        /// <summary>
+        /// Runtime bridge between core and the optional Multiplayer integration.
+        /// No compile-time references to the MP API.
+        /// </summary>
+        public static class MpShim
+        {
+                // Set by the optional MP assembly at runtime
+                public static bool IsClientActive { get; private set; }
+                public static bool ClientAllowsJointOps { get; private set; }
 
-		public static void SetIsClientActive(bool active) => IsClientActive = active;
-		public static void SetClientAllowsJointOps(bool allowed) => ClientAllowsJointOps = allowed;
-		private static MethodInfo? couplerToggleRequest;
+                // True when this instance is the host in multiplayer
+                public static bool IsHost { get; private set; }
+
+                public static void SetIsClientActive(bool active) => IsClientActive = active;
+                public static void SetClientAllowsJointOps(bool allowed) => ClientAllowsJointOps = allowed;
+                public static void SetIsHost(bool host) => IsHost = host;
+
+                private static MethodInfo? couplerToggleRequest;
+                private static MethodInfo? hostBroadcastSettings;
 
 		/// <summary>
 		/// Try to initialize the optional MP integration by loading ZCouplers.MP.dll
@@ -58,6 +64,7 @@ namespace DvMod.ZCouplers.Core
 				mod?.Logger.Log("Multiplayer detected. Optional MP plugin loaded successfully.");
 				var type = Type.GetType("DvMod.ZCouplers.MultiplayerIntegration, ZCouplers.MP", throwOnError: true);
 				couplerToggleRequest = type?.GetMethod("SendCouplerToggleRequest", BindingFlags.Public | BindingFlags.Static);
+				hostBroadcastSettings = type?.GetMethod("HostBroadcastSettings", BindingFlags.Public | BindingFlags.Static);
 			}
 			catch (Exception ex)
 			{
@@ -73,5 +80,19 @@ namespace DvMod.ZCouplers.Core
 		{
 			couplerToggleRequest?.Invoke(null, [coupler, locked]);
 		}
+
+		/// <summary>
+		/// Try to broadcast current settings to all clients when host changes settings.
+		/// </summary>
+		public static void TryHostBroadcastSettings()
+		{
+			hostBroadcastSettings?.Invoke(null, null);
+		}
+
+		/// <summary>
+		/// Returns true when connected to MP (either as host or client).
+		/// Used by core code to determine if MP features are active.
+		/// </summary>
+		public static bool IsMultiplayerActive => IsClientActive || IsHost;
 	}
 }

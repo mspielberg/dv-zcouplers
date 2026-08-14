@@ -45,6 +45,36 @@ namespace DvMod.ZCouplers.Core
         // Override OnGUI to draw all settings manually
         public void OnGUI(UnityModManager.ModEntry modEntry)
         {
+            // When in multiplayer, lock all settings - host and clients cannot change values
+            if (MpShim.IsMultiplayerActive)
+            {
+                GUILayout.Label("Settings are locked during multiplayer sessions.", GUILayout.ExpandWidth(false));
+                GUILayout.Label("Only the host can change settings in singleplayer.", GUILayout.ExpandWidth(false));
+                GUILayout.Space(10);
+
+                // Display current values as read-only
+                GUILayout.Label($"Coupler Profile: {couplerProfile?.DisplayName ?? "None"}");
+                GUILayout.Label($"Buffers Visible: {showBuffersWithKnuckles}");
+                GUILayout.Label($"Strength Mode: {strengthValues}");
+                if (strengthValues == strengthPreset.Custom)
+                {
+                    GUILayout.Label($"Coupler Strength: {knuckleStrength:F2} MN");
+                    GUILayout.Label($"Spring Rate: {drawgearSpringRate:F2} MN/m");
+                    GUILayout.Label($"Damper Rate: {drawgearDamperRate:F2} kN*s/m");
+                }
+                GUILayout.Label($"Auto Couple Threshold: {autoCoupleThreshold:F1} mm");
+                GUILayout.Label($"Min Separation Distance: {minimumSeparationDistance:F2} m");
+                GUILayout.Label($"Auto Air & MU Mode: {autoAirAndMuMode}");
+                GUILayout.Label($"Auto Coupling Mode: {autoCouplingMode}");
+                GUILayout.Label($"Disable Front Couplers on S282: {disableFrontCouplersOnSteamLocos}");
+
+                if (!string.IsNullOrEmpty(version))
+                {
+                    GUILayout.Label($"Version: {version}");
+                }
+                return;
+            }
+
             // Draw coupler profile popup dropdown
             GUILayout.BeginHorizontal();
             GUILayout.Label("Coupler Profile: ", GUILayout.Width(120));

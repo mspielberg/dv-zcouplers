@@ -1,6 +1,7 @@
 using System;
 using DvMod.ZCouplers.Core;
 using HarmonyLib;
+using MPAPI;
 using System.Linq;
 using System.Reflection;
 
@@ -51,6 +52,31 @@ namespace DvMod.ZCouplers
 
 			// Wire core shim flags from MP state
 			MultiplayerIntegration.Initialize();
+
+			// Set IsHost flag on MpShim using MultiplayerAPI convenience property
+			try
+			{
+				MpShim.SetIsHost(MultiplayerAPI.Instance?.IsHost == true);
+				Main.DebugLog(() => $"[MP] Bootstrap: IsHost={MpShim.IsHost}");
+
+				// Wire up the HostBroadcastSettings callback via reflection
+				var multiType = typeof(MultiplayerIntegration);
+				var hostBroadcastMethod = multiType.GetMethod("HostBroadcastSettings", BindingFlags.Public | BindingFlags.Static);
+				if (hostBroadcastMethod != null)
+				{
+					typeof(MpShim).GetField("hostBroadcastSettings", BindingFlags.NonPublic | BindingFlags.Static)
+						?.SetValue(null, hostBroadcastMethod);
+					Main.DebugLog(() => "[MP] Bootstrap: HostBroadcastSettings wired to MpShim");
+				}
+				else
+				{
+					Main.ErrorLog(() => "[MP] Bootstrap: HostBroadcastSettings method not found on MultiplayerIntegration");
+				}
+			}
+			catch (Exception ex)
+			{
+				Main.ErrorLog(() => $"[MP] Bootstrap: Failed to wire MpShim flags: {ex.Message}");
+			}
 		}
 	}
 }

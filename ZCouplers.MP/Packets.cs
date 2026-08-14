@@ -31,7 +31,6 @@ namespace DvMod.ZCouplers
 	public enum JointKind : byte
 	{
 		Tension = 1,
-		Compression = 2,
 	}
 
 	/// <summary>
@@ -81,6 +80,18 @@ namespace DvMod.ZCouplers
 		public bool AIsFront { get; set; }
 		public ushort BCarNetId { get; set; }
 		public bool BIsFront { get; set; }
+		public uint Tick { get; set; }
+	}
+
+	/// <summary>
+	/// Server -> Clients: Synchronize ZCouplers physics settings so joints are identical.
+	/// </summary>
+	public class SettingsSync : IPacket
+	{
+		public float SpringRate { get; set; }
+		public float DamperRate { get; set; }
+		public bool ShowBuffersWithKnuckles { get; set; }
+		public float MinimumSeparationDistance { get; set; }
 		public uint Tick { get; set; }
 	}
 }

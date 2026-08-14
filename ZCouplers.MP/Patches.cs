@@ -161,6 +161,18 @@ namespace DvMod.ZCouplers
 			}
 		}
 
+		// Prevent CouplerBreaker from running on clients.
+		// CouplerBreaker monitors joint stress and can break couplers independently.
+		// On clients, joint operations are replayed from host, so breaker logic must be host-only.
+		[HarmonyPatch(typeof(CouplerBreaker), "Update")]
+		public static class PreventCouplerBreakerOnClient
+		{
+			public static bool Prefix()
+			{
+				return !MultiplayerIntegration.IsClientActive;
+			}
+		}
+
 		// Patch TrainCar.Awake to process pending joints when a car finishes loading on the client
 		[HarmonyPatch(typeof(TrainCar), "Awake")]
 		public static class ProcessPendingJointsOnCarLoad

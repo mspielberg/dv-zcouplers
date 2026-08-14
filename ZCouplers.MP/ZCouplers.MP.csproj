@@ -21,7 +21,7 @@
     <Reference Include="UnityEngine.PhysicsModule"/>
     <Reference Include="UnityModManager" Private="false" />
   	<Reference Include="DV.Utils" Private="false" />
-	<PackageReference Include="DVMultiplayerAPI" />
+	<PackageReference Include="DVMultiplayerAPI" Version="1.1.0"/>
 
   </ItemGroup>
 
