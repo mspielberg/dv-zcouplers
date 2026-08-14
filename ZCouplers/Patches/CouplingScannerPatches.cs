@@ -156,22 +156,7 @@ namespace DvMod.ZCouplers.Patches
                         if (otherCoupler == null)
                             return;
 
-                        // Create a compression joint only if both couplers are ready and not during save loading.
-                        if (!JointManager.HasCompressionJoint(coupler) && !JointManager.HasCompressionJoint(otherCoupler)
-                            && ShouldCouplersBeReady(coupler, otherCoupler)
-                            && !SaveManager.IsLoadingFromSave)
-                        {
-                            Main.DebugLog(() => $"Creating compression joint between {coupler.train.ID} and {otherCoupler.train.ID} - couplers ready (auto mode: {Main.settings.autoCouplingMode})");
-                            JointManager.CreateCompressionJoint(coupler, otherCoupler);
-                        }
-                        else if (SaveManager.IsLoadingFromSave)
-                        {
-                            Main.DebugLog(() => $"Skipping compression joint creation during save loading between {coupler.train.ID} and {otherCoupler.train.ID}");
-                        }
-                        else if (coupler.rigidCJ == null && otherCoupler.rigidCJ == null)
-                        {
-                            Main.DebugLog(() => $"Skipping compression joint creation between {coupler.train.ID} and {otherCoupler.train.ID} - couplers not ready (coupler ready: {KnuckleCouplers.IsReadyToCouple(coupler)}, other ready: {KnuckleCouplers.IsReadyToCouple(otherCoupler)}, auto mode: {Main.settings.autoCouplingMode})");
-                        }
+                        // Single-joint mode: no pre-compression joint creation at scan time.
                     }
                 };
             }

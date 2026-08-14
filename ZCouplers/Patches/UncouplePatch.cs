@@ -12,130 +12,69 @@ namespace DvMod.ZCouplers.Patches;
 [HarmonyPatch(typeof(Coupler), "Uncouple")]
 public static class UncouplePatch
 {
-    private static readonly Dictionary<Coupler, ConfigurableJoint> compressionJoints = new Dictionary<Coupler, ConfigurableJoint>();
+    private static readonly Dictionary<Coupler, Coroutine> coros = new();
+    private static readonly Dictionary<Coupler, Coupler> partnerCouplers = new();
+    private static readonly Dictionary<Coupler, bool> wasActuallyCoupled = new();
 
-    private static readonly Dictionary<Coupler, Coroutine> coros = new Dictionary<Coupler, Coroutine>();
-
-    private static readonly Dictionary<Coupler, Coupler> partnerCouplers = new Dictionary<Coupler, Coupler>();
-
-    private static readonly Dictionary<Coupler, bool> wasActuallyCoupled = new Dictionary<Coupler, bool>();
-
-    /// <summary>
-    /// Clean up all tracking dictionaries.
-    /// Called during mod unload.
-    /// </summary>
     public static void Cleanup()
     {
-        compressionJoints.Clear();
         coros.Clear();
         partnerCouplers.Clear();
         wasActuallyCoupled.Clear();
     }
 
-    /// <summary>
-    /// Delayed visual state update to avoid NRE during button interaction processing
-    /// </summary>
     private static System.Collections.IEnumerator DelayedVisualStateUpdate(Coupler coupler)
     {
-        // Wait a frame to allow any pending interaction events to complete
         yield return null;
-
-        // Update visual state
         HookManager.UpdateHookVisualStateFromCouplerState(coupler);
         Main.DebugLog(() => "Updated visual state for uncoupled coupler: " + coupler.train.ID + " " + coupler.Position());
     }
 
     public static void Prefix(Coupler __instance)
     {
-        // Track whether this coupler was actually coupled before the uncoupling attempt
         wasActuallyCoupled[__instance] = __instance.IsCoupled();
 
         Main.DebugLog(() => "Uncoupling " + __instance.train.ID + " from " + __instance.coupledTo?.train.ID + " (was coupled: " + wasActuallyCoupled[__instance] + ")");
         if (__instance.coupledTo != null)
-        {
             partnerCouplers[__instance] = __instance.coupledTo;
-        }
+
         SaveManager.ClearPendingStatesForCar(__instance.train);
         if (__instance.coupledTo?.train != null)
-        {
             SaveManager.ClearPendingStatesForCar(__instance.coupledTo.train);
-        }
-        compressionJoints[__instance] = __instance.rigidCJ;
-        __instance.rigidCJ = null;
+
         coros[__instance] = __instance.jointCoroRigid;
         __instance.jointCoroRigid = null;
+        __instance.rigidCJ = null;
+
         if (__instance.coupledTo != null)
         {
-            compressionJoints[__instance.coupledTo] = __instance.coupledTo.rigidCJ;
-            __instance.coupledTo.rigidCJ = null;
             coros[__instance.coupledTo] = __instance.coupledTo.jointCoroRigid;
             __instance.coupledTo.jointCoroRigid = null;
-            Main.DebugLog(() => "Stored partner coupler joints for " + __instance.coupledTo.train.ID);
+            __instance.coupledTo.rigidCJ = null;
         }
+
         JointManager.DestroyTensionJoint(__instance);
-        if (Main.settings.showBuffersWithKnuckles)
-        {
-            // Use game buffer collisions when buffers are visible
-            JointManager.ConvertCompressionJointToBufferOnly(__instance);
-        }
-        else
-        {
-            // Keep the guard compression joint for a brief period to avoid immediate interpenetration and snapping
-            TryKeepGuardCompressionForGrace(__instance, 0.4f);
-        }
+
         if (__instance.coupledTo?.train != null)
-        {
             CollisionHandler.DestroyJointsBetweenCars(__instance.train, __instance.coupledTo.train);
-        }
+
         CollisionHandler.LogRemainingJoints(__instance.train, "after uncoupling");
         if (__instance.coupledTo?.train != null)
-        {
             CollisionHandler.LogRemainingJoints(__instance.coupledTo.train, "after uncoupling");
-        }
+
         CouplingScannerPatches.RestartCouplingScanner(__instance);
         if (__instance.coupledTo != null)
         {
             CouplingScannerPatches.RestartCouplingScanner(__instance.coupledTo);
-            // Record uncoupling for distance-based recoupling prevention
             RecouplingPrevention.RecordUncoupling(__instance, __instance.coupledTo);
-
-            // Enable fake buffer colliders for uncoupled cars (like game's loose mode)
             CollisionHandler.EnableFakeBufferColliders(__instance, __instance.coupledTo);
         }
+
         Main.DebugLog(() => "Completed uncoupling cleanup for " + __instance.train.ID);
-    }
-
-    private static void TryKeepGuardCompressionForGrace(Coupler coupler, float seconds)
-    {
-        if (coupler?.visualCoupler?.chainAdapter?.chainScript == null)
-            return;
-
-        // If the pair has a compression joint, leave it as-is for a short time; otherwise nothing to do
-        if (!JointManager.TryGetCompressionJoint(coupler, out var joint))
-            return;
-
-        var chain = coupler.visualCoupler.chainAdapter.chainScript;
-
-        // Check if the GameObject is active before starting the coroutine
-        if (!chain.gameObject.activeInHierarchy)
-            return;
-
-        chain.StartCoroutine(GraceDisable());
-
-        System.Collections.IEnumerator GraceDisable()
-        {
-            yield return new UnityEngine.WaitForSeconds(seconds);
-            // If still uncoupled and joint still tracked, destroy it now
-            if (coupler != null && !coupler.IsCoupled())
-            {
-                JointManager.DestroyCompressionJoint(coupler, caller: "uncouple-grace");
-            }
-        }
     }
 
     public static void Postfix(Coupler __instance)
     {
-        // Auto air-hose disconnection for Full Automatic Mode (Schaku forces this on)
         try
         {
             if (partnerCouplers.TryGetValue(__instance, out Coupler partner) && partner != null)
@@ -146,23 +85,6 @@ public static class UncouplePatch
         }
         catch { }
 
-        if (compressionJoints.TryGetValue(__instance, out ConfigurableJoint value))
-        {
-            if (__instance.IsCoupled())
-            {
-                __instance.rigidCJ = value;
-                Main.ErrorLog(() => "Restored rigidCJ for " + __instance.train.ID + " - uncoupling failed, still coupled to " + __instance.coupledTo?.train.ID);
-            }
-            else
-            {
-                if (value != null)
-                {
-                    Object.Destroy(value);
-                }
-                Main.DebugLog(() => "Destroyed stored rigidCJ for " + __instance.train.ID + " - uncoupling succeeded");
-            }
-            compressionJoints.Remove(__instance);
-        }
         if (coros.TryGetValue(__instance, out Coroutine value2))
         {
             if (__instance.IsCoupled())
@@ -170,60 +92,35 @@ public static class UncouplePatch
                 __instance.jointCoroRigid = value2;
                 Main.ErrorLog(() => "Restored jointCoroRigid for " + __instance.train.ID + " - uncoupling failed");
             }
-            else
-            {
-                Main.DebugLog(() => "Did not restore jointCoroRigid for " + __instance.train.ID + " - uncoupling succeeded");
-            }
             coros.Remove(__instance);
         }
+
         if (partnerCouplers.TryGetValue(__instance, out Coupler partnerCoupler))
         {
-            if (compressionJoints.TryGetValue(partnerCoupler, out ConfigurableJoint value3))
-            {
-                if (partnerCoupler.IsCoupled())
-                {
-                    partnerCoupler.rigidCJ = value3;
-                    Main.DebugLog(() => "Restored partner rigidCJ for " + partnerCoupler.train.ID + " - uncoupling failed, still coupled to " + partnerCoupler.coupledTo?.train.ID);
-                }
-                else
-                {
-                    if (value3 != null)
-                    {
-                        Object.Destroy(value3);
-                    }
-                    Main.DebugLog(() => "Destroyed stored partner rigidCJ for " + partnerCoupler.train.ID + " - uncoupling succeeded");
-                }
-                compressionJoints.Remove(partnerCoupler);
-            }
             if (coros.TryGetValue(partnerCoupler, out Coroutine value4))
             {
                 if (partnerCoupler.IsCoupled())
-                {
                     partnerCoupler.jointCoroRigid = value4;
-                    Main.DebugLog(() => "Restored partner jointCoroRigid for " + partnerCoupler.train.ID + " - uncoupling failed");
-                }
-                else
-                {
-                    Main.DebugLog(() => "Did not restore partner jointCoroRigid for " + partnerCoupler.train.ID + " - uncoupling succeeded");
-                }
                 coros.Remove(partnerCoupler);
             }
+
             if (!partnerCoupler.IsCoupled())
             {
                 partnerCoupler.state = ChainCouplerInteraction.State.Parked;
                 Main.DebugLog(() => "Reset partner coupler state to Parked: " + partnerCoupler.train.ID + " " + partnerCoupler.Position());
             }
-            // Update visual state for partner coupler too - defer to avoid NRE
+
             if (partnerCoupler.visualCoupler?.chainAdapter?.chainScript != null &&
                 partnerCoupler.visualCoupler.chainAdapter.chainScript.gameObject.activeInHierarchy)
             {
-	            partnerCoupler.visualCoupler.chainAdapter.chainScript.StartCoroutine(DelayedVisualStateUpdate(partnerCoupler));
+                partnerCoupler.visualCoupler.chainAdapter.chainScript.StartCoroutine(DelayedVisualStateUpdate(partnerCoupler));
             }
+
             partnerCouplers.Remove(__instance);
         }
+
         if (!__instance.IsCoupled())
         {
-            // Only reset to Dangling if this coupler was actually coupled before the uncoupling, else set to Parked
             if (wasActuallyCoupled.TryGetValue(__instance, out bool wasCoupled) && wasCoupled)
             {
                 __instance.state = ChainCouplerInteraction.State.Dangling;
@@ -236,13 +133,11 @@ public static class UncouplePatch
             }
         }
 
-        // Clean up tracking data
         wasActuallyCoupled.Remove(__instance);
-        // Update visual state with deferred approach to avoid NRE during button-triggered uncoupling
         if (__instance.visualCoupler?.chainAdapter?.chainScript != null &&
             __instance.visualCoupler.chainAdapter.chainScript.gameObject.activeInHierarchy)
         {
-	        __instance.visualCoupler.chainAdapter.chainScript.StartCoroutine(DelayedVisualStateUpdate(__instance));
+            __instance.visualCoupler.chainAdapter.chainScript.StartCoroutine(DelayedVisualStateUpdate(__instance));
         }
     }
 }

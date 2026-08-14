@@ -29,8 +29,6 @@ public static class UncoupleSelfPatch
         }
         catch { }
 
-        JointManager.DestroyCompressionJoint(__instance.frontCoupler, "UncoupleSelf");
-        JointManager.DestroyCompressionJoint(__instance.rearCoupler, "UncoupleSelf");
         JointManager.DestroyTensionJoint(__instance.frontCoupler);
         JointManager.DestroyTensionJoint(__instance.rearCoupler);
         CouplingScannerPatches.KillCouplingScanner(__instance.frontCoupler);

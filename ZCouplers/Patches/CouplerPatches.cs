@@ -18,13 +18,23 @@ namespace DvMod.ZCouplers.Patches
 		[HarmonyPatch(typeof(Coupler), nameof(Coupler.CreateJoints))]
 		public static class CreateJointsPatch
 		{
-			public static bool Prefix(Coupler __instance)
+		public static bool Prefix(Coupler __instance)
+		{
+			// In MP client, prevent vanilla joint creation when custom joints will be
+			// created by our MP packet handlers. This prevents vanilla+custom joint conflict
+			// that causes loose couplers.
+			if (MpShim.IsClientActive && !MpShim.ClientAllowsJointOps)
 			{
-				// In MP client, never create joints locally unless we're replaying host commands.
-				if (MpShim.IsClientActive && !MpShim.ClientAllowsJointOps)
+				// Check if we already have custom joints for this coupler - if so, skip vanilla
+				if (JointManager.HasTensionJoint(__instance) ||
+				    (__instance.coupledTo != null && JointManager.HasTensionJoint(__instance.coupledTo)))
 				{
-					return true; // let vanilla run, but our other client guards will prevent joint creation in JointManager
+					return false; // custom joints exist, skip vanilla
 				}
+				// No custom joints yet - let vanilla run so DV-MP coupling works
+				// Our ApplyJointCreate will replace these with custom ones when the packet arrives
+				return true;
+			}
 				// Allow tender joints to use original behavior
 				if (__instance.train.GetComponent<DV.SteamTenderAutoCoupleMechanism>() != null && !__instance.isFrontCoupler)
 				{
@@ -95,8 +105,6 @@ namespace DvMod.ZCouplers.Patches
                 var tensionJoint = JointManager.GetTensionJoint(__instance);
                 if (tensionJoint != null)
                     breaker.joint = tensionJoint;
-                if (!JointManager.HasCompressionJoint(__instance) && !JointManager.HasCompressionJoint(__instance.coupledTo))
-                    JointManager.CreateCompressionJoint(__instance, __instance.coupledTo);
                 CouplingScannerPatches.KillCouplingScanner(__instance);
                 CouplingScannerPatches.KillCouplingScanner(__instance.coupledTo);
                 return false;

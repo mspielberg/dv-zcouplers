@@ -8,29 +8,21 @@ using UnityEngine;
 namespace DvMod.ZCouplers.Physics
 {
     /// <summary>
-    /// Manages creation, destruction, and tracking of physics joints between train cars.
+    /// Single-joint manager for knuckle couplers.
+    /// One ConfigurableJoint per coupled pair is authoritative.
     /// </summary>
     public static class JointManager
     {
-        // Custom tension joint management
-        private static readonly Dictionary<Coupler, ConfigurableJoint> customTensionJoints = new Dictionary<Coupler, ConfigurableJoint>();
+        private static readonly Dictionary<Coupler, ConfigurableJoint> customTensionJoints = new();
 
-        // Track when joints were last created to prevent rapid recreation
-        private static readonly Dictionary<Coupler, float> lastJointCreationTime = new Dictionary<Coupler, float>();
-        private const float MinJointCreationInterval = 2.0f; // Minimum seconds between joint creation attempts
+        // Kept as a mirrored map to avoid breaking callers while architecture is single-joint.
+        public static readonly Dictionary<Coupler, (Coupler otherCoupler, ConfigurableJoint joint)> bufferJoints = new();
 
-        // Buffer joint tracking
-        public static readonly Dictionary<Coupler, (Coupler otherCoupler, ConfigurableJoint joint)> bufferJoints =
-            new Dictionary<Coupler, (Coupler otherCoupler, ConfigurableJoint joint)>();
+        private static readonly Dictionary<Coupler, float> lastJointCreationTime = new();
+        private const float MinJointCreationInterval = 2.0f;
 
-        private const float LooseChainLength = 1.0f;
         private const float TightChainLength = 1.0f;
-        private const float BufferTravel = 0.25f;
 
-        /// <summary>
-        /// Calculate the actual distance between joint anchors (matching the game's JointDistance).
-        /// Uses the measured distance after coupling for better compatibility across car types and configurations.
-        /// </summary>
         private static float CalculateJointDistance(ConfigurableJoint joint)
         {
             Vector3 anchorWorldPos = joint.transform.TransformPoint(joint.anchor);
@@ -38,36 +30,21 @@ namespace DvMod.ZCouplers.Physics
             return Vector3.Distance(anchorWorldPos, connectedAnchorWorldPos);
         }
 
-        /// <summary>
-        /// Get tension joint for a coupler (used by CouplerBreaker).
-        /// </summary>
         public static ConfigurableJoint? GetTensionJoint(Coupler coupler)
-        {
-            return coupler != null && customTensionJoints.TryGetValue(coupler, out var joint) ? joint : null;
-        }
+            => coupler != null && customTensionJoints.TryGetValue(coupler, out var joint) ? joint : null;
 
-        /// <summary>
-        /// Check whether a tension joint exists for a coupler.
-        /// </summary>
         public static bool HasTensionJoint(Coupler coupler)
-        {
-            return coupler != null && customTensionJoints.ContainsKey(coupler);
-        }
+            => coupler != null && customTensionJoints.ContainsKey(coupler);
 
-        /// <summary>
-        /// Force-create tension joint (used by SaveManager).
-        /// </summary>
         public static void ForceCreateTensionJoint(Coupler coupler)
         {
             if (coupler == null || !coupler.IsCoupled() || coupler.coupledTo == null)
                 return;
-
             if (customTensionJoints.ContainsKey(coupler))
-                return; // Already exists
+                return;
 
             CreateTensionJoint(coupler);
 
-            // Add CouplerBreaker component for force monitoring
             var existingBreaker = coupler.GetComponent<CouplerBreaker>();
             if (existingBreaker == null)
             {
@@ -79,70 +56,76 @@ namespace DvMod.ZCouplers.Physics
                     Main.DebugLog(() => $"Added CouplerBreaker to {coupler.train.ID} during force joint creation");
                 }
             }
-
-            // Also create compression joint if needed
-            if (coupler.rigidCJ == null && coupler.coupledTo.rigidCJ == null)
-                CreateCompressionJoint(coupler, coupler.coupledTo);
         }
 
-        /// <summary>
-        /// Create a tension joint between two coupled cars.
-        /// </summary>
         public static void CreateTensionJoint(Coupler coupler)
         {
-            var coupledTo = coupler.coupledTo;
+            if (coupler == null || coupler.coupledTo == null)
+                return;
 
-            // Calculate anchor positions to match the game's approach
+            if (HasTensionJoint(coupler) || HasTensionJoint(coupler.coupledTo))
+                return;
+
+            var coupledTo = coupler.coupledTo;
             var anchorOffset = Vector3.forward * TightChainLength * (coupler.isFrontCoupler ? -1f : 1f);
 
             var cj = coupler.train.gameObject.AddComponent<ConfigurableJoint>();
             cj.autoConfigureConnectedAnchor = false;
             cj.anchor = coupler.transform.localPosition + anchorOffset;
-            cj.connectedBody = coupler.coupledTo.train.gameObject.GetComponent<Rigidbody>();
-            cj.connectedAnchor = coupler.coupledTo.transform.localPosition;
+            cj.connectedBody = coupledTo.train.gameObject.GetComponent<Rigidbody>();
+            cj.connectedAnchor = coupledTo.transform.localPosition;
 
-            // Calculate actual joint distance like the game does
             var actualJointDistance = CalculateJointDistance(cj);
-            var jointLimit = Mathf.Max(actualJointDistance, LooseChainLength);
+            var jointLimit = Mathf.Max(actualJointDistance, 1.0f);
 
-            // Configure joint motion constraints
-            cj.xMotion = ConfigurableJointMotion.Limited;
-            cj.yMotion = ConfigurableJointMotion.Limited;
+            cj.xMotion = ConfigurableJointMotion.Free;
+            cj.yMotion = ConfigurableJointMotion.Free;
             cj.zMotion = ConfigurableJointMotion.Limited;
-            cj.angularXMotion = ConfigurableJointMotion.Limited;
-            cj.angularYMotion = ConfigurableJointMotion.Limited;
-            cj.angularZMotion = ConfigurableJointMotion.Limited;
 
-            // Set angular limits (looser when buffers are hidden to increase play)
             if (Main.settings.showBuffersWithKnuckles)
             {
+                cj.angularXMotion = ConfigurableJointMotion.Limited;
+                cj.angularYMotion = ConfigurableJointMotion.Limited;
+                cj.angularZMotion = ConfigurableJointMotion.Limited;
                 cj.lowAngularXLimit = new SoftJointLimit { limit = 5f };
                 cj.highAngularXLimit = new SoftJointLimit { limit = 5f };
                 cj.angularYLimit = new SoftJointLimit { limit = 30f };
-                cj.angularZLimit = new SoftJointLimit { limit = 5 };
+                cj.angularZLimit = new SoftJointLimit { limit = 5f };
+                cj.enableCollision = true;
             }
             else
             {
+                cj.angularXMotion = ConfigurableJointMotion.Limited;
+                cj.angularYMotion = ConfigurableJointMotion.Limited;
+                cj.angularZMotion = ConfigurableJointMotion.Limited;
                 cj.lowAngularXLimit = new SoftJointLimit { limit = 20f };
                 cj.highAngularXLimit = new SoftJointLimit { limit = 20f };
                 cj.angularYLimit = new SoftJointLimit { limit = 80f };
                 cj.angularZLimit = new SoftJointLimit { limit = 45f };
+                cj.enableCollision = false;
             }
 
-            // Configure spring forces
             cj.angularXLimitSpring = new SoftJointLimitSpring { spring = Main.settings.GetSpringRate() };
             cj.angularYZLimitSpring = new SoftJointLimitSpring { spring = Main.settings.GetSpringRate() };
-
             cj.linearLimit = new SoftJointLimit { limit = jointLimit };
-            cj.linearLimitSpring = new SoftJointLimitSpring { spring = Main.settings.GetSpringRate() };
-            cj.enableCollision = false;
+            cj.linearLimitSpring = new SoftJointLimitSpring
+            {
+                spring = Main.settings.GetSpringRate(),
+                damper = Main.settings.GetDamperRate(),
+            };
             cj.breakForce = float.PositiveInfinity;
             cj.breakTorque = float.PositiveInfinity;
 
-            // Store tension joint
             customTensionJoints[coupler] = cj;
+            bufferJoints[coupler] = (coupledTo, cj);
+            bufferJoints[coupledTo] = (coupler, cj);
 
-            // Add CouplerBreaker component for force monitoring
+            coupler.rigidCJ = cj;
+            coupledTo.rigidCJ = cj;
+
+            CollisionHandler.DisableFakeBufferColliders(coupler, coupledTo);
+            UpdateCouplerStatesAfterCompressionJoint(coupler, coupledTo);
+
             var existingBreaker = coupler.GetComponent<CouplerBreaker>();
             if (existingBreaker == null)
             {
@@ -151,133 +134,11 @@ namespace DvMod.ZCouplers.Physics
                 Main.DebugLog(() => $"Added CouplerBreaker to {coupler.train.ID} during tension joint creation");
             }
 
-            Main.DebugLog(() => $"Tension joint created: distance={actualJointDistance:F3}m, limit={jointLimit:F3}m for {coupler.train.ID}");
+            Main.DebugLog(() => $"Single joint created: distance={actualJointDistance:F3}m, limit={jointLimit:F3}m for {coupler.train.ID}");
         }
 
-        /// <summary>
-        /// Create a compression joint between two couplers.
-        /// </summary>
-        public static void CreateCompressionJoint(Coupler a, Coupler b)
-        {
-            if (a?.coupledTo != b || b?.coupledTo != a)
-            {
-                Main.DebugLog(() => $"Skip compression joint: not properly coupled {a?.train?.ID} -> {b?.train?.ID}");
-                return;
-            }
-            Main.DebugLog(() => $"Compression joint created between {TrainCar.Resolve(a.gameObject)?.ID} and {TrainCar.Resolve(b.gameObject)?.ID}");
-
-            bool showBuffers = Main.settings.showBuffersWithKnuckles;
-            // Always create a lightweight "rigid" joint so DV's native coupling logic (and audio) can run,
-            // even when buffers are hidden and we use a tight guard joint for physics.
-            var bottomedCj = a.train.gameObject.AddComponent<ConfigurableJoint>();
-            bottomedCj.autoConfigureConnectedAnchor = false;
-            bottomedCj.anchor = a.transform.localPosition + (2 * (a.isFrontCoupler ? Vector3.forward : Vector3.back));
-            bottomedCj.connectedBody = b.train.gameObject.GetComponent<Rigidbody>();
-            bottomedCj.connectedAnchor = b.transform.localPosition;
-            bottomedCj.zMotion = ConfigurableJointMotion.Limited;
-
-            bottomedCj.linearLimit = new SoftJointLimit { limit = BufferTravel + 2f };
-            bottomedCj.linearLimitSpring = new SoftJointLimitSpring { spring = Main.settings.GetSpringRate() };
-            bottomedCj.enableCollision = false;
-            bottomedCj.breakForce = float.PositiveInfinity;
-            bottomedCj.breakTorque = float.PositiveInfinity;
-
-            a.rigidCJ = bottomedCj;
-
-            // Create buffer joint
-            var bufferCj = a.train.gameObject.AddComponent<ConfigurableJoint>();
-            bufferCj.autoConfigureConnectedAnchor = false;
-            bufferCj.connectedBody = b.train.gameObject.GetComponent<Rigidbody>();
-
-            if (showBuffers)
-            {
-                // Full buffer behavior uses the historical anchor offset
-                bufferCj.anchor = a.transform.localPosition + (2 * (a.isFrontCoupler ? Vector3.forward : Vector3.back));
-                bufferCj.connectedAnchor = b.transform.localPosition;
-                bufferCj.zMotion = ConfigurableJointMotion.Limited;
-                // Full buffer behavior
-                bufferCj.linearLimit = new SoftJointLimit { limit = 2f };
-                bufferCj.linearLimitSpring = new SoftJointLimitSpring
-                {
-                    spring = Main.settings.GetSpringRate(),
-                    damper = Main.settings.GetDamperRate(),
-                };
-                // Keep other motions at defaults (free lateral), let tension joint manage angulars
-                bufferCj.angularXMotion = ConfigurableJointMotion.Free;
-                bufferCj.angularYMotion = ConfigurableJointMotion.Free;
-                bufferCj.angularZMotion = ConfigurableJointMotion.Free;
-                bufferCj.enableCollision = true;
-            }
-            else
-            {
-                // Guard mode when buffers are hidden: spherical, tight limit about the actual coupler faces
-                // Use coupler local positions for anchors to avoid introducing a baseline offset/gap
-                bufferCj.anchor = a.transform.localPosition;
-                bufferCj.connectedAnchor = b.transform.localPosition;
-
-                // Limit only along the coupler axis (z); allow lateral (x/y) to avoid clamping in curves
-                bufferCj.xMotion = ConfigurableJointMotion.Free;
-                bufferCj.yMotion = ConfigurableJointMotion.Free;
-                bufferCj.zMotion = ConfigurableJointMotion.Limited;
-                bufferCj.linearLimit = new SoftJointLimit { limit = 0.03f }; // ~3 cm axial guard
-
-                // Use user-configured spring/damper values directly
-                bufferCj.linearLimitSpring = new SoftJointLimitSpring
-                {
-                    spring = Main.settings.GetSpringRate(),
-                    damper = Main.settings.GetDamperRate(),
-                };
-
-                // Allow free angles; tension joint governs overall articulation
-                bufferCj.angularXMotion = ConfigurableJointMotion.Free;
-                bufferCj.angularYMotion = ConfigurableJointMotion.Free;
-                bufferCj.angularZMotion = ConfigurableJointMotion.Free;
-                bufferCj.enableCollision = false;
-            }
-
-
-            bufferCj.breakForce = float.PositiveInfinity;
-            bufferCj.breakTorque = float.PositiveInfinity;
-
-            bufferJoints.Add(a, (b, bufferCj));
-            bufferJoints.Add(b, (a, bufferCj));
-
-            // Disable fake buffer colliders when compression joint is active (like game's tight mode)
-            CollisionHandler.DisableFakeBufferColliders(a, b);
-
-            // If both couplers are ready (locked) but showing as Dangling, update them to Attached_Tight.
-            // Handles compression joints created after deferred state application.
-            UpdateCouplerStatesAfterCompressionJoint(a, b);
-        }
-
-        /// <summary>
-        /// Check if a compression (buffer) joint exists for this coupler.
-        /// </summary>
-        public static bool HasCompressionJoint(Coupler coupler)
-        {
-            return coupler != null && bufferJoints.ContainsKey(coupler);
-        }
-
-        /// <summary>
-        /// Try get the compression joint for this coupler.
-        /// </summary>
-        public static bool TryGetCompressionJoint(Coupler coupler, out ConfigurableJoint joint)
-        {
-            joint = default!;
-            if (coupler != null && bufferJoints.TryGetValue(coupler, out var tuple) && tuple.joint != null)
-            {
-                joint = tuple.joint;
-                return true;
-            }
-            return false;
-        }
-
-        /// <summary>
-        /// Update coupler states to Attached_Tight when compression joints are created for ready couplers.
-        /// </summary>
         private static void UpdateCouplerStatesAfterCompressionJoint(Coupler a, Coupler b)
         {
-            // Only update if both couplers are ready (locked) and in Dangling state
             if (KnuckleCouplers.IsReadyToCouple(a) && KnuckleCouplers.IsReadyToCouple(b))
             {
                 bool aWasDangling = a.state == ChainCouplerInteraction.State.Dangling;
@@ -285,16 +146,12 @@ namespace DvMod.ZCouplers.Physics
 
                 if (aWasDangling || bWasDangling)
                 {
-                    Main.DebugLog(() => $"Set Attached_Tight after compression joint: {a.train.ID} {a.Position()} (was {a.state}), {b.train.ID} {b.Position()} (was {b.state})");
-
-                    // Update both couplers to Attached_Tight since they're both ready and have compression joints
-                    // The actual coupling and tension joint creation will be handled by MasterCoro
+                    Main.DebugLog(() => $"Set Attached_Tight after joint creation: {a.train.ID} {a.Position()} (was {a.state}), {b.train.ID} {b.Position()} (was {b.state})");
                     if (aWasDangling)
                     {
                         a.state = ChainCouplerInteraction.State.Attached_Tight;
                         HookManager.UpdateHookVisualStateFromCouplerState(a);
                     }
-
                     if (bWasDangling)
                     {
                         b.state = ChainCouplerInteraction.State.Attached_Tight;
@@ -304,9 +161,6 @@ namespace DvMod.ZCouplers.Physics
             }
         }
 
-        /// <summary>
-        /// Destroy the tension joint for a coupler.
-        /// </summary>
         public static void DestroyTensionJoint(Coupler coupler)
         {
             if (coupler == null)
@@ -314,212 +168,61 @@ namespace DvMod.ZCouplers.Physics
 
             try
             {
-                // Try to find tension joint on this coupler first
-                if (customTensionJoints.TryGetValue(coupler, out var tensionJoint))
+                Coupler? owner = coupler;
+                if (!customTensionJoints.TryGetValue(owner, out var tensionJoint))
                 {
-                    if (tensionJoint != null)
+                    owner = coupler.coupledTo;
+                    if (owner == null || !customTensionJoints.TryGetValue(owner, out tensionJoint))
                     {
-                        // Destroy found joint
-                        UnityEngine.Object.Destroy(tensionJoint);
+                        Main.DebugLog(() => $"Tension joint not found to destroy for {coupler.train.ID} {coupler.Position()} or its partner");
+                        return;
                     }
-                    customTensionJoints.Remove(coupler);
-                    lastJointCreationTime.Remove(coupler);
-                    // Cleaned up tracking entries
-                    return;
                 }
 
-                // If not found on this coupler, try to find it on the partner coupler
-                if (coupler.coupledTo != null && customTensionJoints.TryGetValue(coupler.coupledTo, out tensionJoint))
-                {
-                    if (tensionJoint != null)
-                    {
-                        // Destroy partner's joint
-                        UnityEngine.Object.Destroy(tensionJoint);
-                    }
-                    customTensionJoints.Remove(coupler.coupledTo);
-                    lastJointCreationTime.Remove(coupler.coupledTo);
-                    // Cleaned up partner tracking entries
-                    return;
-                }
+                var other = owner.coupledTo;
 
-                Main.DebugLog(() => $"Tension joint not found to destroy for {coupler.train.ID} {coupler.Position()} or its partner");
+                if (tensionJoint != null)
+                    Object.Destroy(tensionJoint);
+
+                customTensionJoints.Remove(owner);
+                lastJointCreationTime.Remove(owner);
+
+                bufferJoints.Remove(owner);
+                if (other != null) bufferJoints.Remove(other);
+
+                if (owner.rigidCJ == tensionJoint) owner.rigidCJ = null;
+                if (other != null && other.rigidCJ == tensionJoint) other.rigidCJ = null;
+
+                if (other != null) CollisionHandler.EnableFakeBufferColliders(owner, other);
             }
             catch (System.Exception ex)
             {
                 Main.ErrorLog(() => $"Error destroying tension joint: {ex.Message}");
-                // Clean up dictionaries to prevent memory leaks
                 customTensionJoints.Remove(coupler);
                 lastJointCreationTime.Remove(coupler);
+                bufferJoints.Remove(coupler);
                 if (coupler.coupledTo != null)
                 {
                     customTensionJoints.Remove(coupler.coupledTo);
                     lastJointCreationTime.Remove(coupler.coupledTo);
+                    bufferJoints.Remove(coupler.coupledTo);
                 }
             }
         }
 
-        /// <summary>
-        /// Destroy the compression joint for a coupler.
-        /// </summary>
-        public static void DestroyCompressionJoint(Coupler coupler, string caller = "unknown")
-        {
-            if (coupler == null || !bufferJoints.TryGetValue(coupler, out var result))
-                return;
-
-            try
-            {
-                Main.DebugLog(() => $"Destroy compression joint between {TrainCar.Resolve(coupler.gameObject)?.ID} and {TrainCar.Resolve(result.otherCoupler.gameObject)?.ID} (caller: {caller})");
-
-                // Destroy the joint
-                if (result.joint != null)
-                    Component.Destroy(result.joint);
-
-                foreach (var c in new Coupler[] { coupler, result.otherCoupler })
-                {
-                    if (c != null)
-                    {
-                        try
-                        {
-                            if (c.jointCoroRigid != null)
-                            {
-                                c.StopCoroutine(c.jointCoroRigid);
-                                c.jointCoroRigid = null;
-                            }
-                            if (c.rigidCJ != null)
-                            {
-                                Component.Destroy(c.rigidCJ);
-                                c.rigidCJ = null;
-                            }
-                        }
-                        catch (System.Exception ex)
-                        {
-                            Main.ErrorLog(() => $"Error cleaning up coupler {c?.train?.ID}: {ex.Message}");
-                        }
-                    }
-                }
-
-                bufferJoints.Remove(coupler);
-                bufferJoints.Remove(result.otherCoupler);
-
-                // Enable fake buffer colliders when compression joint is destroyed (like game's loose mode)
-                CollisionHandler.EnableFakeBufferColliders(coupler, result.otherCoupler);
-            }
-            catch (System.Exception ex)
-            {
-                Main.ErrorLog(() => $"Error destroying compression joint: {ex.Message}");
-                // Clean up dictionaries to prevent memory leaks
-                bufferJoints.Remove(coupler);
-                if (result.otherCoupler != null)
-                    bufferJoints.Remove(result.otherCoupler);
-            }
-        }
-
-        /// <summary>
-        /// Convert compression joint to use the game's collision system instead.
-        /// </summary>
-        public static void ConvertCompressionJointToBufferOnly(Coupler coupler)
-        {
-            if (coupler?.coupledTo == null)
-                return;
-
-            try
-            {
-                // Remove existing compression joints and use the game's collision system instead.
-
-                // Destroy any existing compression joints - we'll use the game's collision system instead
-                if (bufferJoints.TryGetValue(coupler, out var result))
-                {
-                    if (result.joint != null)
-                    {
-                        Component.Destroy(result.joint);
-                        // Joint removed
-                    }
-
-                    // Remove from tracking
-                    bufferJoints.Remove(coupler);
-                    bufferJoints.Remove(result.otherCoupler);
-
-                    // Enable fake buffer colliders when using collision system instead of joints
-                    CollisionHandler.EnableFakeBufferColliders(coupler, result.otherCoupler);
-                }
-                else
-                {
-                    // No joint found; nothing to convert
-                }
-
-                // Clear rigidCJ references so the game doesn't think cars are rigidly coupled
-                if (coupler.rigidCJ != null)
-                {
-                    coupler.rigidCJ = null;
-                    // Cleared
-                }
-                if (coupler.coupledTo.rigidCJ != null)
-                {
-                    coupler.coupledTo.rigidCJ = null;
-                    // Cleared
-                }
-
-                // Clear coroutines
-                if (coupler.jointCoroRigid != null)
-                {
-                    coupler.StopCoroutine(coupler.jointCoroRigid);
-                    coupler.jointCoroRigid = null;
-                }
-                if (coupler.coupledTo.jointCoroRigid != null)
-                {
-                    coupler.coupledTo.StopCoroutine(coupler.coupledTo.jointCoroRigid);
-                    coupler.coupledTo.jointCoroRigid = null;
-                }
-
-                // Removed verbose success log
-            }
-            catch (System.Exception ex)
-            {
-                Main.ErrorLog(() => $"Error converting to collision system: {ex.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Update all compression joints with current settings.
-        /// </summary>
         public static void UpdateAllCompressionJoints()
         {
-            if (bufferJoints.Count == 0)
-                return;
-
-            var springRate = Main.settings.GetSpringRate();
-            var damperRate = Main.settings.GetDamperRate();
-
-            var firstJoint = bufferJoints.Values.FirstOrDefault().joint;
-            if (firstJoint == null || (firstJoint.linearLimitSpring.spring == springRate && firstJoint.linearLimitSpring.damper == damperRate))
-                return;
-
-            foreach (var joint in bufferJoints.Values.Select(x => x.joint))
-            {
-                joint.linearLimitSpring = new SoftJointLimitSpring
-                {
-                    spring = springRate,
-                    damper = damperRate,
-                };
-            }
+            UpdateAllJointParameters();
         }
 
-        /// <summary>
-        /// Check whether joint creation should be allowed based on timing.
-        /// </summary>
         public static bool CanCreateJoint(Coupler coupler)
         {
             var currentTime = Time.time;
             if (lastJointCreationTime.TryGetValue(coupler, out var lastTime) && (currentTime - lastTime) < MinJointCreationInterval)
-            {
                 return false;
-            }
             return true;
         }
 
-        /// <summary>
-        /// Record that a joint was created for timing purposes.
-        /// </summary>
         public static void RecordJointCreation(Coupler coupler)
         {
             var currentTime = Time.time;
@@ -528,68 +231,50 @@ namespace DvMod.ZCouplers.Physics
                 lastJointCreationTime[coupler.coupledTo] = currentTime;
         }
 
-        /// <summary>
-        /// Clean up all joints and clear all tracking dictionaries.
-        /// Called during mod unload.
-        /// </summary>
+        public static void DestroyUntrackedJoints(GameObject gameObject)
+        {
+            if (gameObject == null) return;
+            var joints = gameObject.GetComponents<ConfigurableJoint>();
+            foreach (var joint in joints)
+            {
+                if (joint == null) continue;
+                bool isCustom = customTensionJoints.Values.Any(v => v == joint);
+                if (isCustom) continue;
+                Object.Destroy(joint);
+            }
+        }
+
         public static void Cleanup()
         {
-            // Destroy all tension joints
-            var tensionJointsToDestroy = new List<ConfigurableJoint>();
+            var jointsToDestroy = new List<ConfigurableJoint>();
             foreach (var joint in customTensionJoints.Values)
             {
                 if (joint != null)
-                    tensionJointsToDestroy.Add(joint);
+                    jointsToDestroy.Add(joint);
             }
-            foreach (var joint in tensionJointsToDestroy)
+            foreach (var joint in jointsToDestroy)
             {
                 if (joint != null)
-                    UnityEngine.Object.Destroy(joint);
+                    Object.Destroy(joint);
             }
 
-            // Destroy all compression/buffer joints
-            var bufferJointsToDestroy = new List<ConfigurableJoint>();
-            foreach (var (_, joint) in bufferJoints.Values)
-            {
-                if (joint != null)
-                    bufferJointsToDestroy.Add(joint);
-            }
-            foreach (var joint in bufferJointsToDestroy)
-            {
-                if (joint != null)
-                    UnityEngine.Object.Destroy(joint);
-            }
-
-            // Clear all tracking dictionaries
             customTensionJoints.Clear();
             lastJointCreationTime.Clear();
             bufferJoints.Clear();
-
-            // Clean up collision handler resources
             CollisionHandler.Cleanup();
         }
 
-        /// <summary>
-        /// Clean up all joints associated with a specific coupler during type switching.
-        /// </summary>
         public static void CleanupCouplerJoints(Coupler coupler)
         {
             if (coupler == null) return;
 
             try
             {
-                // Clean up tension joints
                 DestroyTensionJoint(coupler);
 
-                // Clean up compression joints
-                DestroyCompressionJoint(coupler, "CleanupCouplerJoints");
-
-                // Clean up any CouplerBreaker components
                 var breaker = coupler.GetComponent<CouplerBreaker>();
                 if (breaker != null)
-                {
-                    UnityEngine.Object.DestroyImmediate(breaker);
-                }
+                    Object.DestroyImmediate(breaker);
 
                 Main.DebugLog(() => $"Cleaned up joints for coupler {coupler.train.ID} {coupler.Position()}");
             }
@@ -599,10 +284,6 @@ namespace DvMod.ZCouplers.Physics
             }
         }
 
-        /// <summary>
-        /// Update all existing joint parameters to match current settings.
-        /// Called during runtime coupler type switching to apply new physics parameters.
-        /// </summary>
         public static void UpdateAllJointParameters()
         {
             try
@@ -612,7 +293,6 @@ namespace DvMod.ZCouplers.Physics
 
                 Main.DebugLog(() => $"Updating joint parameters: spring={springRate}, damper={damperRate}");
 
-                // Update tension joints
                 foreach (var kvp in customTensionJoints.ToList())
                 {
                     var coupler = kvp.Key;
@@ -621,42 +301,34 @@ namespace DvMod.ZCouplers.Physics
                     if (joint == null)
                     {
                         if (coupler != null)
-                        {
-                            // Clean up invalid entries
                             customTensionJoints.Remove(coupler);
-                        }
                         continue;
                     }
 
-                    // Update spring parameters
                     joint.angularXLimitSpring = new SoftJointLimitSpring { spring = springRate };
                     joint.angularYZLimitSpring = new SoftJointLimitSpring { spring = springRate };
-                    joint.linearLimitSpring = new SoftJointLimitSpring { spring = springRate };
+                    joint.linearLimitSpring = new SoftJointLimitSpring { spring = springRate, damper = damperRate };
 
-                    // Update angular limits based on buffer visibility setting
                     if (Main.settings.showBuffersWithKnuckles)
                     {
-	                    joint.lowAngularXLimit = new SoftJointLimit { limit = 5f };
-	                    joint.highAngularXLimit = new SoftJointLimit { limit = 5f };
-	                    joint.angularYLimit = new SoftJointLimit { limit = 30f };
-	                    joint.angularZLimit = new SoftJointLimit { limit = 5 };
+                        joint.lowAngularXLimit = new SoftJointLimit { limit = 5f };
+                        joint.highAngularXLimit = new SoftJointLimit { limit = 5f };
+                        joint.angularYLimit = new SoftJointLimit { limit = 30f };
+                        joint.angularZLimit = new SoftJointLimit { limit = 5f };
+                        joint.enableCollision = true;
                     }
                     else
                     {
-	                    joint.lowAngularXLimit = new SoftJointLimit { limit = 20f };
-	                    joint.highAngularXLimit = new SoftJointLimit { limit = 20f };
-	                    joint.angularYLimit = new SoftJointLimit { limit = 80f };
-	                    joint.angularZLimit = new SoftJointLimit { limit = 45f };
+                        joint.lowAngularXLimit = new SoftJointLimit { limit = 20f };
+                        joint.highAngularXLimit = new SoftJointLimit { limit = 20f };
+                        joint.angularYLimit = new SoftJointLimit { limit = 80f };
+                        joint.angularZLimit = new SoftJointLimit { limit = 45f };
+                        joint.enableCollision = false;
                     }
                 }
 
-                // Recreate missing tension joints for coupled cars
                 RecreateMissingTensionJoints();
-
-                // Update compression joints (reuse existing method)
-                UpdateAllCompressionJoints();
-
-                Main.DebugLog(() => $"Updated {customTensionJoints.Count} tension joints and {bufferJoints.Count / 2} compression joints");
+                Main.DebugLog(() => $"Updated {customTensionJoints.Count} single joints");
             }
             catch (System.Exception ex)
             {
@@ -664,10 +336,6 @@ namespace DvMod.ZCouplers.Physics
             }
         }
 
-        /// <summary>
-        /// Recreate tension joints for any coupled cars that are missing them.
-        /// Called during runtime coupler type switching to restore joints after cleanup.
-        /// </summary>
         private static void RecreateMissingTensionJoints()
         {
             if (CarSpawner.Instance?.allCars == null)
@@ -679,14 +347,12 @@ namespace DvMod.ZCouplers.Physics
             {
                 if (car == null) continue;
 
-                // Check front coupler
                 if (car.frontCoupler != null && car.frontCoupler.IsCoupled() && !HasTensionJoint(car.frontCoupler))
                 {
                     ForceCreateTensionJoint(car.frontCoupler);
                     recreatedCount++;
                 }
 
-                // Check rear coupler
                 if (car.rearCoupler != null && car.rearCoupler.IsCoupled() && !HasTensionJoint(car.rearCoupler))
                 {
                     ForceCreateTensionJoint(car.rearCoupler);
@@ -695,15 +361,9 @@ namespace DvMod.ZCouplers.Physics
             }
 
             if (recreatedCount > 0)
-            {
                 Main.DebugLog(() => $"Recreated {recreatedCount} missing tension joints");
-            }
         }
 
-        /// <summary>
-        /// Update physics joint for a specific coupler during runtime type switching.
-        /// Recreates the joint with updated parameters from the current profile.
-        /// </summary>
         public static void UpdateJointForCoupler(Coupler coupler)
         {
             if (coupler == null || !coupler.IsCoupled())
@@ -711,36 +371,21 @@ namespace DvMod.ZCouplers.Physics
 
             try
             {
-                // Check if coupler has a tension joint
                 if (HasTensionJoint(coupler))
                 {
                     var joint = GetTensionJoint(coupler);
                     if (joint != null)
                     {
-                        // Update spring parameters
                         var springRate = Main.settings.GetSpringRate();
+                        var damperRate = Main.settings.GetDamperRate();
                         joint.angularXLimitSpring = new SoftJointLimitSpring { spring = springRate };
                         joint.angularYZLimitSpring = new SoftJointLimitSpring { spring = springRate };
-                        joint.linearLimitSpring = new SoftJointLimitSpring { spring = springRate };
+                        joint.linearLimitSpring = new SoftJointLimitSpring { spring = springRate, damper = damperRate };
                     }
                 }
                 else
                 {
-                    // Joint missing - recreate it
                     CreateTensionJoint(coupler);
-                }
-
-                // Update compression joint if present
-                if (HasCompressionJoint(coupler))
-                {
-                    // Compression joints are updated by UpdateAllCompressionJoints
-                    // Just ensure it's properly configured
-                    var otherCoupler = coupler.coupledTo;
-                    if (otherCoupler != null)
-                    {
-                        DestroyCompressionJoint(coupler, "UpdateJointForCoupler");
-                        CreateCompressionJoint(coupler, otherCoupler);
-                    }
                 }
             }
             catch (System.Exception ex)
