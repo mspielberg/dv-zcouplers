@@ -33,6 +33,7 @@
     <Reference Include="DV.BrakeSystem" Private="false"/>
     <Reference Include="DV.Utils" Private="false"/>
     <Reference Include="DV.CabControls.Spec" Private="false"/>
+    <Reference Include="DV.Interaction" Private="false"/>
     <Reference Include="DV.RailTrack" Private="false"/>
     <Reference Include="Newtonsoft.Json" Private="false"/>
     <Reference Include="RootMotion" Private="false"/>
