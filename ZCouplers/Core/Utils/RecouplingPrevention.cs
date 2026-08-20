@@ -282,14 +282,23 @@ namespace DvMod.ZCouplers.Core.Utils
             if (coupler1 == null || coupler2 == null)
                 return true;
 
+            // Fallback: if the coroutine died but there are still records, restart it
+            if (!isCoroutineRunning && recentlyUncoupled.Count > 0)
+            {
+                Main.ErrorLog(() => "CanRecouple: detected dead coroutine with active records, attempting restart");
+                EnsureInitialized();
+            }
+
             var pair = new CouplerPair(coupler1, coupler2);
             return !blockedPairs.Contains(pair);
         }
 
         /// <summary>
-        /// Clean up uncoupling records for a specific coupler when it's being destroyed.
+        /// Remove all blocking/recoupling records for a specific coupler.
+        /// Called when the user manually readies a coupler (state change to ready),
+        /// indicating intent to recouple.
         /// </summary>
-        public static void CleanupOldRecords(Coupler coupler)
+        public static void RemoveBlockingFor(Coupler coupler)
         {
             if (coupler == null)
                 return;
@@ -300,17 +309,70 @@ namespace DvMod.ZCouplers.Core.Utils
             {
                 try
                 {
-                    // Check if this pair involves the specified coupler
-                    var other = pair.GetOther(coupler);
-                    if (other == coupler || other == null) // Either it's the same coupler or the pair involves this coupler
+                    var c1 = pair.GetCoupler1();
+                    var c2 = pair.GetCoupler2();
+                    if (c1 == coupler || c2 == coupler)
                     {
                         toRemove.Add(pair);
                     }
                 }
                 catch
                 {
+                    toRemove.Add(pair);
+                }
+            }
+
+            foreach (var key in toRemove)
+            {
+                recentlyUncoupled.Remove(key);
+                blockedPairs.Remove(key);
+            }
+
+            if (toRemove.Count > 0)
+            {
+                Main.DebugLog(() => $"Removed {toRemove.Count} recoupling block(s) for coupler {coupler.train.ID} (manual state change)");
+            }
+        }
+
+        /// <summary>
+        /// Clean up uncoupling records for a specific coupler when it's being destroyed.
+        /// </summary>
+        public static void CleanupOldRecords(Coupler coupler)
+        {
+            if (coupler == null)
+                return;
+
+            Main.DebugLog(() => $"CleanupOldRecords called for coupler {coupler.train.ID}, {recentlyUncoupled.Count} record(s) in recentlyUncoupled");
+
+            var toRemove = new List<CouplerPair>();
+
+            foreach (var pair in recentlyUncoupled.Keys)
+            {
+                try
+                {
+                    var c1 = pair.GetCoupler1();
+                    var c2 = pair.GetCoupler2();
+                    var other = pair.GetOther(coupler);
+
+                    Main.DebugLog(() => $"CleanupOldRecords: evaluating pair {c1?.train?.ID} <-> {c2?.train?.ID}, coupler={coupler.train.ID}, GetOther={other?.train?.ID}, other==coupler:{other == coupler}");
+
+                    // Check if this pair involves the specified coupler
+                    if (c1 == coupler || c2 == coupler)
+                    {
+                        toRemove.Add(pair);
+                        Main.DebugLog(() => $"CleanupOldRecords: marked pair for removal (coupler is member)");
+                    }
+                    else if (other == null)
+                    {
+                        toRemove.Add(pair);
+                        Main.DebugLog(() => $"CleanupOldRecords: marked pair for removal (GetOther returned null)");
+                    }
+                }
+                catch
+                {
                     // If there's any issue accessing the pair, mark it for removal
                     toRemove.Add(pair);
+                    Main.DebugLog(() => "CleanupOldRecords: marked pair for removal (exception)");
                 }
             }
 
@@ -320,10 +382,7 @@ namespace DvMod.ZCouplers.Core.Utils
                 blockedPairs.Remove(key); // Also remove from blocked pairs
             }
 
-            if (toRemove.Count > 0)
-            {
-                Main.DebugLog(() => $"Cleaned up {toRemove.Count} uncoupling records for coupler {coupler.train.ID}");
-            }
+            Main.DebugLog(() => $"CleanupOldRecords: removed {toRemove.Count} of {toRemove.Count + recentlyUncoupled.Count} record(s) for coupler {coupler.train.ID}");
         }
 
         /// <summary>
