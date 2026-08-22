@@ -206,6 +206,12 @@ namespace DvMod.ZCouplers.Visuals
             if (coupler.train?.gameObject == null)
                 return;
 
+            if (coupler.train?.carLivery?.id == "LocoDE6Slug")
+            {
+                ToggleAirHoseVisibility(coupler, true);
+                return;
+            }
+
             // For profiles that always hide air hoses (e.g., Schaku), enforce it
             if (CouplerProfiles.Current?.Options.AlwaysHideAirHoses == true)
             {
