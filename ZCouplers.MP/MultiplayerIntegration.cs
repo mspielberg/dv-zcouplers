@@ -31,6 +31,9 @@ namespace DvMod.ZCouplers
         private static readonly List<JointCreate> clientPendingJoints = new();
         private static readonly List<JointDestroy> clientPendingDestroys = new();
 
+        // Client's own settings captured before the host's SettingsSync overwrites them
+        private static SettingsSync? clientLocalSettings;
+
         private static string PairKey(ushort id1, bool f1, ushort id2, bool f2)
         {
             int s1 = f1 ? 1 : 0;
@@ -100,6 +103,7 @@ namespace DvMod.ZCouplers
                 client.RegisterPacket<RecouplingBlock>(OnClientRecouplingBlock);
                 client.RegisterPacket<RecouplingUnblock>(OnClientRecouplingUnblock);
                 client.RegisterPacket<SettingsSync>(OnClientSettingsSync);
+                clientLocalSettings = CreateSettingsPacket();
                 MpShim.SetIsClientActive(true);
                 Main.DebugLog(() => "[MP] Client integration ready");
             }
@@ -125,6 +129,7 @@ namespace DvMod.ZCouplers
             clientPendingJoints.Clear();
             clientPendingDestroys.Clear();
             MpShim.SetIsClientActive(false);
+            RestoreClientLocalSettings();
         }
 
         private static void OnTickHost(uint tick) { }
@@ -461,21 +466,48 @@ namespace DvMod.ZCouplers
                     s.selectedCoupler = packet.ProfileId;
                 else
                     Main.ErrorLog(() => $"[MP] Host coupler profile '{packet.ProfileId}' is not available, keeping '{s.selectedCoupler}'");
-                if (Enum.IsDefined(typeof(strengthPreset), (int)packet.StrengthPreset))
-                    s.strengthValues = (strengthPreset)packet.StrengthPreset;
-                s.knuckleStrength = packet.KnuckleStrength;
-                s.drawgearSpringRate = packet.DrawgearSpringRate;
-                s.drawgearDamperRate = packet.DrawgearDamperRate;
-                s.showBuffersWithKnuckles = packet.ShowBuffersWithKnuckles;
-                s.autoCoupleThreshold = packet.AutoCoupleThreshold;
-                s.minimumSeparationDistance = packet.MinimumSeparationDistance;
-                s.autoAirAndMuMode = packet.AutoAirAndMuMode;
-                s.autoCouplingMode = packet.AutoCouplingMode;
-                s.disableFrontCouplersOnSteamLocos = packet.DisableFrontCouplersOnSteamLocos;
+                ApplySettingsValues(packet);
                 s.OnChange();
                 Main.DebugLog(() => $"[MP] Client applied host settings: profile={s.selectedCoupler}, strength={s.strengthValues}, spring={s.GetSpringRate():E2}, damper={s.GetDamperRate():E2}, autoCoupling={s.autoCouplingMode}");
             }
             catch (Exception e) { Main.ErrorLog(() => $"[MP] Client apply settings sync failed: {e.Message}"); }
+        }
+
+        private static void ApplySettingsValues(SettingsSync packet)
+        {
+            var s = Main.settings;
+            if (Enum.IsDefined(typeof(strengthPreset), (int)packet.StrengthPreset))
+                s.strengthValues = (strengthPreset)packet.StrengthPreset;
+            s.knuckleStrength = packet.KnuckleStrength;
+            s.drawgearSpringRate = packet.DrawgearSpringRate;
+            s.drawgearDamperRate = packet.DrawgearDamperRate;
+            s.showBuffersWithKnuckles = packet.ShowBuffersWithKnuckles;
+            s.autoCoupleThreshold = packet.AutoCoupleThreshold;
+            s.minimumSeparationDistance = packet.MinimumSeparationDistance;
+            s.autoAirAndMuMode = packet.AutoAirAndMuMode;
+            s.autoCouplingMode = packet.AutoCouplingMode;
+            s.disableFrontCouplersOnSteamLocos = packet.DisableFrontCouplersOnSteamLocos;
+        }
+
+        /// <summary>
+        /// Put back the settings the client had before joining, so the host's values
+        /// are not persisted to the client's own settings file.
+        /// The world is unloading at this point, so no runtime refresh is triggered.
+        /// </summary>
+        private static void RestoreClientLocalSettings()
+        {
+            var local = clientLocalSettings;
+            clientLocalSettings = null;
+            if (local == null) return;
+            try
+            {
+                var s = Main.settings;
+                s.selectedCoupler = local.ProfileId;
+                s.lastCouplerProfile = s.couplerProfile;
+                ApplySettingsValues(local);
+                Main.DebugLog(() => $"[MP] Restored local settings after session: profile={s.selectedCoupler}, strength={s.strengthValues}");
+            }
+            catch (Exception e) { Main.ErrorLog(() => $"[MP] Restoring local settings failed: {e.Message}"); }
         }
 
         public static void HostBroadcastRecouplingBlock(Coupler a, Coupler b)
