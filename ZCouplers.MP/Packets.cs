@@ -89,6 +89,7 @@ namespace DvMod.ZCouplers
 	/// </summary>
 	public class SettingsSync : IPacket
 	{
+		public string ProfileId { get; set; } = "";
 		public byte StrengthPreset { get; set; }
 		public float KnuckleStrength { get; set; }
 		public float DrawgearSpringRate { get; set; }

@@ -22,6 +22,24 @@ namespace DvMod.ZCouplers
 			}
 		}
 
+		// Allow the client to rebuild joints for already-coupled pairs, e.g. after a runtime
+		// coupler profile switch triggered by the host's settings. The coupling itself is unchanged.
+		[HarmonyPatch(typeof(JointManager), nameof(JointManager.UpdateJointForCoupler))]
+		public static class AllowJointRebuildOnClient
+		{
+			public static void Prefix(out bool __state)
+			{
+				__state = MultiplayerIntegration.ClientAllowsJointOps;
+				if (MultiplayerIntegration.IsClientActive)
+					MultiplayerIntegration.ClientAllowsJointOps = true;
+			}
+
+			public static void Finalizer(bool __state)
+			{
+				MultiplayerIntegration.ClientAllowsJointOps = __state;
+			}
+		}
+
 		// Prevent the client from running deferred coupler state/joint application,
 		// which is intended for SP/host after save load and causes duplicate joint creation when joining MP.
 		[HarmonyPatch(typeof(DeferredStateApplicator), nameof(DeferredStateApplicator.StartDeferredCouplerApplication))]

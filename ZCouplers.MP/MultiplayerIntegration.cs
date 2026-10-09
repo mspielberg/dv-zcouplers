@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using DvMod.ZCouplers.Core;
+using DvMod.ZCouplers.Core.Profiles;
 using DvMod.ZCouplers.Core.Utils;
 using DvMod.ZCouplers.Physics;
 using DvMod.ZCouplers.Visuals;
@@ -22,7 +23,7 @@ namespace DvMod.ZCouplers
         private static bool IsConnected => MultiplayerAPI.Instance?.IsConnected == true;
         public static bool IsHost => MultiplayerAPI.Instance?.IsHost == true;
         public static bool IsClientActive => IsLoaded && IsConnected && !IsHost;
-        internal static bool ClientAllowsJointOps { get; private set; }
+        internal static bool ClientAllowsJointOps { get; set; }
 
         private static readonly HashSet<string> serverKnownTensionPairs = new();
         private static readonly HashSet<string> clientKnownTensionPairs = new();
@@ -416,6 +417,7 @@ namespace DvMod.ZCouplers
             var s = Main.settings;
             return new SettingsSync
             {
+                ProfileId = s.selectedCoupler ?? "",
                 StrengthPreset = (byte)s.strengthValues,
                 KnuckleStrength = s.knuckleStrength,
                 DrawgearSpringRate = s.drawgearSpringRate,
@@ -455,6 +457,10 @@ namespace DvMod.ZCouplers
             try
             {
                 var s = Main.settings;
+                if (!string.IsNullOrEmpty(packet.ProfileId) && CouplerProfiles.GetById(packet.ProfileId) != null)
+                    s.selectedCoupler = packet.ProfileId;
+                else
+                    Main.ErrorLog(() => $"[MP] Host coupler profile '{packet.ProfileId}' is not available, keeping '{s.selectedCoupler}'");
                 if (Enum.IsDefined(typeof(strengthPreset), (int)packet.StrengthPreset))
                     s.strengthValues = (strengthPreset)packet.StrengthPreset;
                 s.knuckleStrength = packet.KnuckleStrength;
@@ -467,7 +473,7 @@ namespace DvMod.ZCouplers
                 s.autoCouplingMode = packet.AutoCouplingMode;
                 s.disableFrontCouplersOnSteamLocos = packet.DisableFrontCouplersOnSteamLocos;
                 s.OnChange();
-                Main.DebugLog(() => $"[MP] Client applied host settings: strength={s.strengthValues}, spring={s.GetSpringRate():E2}, damper={s.GetDamperRate():E2}, autoCoupling={s.autoCouplingMode}");
+                Main.DebugLog(() => $"[MP] Client applied host settings: profile={s.selectedCoupler}, strength={s.strengthValues}, spring={s.GetSpringRate():E2}, damper={s.GetDamperRate():E2}, autoCoupling={s.autoCouplingMode}");
             }
             catch (Exception e) { Main.ErrorLog(() => $"[MP] Client apply settings sync failed: {e.Message}"); }
         }
