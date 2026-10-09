@@ -121,6 +121,12 @@ namespace DvMod.ZCouplers.Physics
             bufferJoints[coupler] = (coupledTo, cj);
             bufferJoints[coupledTo] = (coupler, cj);
 
+            // A vanilla CreateJoints may have started AdaptRigidJoint, which writes rigidCJ.linearLimit
+            // every FixedUpdate. Stop it before rigidCJ points at our joint, or it would clamp our limit
+            // to the vanilla 0.2/0.3 m even though our anchor sits 1 m inside the car.
+            coupler.KillJointCoroutines();
+            coupledTo.KillJointCoroutines();
+
             coupler.rigidCJ = cj;
             coupledTo.rigidCJ = cj;
 
