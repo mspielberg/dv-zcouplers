@@ -411,20 +411,31 @@ namespace DvMod.ZCouplers
             }
         }
 
+        private static SettingsSync CreateSettingsPacket()
+        {
+            var s = Main.settings;
+            return new SettingsSync
+            {
+                StrengthPreset = (byte)s.strengthValues,
+                KnuckleStrength = s.knuckleStrength,
+                DrawgearSpringRate = s.drawgearSpringRate,
+                DrawgearDamperRate = s.drawgearDamperRate,
+                ShowBuffersWithKnuckles = s.showBuffersWithKnuckles,
+                AutoCoupleThreshold = s.autoCoupleThreshold,
+                MinimumSeparationDistance = s.minimumSeparationDistance,
+                AutoAirAndMuMode = s.autoAirAndMuMode,
+                AutoCouplingMode = s.autoCouplingMode,
+                DisableFrontCouplersOnSteamLocos = s.disableFrontCouplersOnSteamLocos,
+                Tick = MultiplayerAPI.Instance?.CurrentTick ?? 0,
+            };
+        }
+
         private static void SendSettingsToPlayer(IPlayer player)
         {
             if (MultiplayerAPI.Server == null) return;
             try
             {
-                var packet = new SettingsSync
-                {
-                    SpringRate = Main.settings.GetSpringRate(),
-                    DamperRate = Main.settings.GetDamperRate(),
-                    ShowBuffersWithKnuckles = Main.settings.showBuffersWithKnuckles,
-                    MinimumSeparationDistance = Main.settings.minimumSeparationDistance,
-                    Tick = MultiplayerAPI.Instance?.CurrentTick ?? 0,
-                };
-                MultiplayerAPI.Server.SendPacketToPlayer(packet, player, reliable: true);
+                MultiplayerAPI.Server.SendPacketToPlayer(CreateSettingsPacket(), player, reliable: true);
             }
             catch (Exception e) { Main.ErrorLog(() => $"[MP] SendSettingsToPlayer failed: {e.Message}"); }
         }
@@ -434,15 +445,7 @@ namespace DvMod.ZCouplers
             if (!IsHost || MultiplayerAPI.Server == null) return;
             try
             {
-                var packet = new SettingsSync
-                {
-                    SpringRate = Main.settings.GetSpringRate(),
-                    DamperRate = Main.settings.GetDamperRate(),
-                    ShowBuffersWithKnuckles = Main.settings.showBuffersWithKnuckles,
-                    MinimumSeparationDistance = Main.settings.minimumSeparationDistance,
-                    Tick = MultiplayerAPI.Instance?.CurrentTick ?? 0,
-                };
-                MultiplayerAPI.Server.SendPacketToAll(packet, reliable: true, excludeSelf: true);
+                MultiplayerAPI.Server.SendPacketToAll(CreateSettingsPacket(), reliable: true, excludeSelf: true);
             }
             catch (Exception e) { Main.ErrorLog(() => $"[MP] HostBroadcastSettings failed: {e.Message}"); }
         }
@@ -451,12 +454,20 @@ namespace DvMod.ZCouplers
         {
             try
             {
-                Main.settings.drawgearSpringRate = packet.SpringRate;
-                Main.settings.drawgearDamperRate = packet.DamperRate;
-                Main.settings.showBuffersWithKnuckles = packet.ShowBuffersWithKnuckles;
-                Main.settings.minimumSeparationDistance = packet.MinimumSeparationDistance;
-                JointManager.UpdateAllJointParameters();
-                Main.DebugLog(() => "[MP] Client applied host settings and updated joints");
+                var s = Main.settings;
+                if (Enum.IsDefined(typeof(strengthPreset), (int)packet.StrengthPreset))
+                    s.strengthValues = (strengthPreset)packet.StrengthPreset;
+                s.knuckleStrength = packet.KnuckleStrength;
+                s.drawgearSpringRate = packet.DrawgearSpringRate;
+                s.drawgearDamperRate = packet.DrawgearDamperRate;
+                s.showBuffersWithKnuckles = packet.ShowBuffersWithKnuckles;
+                s.autoCoupleThreshold = packet.AutoCoupleThreshold;
+                s.minimumSeparationDistance = packet.MinimumSeparationDistance;
+                s.autoAirAndMuMode = packet.AutoAirAndMuMode;
+                s.autoCouplingMode = packet.AutoCouplingMode;
+                s.disableFrontCouplersOnSteamLocos = packet.DisableFrontCouplersOnSteamLocos;
+                s.OnChange();
+                Main.DebugLog(() => $"[MP] Client applied host settings: strength={s.strengthValues}, spring={s.GetSpringRate():E2}, damper={s.GetDamperRate():E2}, autoCoupling={s.autoCouplingMode}");
             }
             catch (Exception e) { Main.ErrorLog(() => $"[MP] Client apply settings sync failed: {e.Message}"); }
         }

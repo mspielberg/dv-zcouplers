@@ -84,14 +84,21 @@ namespace DvMod.ZCouplers
 	}
 
 	/// <summary>
-	/// Server -> Clients: Synchronize ZCouplers physics settings so joints are identical.
+	/// Server -> Clients: Synchronize ZCouplers gameplay settings so joints and coupling behave identically.
+	/// Values are the raw settings fields (user units), not the derived physics values.
 	/// </summary>
 	public class SettingsSync : IPacket
 	{
-		public float SpringRate { get; set; }
-		public float DamperRate { get; set; }
+		public byte StrengthPreset { get; set; }
+		public float KnuckleStrength { get; set; }
+		public float DrawgearSpringRate { get; set; }
+		public float DrawgearDamperRate { get; set; }
 		public bool ShowBuffersWithKnuckles { get; set; }
+		public float AutoCoupleThreshold { get; set; }
 		public float MinimumSeparationDistance { get; set; }
+		public bool AutoAirAndMuMode { get; set; }
+		public bool AutoCouplingMode { get; set; }
+		public bool DisableFrontCouplersOnSteamLocos { get; set; }
 		public uint Tick { get; set; }
 	}
 }
