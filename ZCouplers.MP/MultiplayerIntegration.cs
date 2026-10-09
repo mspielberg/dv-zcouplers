@@ -107,6 +107,7 @@ namespace DvMod.ZCouplers
 
         private static void OnServerStopped()
         {
+            MpShim.SetIsHost(false);
             try
             {
                 MultiplayerAPI.Instance.OnTick -= OnTickHost;
