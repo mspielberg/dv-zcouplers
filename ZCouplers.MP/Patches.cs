@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Reflection;
 using DvMod.ZCouplers.Core;
 using DvMod.ZCouplers.Core.Utils;
 using DvMod.ZCouplers.Physics;
@@ -93,10 +94,19 @@ namespace DvMod.ZCouplers
 			}
 		}
 
-		// Patch UpdateBlockedPairs to broadcast unblocks when separation is achieved
-		[HarmonyPatch(typeof(RecouplingPrevention), nameof(RecouplingPrevention.UpdateBlockedPairs))]
+		// Broadcast unblocks whenever the host lifts a block: separation achieved (UpdateBlockedPairs),
+		// coupler manually readied (RemoveBlockingFor) or coupler broken/deleted (CleanupOldRecords).
+		// Clients only drop blocks on these packets, so a missed unblock blocks that pair on the client for good.
+		[HarmonyPatch]
 		public static class BroadcastRecouplingUnblocks
 		{
+			public static IEnumerable<MethodBase> TargetMethods()
+			{
+				yield return AccessTools.Method(typeof(RecouplingPrevention), nameof(RecouplingPrevention.UpdateBlockedPairs));
+				yield return AccessTools.Method(typeof(RecouplingPrevention), nameof(RecouplingPrevention.RemoveBlockingFor));
+				yield return AccessTools.Method(typeof(RecouplingPrevention), nameof(RecouplingPrevention.CleanupOldRecords));
+			}
+
 			public static void Prefix(out HashSet<RecouplingPrevention.CouplerPair>? __state)
 			{
 				__state = null;
