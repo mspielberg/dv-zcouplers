@@ -84,6 +84,15 @@ namespace DvMod.ZCouplers
             try
             {
                 MultiplayerAPI.Instance.SetModCompatibility(ModId, MultiplayerCompatibility.All);
+
+                // The host also starts a loopback client. It is authoritative and must neither
+                // be flagged as a client nor re-apply its own broadcasts.
+                if (IsHost)
+                {
+                    Main.DebugLog(() => "[MP] Skipping client integration on host");
+                    return;
+                }
+
                 client.RegisterPacket<CouplerStateSync>(OnClientCouplerStateSync);
                 client.RegisterPacket<JointCreate>(OnClientJointCreate);
                 client.RegisterPacket<JointDestroy>(OnClientJointDestroy);
