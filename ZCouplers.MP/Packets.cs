@@ -43,6 +43,8 @@ namespace DvMod.ZCouplers
 		public ushort BCarNetId { get; set; }
 		public bool BIsFront { get; set; }
 		public JointKind Kind { get; set; }
+		/// <summary>The host joint's linear limit (m); 0 when unknown.</summary>
+		public float Limit { get; set; }
 		public uint Tick { get; set; }
 	}
 

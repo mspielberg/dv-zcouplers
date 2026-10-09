@@ -374,6 +374,7 @@ namespace DvMod.ZCouplers
                 BCarNetId = bId,
                 BIsFront = b.isFrontCoupler,
                 Kind = kind,
+                Limit = HostJointLimit(a, b),
                 Tick = MultiplayerAPI.Instance?.CurrentTick ?? 0,
             };
             MultiplayerAPI.Server.SendPacketToPlayer(pkt, player, reliable: true);
@@ -410,6 +411,7 @@ namespace DvMod.ZCouplers
                 BCarNetId = bId,
                 BIsFront = b.isFrontCoupler,
                 Kind = kind,
+                Limit = HostJointLimit(a, b),
                 Tick = MultiplayerAPI.Instance?.CurrentTick ?? 0,
             };
             MultiplayerAPI.Server.SendPacketToAll(pkt, reliable: true, excludeSelf: true);
@@ -488,8 +490,19 @@ namespace DvMod.ZCouplers
                         MpShim.SetClientAllowsJointOps(false);
                     }
                 }
+
+                // The client's cars lag behind the host's; don't keep a joint sized from their distance
+                var joint = (a != null ? JointManager.GetTensionJoint(a) : null) ?? (b != null ? JointManager.GetTensionJoint(b) : null);
+                if (joint != null)
+                    JointLimitRatchet.Attach(joint, packet.Limit);
             }
             catch (Exception e) { Main.ErrorLog(() => $"[MP] Client joint create failed: {e.Message}"); }
+        }
+
+        private static float HostJointLimit(Coupler a, Coupler b)
+        {
+            var joint = JointManager.GetTensionJoint(a) ?? JointManager.GetTensionJoint(b);
+            return joint != null ? joint.linearLimit.limit : 0f;
         }
 
         private static void OnClientJointDestroy(JointDestroy packet)
