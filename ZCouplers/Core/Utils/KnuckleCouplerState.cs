@@ -63,6 +63,9 @@ namespace DvMod.ZCouplers.Core.Utils
                 coupler.state = ChainCouplerInteraction.State.Dangling;
             }
 
+            // User manually readied this coupler - lift any recoupling blocks
+            RecouplingPrevention.RemoveBlockingFor(coupler);
+
             // Update visual state after changing the state
             HookManager.UpdateHookVisualStateFromCouplerState(coupler);
         }
@@ -81,6 +84,9 @@ namespace DvMod.ZCouplers.Core.Utils
                 {
                     coupler.state = ChainCouplerInteraction.State.Dangling;
                 }
+
+                // Coupler was readied/locked - lift any recoupling blocks
+                RecouplingPrevention.RemoveBlockingFor(coupler);
             }
             else
             {

@@ -889,6 +889,9 @@ namespace DvMod.ZCouplers.Visuals
             buttonSpec.createRigidbody = false;
             buttonSpec.useJoints = false;
             buttonSpec.colliderGameObjects = new GameObject[] { hook };
+            // Prevent VRTK NRE in VR: ControlImplBase.GenerateHandPoses() accesses
+            // spec.handPosesOverride which is null by default on dynamically created buttons
+            buttonSpec.handPosesOverride = new DV.Interaction.InteractionHandPoses();
 
             var infoArea = hook.AddComponent<InfoArea>();
             // Set initial interaction type based on coupler state
