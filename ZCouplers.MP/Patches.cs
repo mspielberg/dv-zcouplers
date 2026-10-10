@@ -192,12 +192,14 @@ namespace DvMod.ZCouplers
 		// Prevent CouplerBreaker from running on clients.
 		// CouplerBreaker monitors joint stress and can break couplers independently.
 		// On clients, joint operations are replayed from host, so breaker logic must be host-only.
-		[HarmonyPatch(typeof(CouplerBreaker), "Update")]
+		// A client-side break would also stay local: the Multiplayer mod only replicates uncouples from the server.
+		[HarmonyPatch(typeof(CouplerBreaker), nameof(CouplerBreaker.FixedUpdate))]
 		public static class PreventCouplerBreakerOnClient
 		{
-			public static bool Prefix()
+			public static bool Prefix(CouplerBreaker __instance)
 			{
-				return !MultiplayerIntegration.IsClientActive;
+				// Still let it remove itself once its joint is gone
+				return !MultiplayerIntegration.IsClientActive || __instance.joint == null;
 			}
 		}
 
