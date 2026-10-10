@@ -446,6 +446,13 @@ namespace DvMod.ZCouplers.Patches
                         break;
                     }
 
+                    // Stop without unpairing if alternative paths have already done it for us, like KillCouplingScanner
+                    if (coupler.IsCoupled())
+                    {
+                        __instance.masterCoro = null;
+                        yield break;
+                    }
+
                     var offset = __instance.transform.InverseTransformPoint(__instance.nearbyScanner.transform.position);
                     if (Mathf.Abs(offset.x) > 1.6f || Mathf.Abs(offset.z) > 2f)
                     {
