@@ -84,6 +84,15 @@ namespace DvMod.ZCouplers
             try
             {
                 MultiplayerAPI.Instance.SetModCompatibility(ModId, MultiplayerCompatibility.All);
+
+                // The host also starts a loopback client. It is authoritative and must neither
+                // be flagged as a client nor re-apply its own broadcasts.
+                if (IsHost)
+                {
+                    Main.DebugLog(() => "[MP] Skipping client integration on host");
+                    return;
+                }
+
                 client.RegisterPacket<CouplerStateSync>(OnClientCouplerStateSync);
                 client.RegisterPacket<JointCreate>(OnClientJointCreate);
                 client.RegisterPacket<JointDestroy>(OnClientJointDestroy);
@@ -98,6 +107,7 @@ namespace DvMod.ZCouplers
 
         private static void OnServerStopped()
         {
+            MpShim.SetIsHost(false);
             try
             {
                 MultiplayerAPI.Instance.OnTick -= OnTickHost;
@@ -120,6 +130,8 @@ namespace DvMod.ZCouplers
 
         private static void OnPlayerReady(IPlayer player)
         {
+            // The host's own loopback player already has the authoritative state
+            if (player == null || player.IsHost) return;
             try
             {
                 var server = MultiplayerAPI.Server;
@@ -191,7 +203,7 @@ namespace DvMod.ZCouplers
                 State = (byte)coupler.state,
                 Tick = MultiplayerAPI.Instance?.CurrentTick ?? 0,
             };
-            MultiplayerAPI.Server.SendPacketToAll(packet, reliable: true);
+            MultiplayerAPI.Server.SendPacketToAll(packet, reliable: true, excludeSelf: true);
         }
 
         private static void SendJointCreateToPlayer(Coupler a, Coupler b, JointKind kind, IPlayer player)
@@ -253,7 +265,7 @@ namespace DvMod.ZCouplers
                 Kind = kind,
                 Tick = MultiplayerAPI.Instance?.CurrentTick ?? 0,
             };
-            MultiplayerAPI.Server.SendPacketToAll(pkt, reliable: true);
+            MultiplayerAPI.Server.SendPacketToAll(pkt, reliable: true, excludeSelf: true);
         }
 
         public static void HostBroadcastJointDestroy(Coupler a, Coupler b, JointKind kind)
@@ -272,7 +284,7 @@ namespace DvMod.ZCouplers
                 Kind = kind,
                 Tick = MultiplayerAPI.Instance?.CurrentTick ?? 0,
             };
-            MultiplayerAPI.Server.SendPacketToAll(pkt, reliable: true);
+            MultiplayerAPI.Server.SendPacketToAll(pkt, reliable: true, excludeSelf: true);
         }
 
         private static void OnClientJointCreate(JointCreate packet)
@@ -430,7 +442,7 @@ namespace DvMod.ZCouplers
                     MinimumSeparationDistance = Main.settings.minimumSeparationDistance,
                     Tick = MultiplayerAPI.Instance?.CurrentTick ?? 0,
                 };
-                MultiplayerAPI.Server.SendPacketToAll(packet, reliable: true);
+                MultiplayerAPI.Server.SendPacketToAll(packet, reliable: true, excludeSelf: true);
             }
             catch (Exception e) { Main.ErrorLog(() => $"[MP] HostBroadcastSettings failed: {e.Message}"); }
         }
@@ -461,7 +473,7 @@ namespace DvMod.ZCouplers
                 BIsFront = b.isFrontCoupler,
                 Tick = MultiplayerAPI.Instance?.CurrentTick ?? 0,
             };
-            MultiplayerAPI.Server.SendPacketToAll(packet, reliable: true);
+            MultiplayerAPI.Server.SendPacketToAll(packet, reliable: true, excludeSelf: true);
         }
 
         public static void HostBroadcastRecouplingUnblock(Coupler a, Coupler b)
@@ -476,7 +488,7 @@ namespace DvMod.ZCouplers
                 BIsFront = b.isFrontCoupler,
                 Tick = MultiplayerAPI.Instance?.CurrentTick ?? 0,
             };
-            MultiplayerAPI.Server.SendPacketToAll(packet, reliable: true);
+            MultiplayerAPI.Server.SendPacketToAll(packet, reliable: true, excludeSelf: true);
         }
 
         private static void OnClientRecouplingBlock(RecouplingBlock packet)
