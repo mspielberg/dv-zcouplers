@@ -45,6 +45,10 @@ namespace DvMod.ZCouplers.Core.Profiles
         /// Damper rate in N*s/m (converted from kN*s/m in profiles).
         public float DamperRate { get; set; } = 100e3f; // Default 100 kN*s/m
 
+        /// Free play between coupled coupler faces in metres, half in draft and half in buff. Beyond it the
+        /// drawgear spring and damper (SpringRate, DamperRate) take the load.
+        public float Slack { get; set; } = 0.02f;
+
         /// Text to show when the coupler is ready.
         public string CouplerReadyText { get; set; } = "Coupler is ready\nPress [KEY] to unlock coupler";
 

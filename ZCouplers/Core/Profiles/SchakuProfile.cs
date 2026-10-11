@@ -23,6 +23,7 @@ namespace DvMod.ZCouplers.Core.Profiles
             CouplerStrength = 1.50e6f, // 1.50 MN
             SpringRate = 5.0e6f, // 5.0 MN/m
             DamperRate = 8e3f, // 8 kN*s/m
+            Slack = 0.005f, // tightlock
             CouplerReadyText = "Coupler is engaged",
             CouplerParkedText = "Coupler is engaged",
             EnforceAutoCoupling = true,
