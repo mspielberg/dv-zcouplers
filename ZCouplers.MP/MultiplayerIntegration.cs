@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using DvMod.ZCouplers.Core;
+using DvMod.ZCouplers.Core.Profiles;
 using DvMod.ZCouplers.Core.Utils;
 using DvMod.ZCouplers.Physics;
 using DvMod.ZCouplers.Visuals;
@@ -22,13 +23,16 @@ namespace DvMod.ZCouplers
         private static bool IsConnected => MultiplayerAPI.Instance?.IsConnected == true;
         public static bool IsHost => MultiplayerAPI.Instance?.IsHost == true;
         public static bool IsClientActive => IsLoaded && IsConnected && !IsHost;
-        internal static bool ClientAllowsJointOps { get; private set; }
+        internal static bool ClientAllowsJointOps { get; set; }
 
         private static readonly HashSet<string> serverKnownTensionPairs = new();
         private static readonly HashSet<string> clientKnownTensionPairs = new();
 
         private static readonly List<JointCreate> clientPendingJoints = new();
         private static readonly List<JointDestroy> clientPendingDestroys = new();
+
+        // Client's own settings captured before the host's SettingsSync overwrites them
+        private static SettingsSync? clientLocalSettings;
 
         private static string PairKey(ushort id1, bool f1, ushort id2, bool f2)
         {
@@ -99,6 +103,7 @@ namespace DvMod.ZCouplers
                 client.RegisterPacket<RecouplingBlock>(OnClientRecouplingBlock);
                 client.RegisterPacket<RecouplingUnblock>(OnClientRecouplingUnblock);
                 client.RegisterPacket<SettingsSync>(OnClientSettingsSync);
+                clientLocalSettings = CreateSettingsPacket();
                 MpShim.SetIsClientActive(true);
                 Main.DebugLog(() => "[MP] Client integration ready");
             }
@@ -124,6 +129,7 @@ namespace DvMod.ZCouplers
             clientPendingJoints.Clear();
             clientPendingDestroys.Clear();
             MpShim.SetIsClientActive(false);
+            RestoreClientLocalSettings();
         }
 
         private static void OnTickHost(uint tick) { }
@@ -411,20 +417,32 @@ namespace DvMod.ZCouplers
             }
         }
 
+        private static SettingsSync CreateSettingsPacket()
+        {
+            var s = Main.settings;
+            return new SettingsSync
+            {
+                ProfileId = s.selectedCoupler ?? "",
+                StrengthPreset = (byte)s.strengthValues,
+                KnuckleStrength = s.knuckleStrength,
+                DrawgearSpringRate = s.drawgearSpringRate,
+                DrawgearDamperRate = s.drawgearDamperRate,
+                ShowBuffersWithKnuckles = s.showBuffersWithKnuckles,
+                AutoCoupleThreshold = s.autoCoupleThreshold,
+                MinimumSeparationDistance = s.minimumSeparationDistance,
+                AutoAirAndMuMode = s.autoAirAndMuMode,
+                AutoCouplingMode = s.autoCouplingMode,
+                DisableFrontCouplersOnSteamLocos = s.disableFrontCouplersOnSteamLocos,
+                Tick = MultiplayerAPI.Instance?.CurrentTick ?? 0,
+            };
+        }
+
         private static void SendSettingsToPlayer(IPlayer player)
         {
             if (MultiplayerAPI.Server == null) return;
             try
             {
-                var packet = new SettingsSync
-                {
-                    SpringRate = Main.settings.GetSpringRate(),
-                    DamperRate = Main.settings.GetDamperRate(),
-                    ShowBuffersWithKnuckles = Main.settings.showBuffersWithKnuckles,
-                    MinimumSeparationDistance = Main.settings.minimumSeparationDistance,
-                    Tick = MultiplayerAPI.Instance?.CurrentTick ?? 0,
-                };
-                MultiplayerAPI.Server.SendPacketToPlayer(packet, player, reliable: true);
+                MultiplayerAPI.Server.SendPacketToPlayer(CreateSettingsPacket(), player, reliable: true);
             }
             catch (Exception e) { Main.ErrorLog(() => $"[MP] SendSettingsToPlayer failed: {e.Message}"); }
         }
@@ -434,15 +452,7 @@ namespace DvMod.ZCouplers
             if (!IsHost || MultiplayerAPI.Server == null) return;
             try
             {
-                var packet = new SettingsSync
-                {
-                    SpringRate = Main.settings.GetSpringRate(),
-                    DamperRate = Main.settings.GetDamperRate(),
-                    ShowBuffersWithKnuckles = Main.settings.showBuffersWithKnuckles,
-                    MinimumSeparationDistance = Main.settings.minimumSeparationDistance,
-                    Tick = MultiplayerAPI.Instance?.CurrentTick ?? 0,
-                };
-                MultiplayerAPI.Server.SendPacketToAll(packet, reliable: true, excludeSelf: true);
+                MultiplayerAPI.Server.SendPacketToAll(CreateSettingsPacket(), reliable: true, excludeSelf: true);
             }
             catch (Exception e) { Main.ErrorLog(() => $"[MP] HostBroadcastSettings failed: {e.Message}"); }
         }
@@ -451,14 +461,53 @@ namespace DvMod.ZCouplers
         {
             try
             {
-                Main.settings.drawgearSpringRate = packet.SpringRate;
-                Main.settings.drawgearDamperRate = packet.DamperRate;
-                Main.settings.showBuffersWithKnuckles = packet.ShowBuffersWithKnuckles;
-                Main.settings.minimumSeparationDistance = packet.MinimumSeparationDistance;
-                JointManager.UpdateAllJointParameters();
-                Main.DebugLog(() => "[MP] Client applied host settings and updated joints");
+                var s = Main.settings;
+                if (!string.IsNullOrEmpty(packet.ProfileId) && CouplerProfiles.GetById(packet.ProfileId) != null)
+                    s.selectedCoupler = packet.ProfileId;
+                else
+                    Main.ErrorLog(() => $"[MP] Host coupler profile '{packet.ProfileId}' is not available, keeping '{s.selectedCoupler}'");
+                ApplySettingsValues(packet);
+                s.OnChange();
+                Main.DebugLog(() => $"[MP] Client applied host settings: profile={s.selectedCoupler}, strength={s.strengthValues}, spring={s.GetSpringRate():E2}, damper={s.GetDamperRate():E2}, autoCoupling={s.autoCouplingMode}");
             }
             catch (Exception e) { Main.ErrorLog(() => $"[MP] Client apply settings sync failed: {e.Message}"); }
+        }
+
+        private static void ApplySettingsValues(SettingsSync packet)
+        {
+            var s = Main.settings;
+            if (Enum.IsDefined(typeof(strengthPreset), (int)packet.StrengthPreset))
+                s.strengthValues = (strengthPreset)packet.StrengthPreset;
+            s.knuckleStrength = packet.KnuckleStrength;
+            s.drawgearSpringRate = packet.DrawgearSpringRate;
+            s.drawgearDamperRate = packet.DrawgearDamperRate;
+            s.showBuffersWithKnuckles = packet.ShowBuffersWithKnuckles;
+            s.autoCoupleThreshold = packet.AutoCoupleThreshold;
+            s.minimumSeparationDistance = packet.MinimumSeparationDistance;
+            s.autoAirAndMuMode = packet.AutoAirAndMuMode;
+            s.autoCouplingMode = packet.AutoCouplingMode;
+            s.disableFrontCouplersOnSteamLocos = packet.DisableFrontCouplersOnSteamLocos;
+        }
+
+        /// <summary>
+        /// Put back the settings the client had before joining, so the host's values
+        /// are not persisted to the client's own settings file.
+        /// The world is unloading at this point, so no runtime refresh is triggered.
+        /// </summary>
+        private static void RestoreClientLocalSettings()
+        {
+            var local = clientLocalSettings;
+            clientLocalSettings = null;
+            if (local == null) return;
+            try
+            {
+                var s = Main.settings;
+                s.selectedCoupler = local.ProfileId;
+                s.lastCouplerProfile = s.couplerProfile;
+                ApplySettingsValues(local);
+                Main.DebugLog(() => $"[MP] Restored local settings after session: profile={s.selectedCoupler}, strength={s.strengthValues}");
+            }
+            catch (Exception e) { Main.ErrorLog(() => $"[MP] Restoring local settings failed: {e.Message}"); }
         }
 
         public static void HostBroadcastRecouplingBlock(Coupler a, Coupler b)
