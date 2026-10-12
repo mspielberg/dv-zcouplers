@@ -25,8 +25,52 @@ namespace DvMod.ZCouplers
             {
                 if (!MultiplayerIntegration.IsHost || __instance == null)
                     return;
+                MultiplayerIntegration.HostMarkDirty(__instance);
                 if (!__instance.IsCoupled() && __state != null)
+                {
+                    MultiplayerIntegration.HostMarkDirty(__state);
                     MultiplayerIntegration.HostBroadcastJointDestroy(__instance, __state, JointKind.Tension);
+                }
+            }
+        }
+
+        /// <summary>CoupleTo sets the state of both couplers, so mark both for replication.</summary>
+        [HarmonyPatch(typeof(Coupler), nameof(Coupler.CoupleTo))]
+        private static class ReplicateCouple
+        {
+            public static void Postfix(Coupler __instance, Coupler other)
+            {
+                if (!MultiplayerIntegration.IsHost)
+                    return;
+                MultiplayerIntegration.HostMarkDirty(__instance);
+                MultiplayerIntegration.HostMarkDirty(other);
+            }
+        }
+
+        /// <summary>
+        /// On clients the host owns coupler state. The Multiplayer mod resyncs uncoupled car ends by
+        /// calling Uncouple on them, and ZCouplers' UncouplePatch treats Uncouple on an uncoupled coupler
+        /// as "unlock" and sets it Parked. Put back the state the host sent, since the host won't resend
+        /// a state that didn't change on its side.
+        /// </summary>
+        [HarmonyPatch(typeof(Coupler), nameof(Coupler.Uncouple), new Type[] { typeof(bool), typeof(bool), typeof(bool), typeof(bool) })]
+        private static class KeepHostStateOnClientNoopUncouple
+        {
+            public static void Prefix(Coupler __instance, out (bool wasCoupled, ChainCouplerInteraction.State state) __state)
+            {
+                __state = (__instance != null && __instance.IsCoupled(), __instance != null ? __instance.state : default);
+            }
+
+            // After UncouplePatch's postfix has reset the state
+            [HarmonyPriority(Priority.Last)]
+            public static void Postfix(Coupler __instance, (bool wasCoupled, ChainCouplerInteraction.State state) __state)
+            {
+                if (!MultiplayerIntegration.IsClientActive || __instance == null || __state.wasCoupled)
+                    return;
+                if (__instance.state == __state.state)
+                    return;
+                __instance.state = __state.state;
+                HookManager.UpdateHookVisualStateFromCouplerState(__instance);
             }
         }
 
@@ -73,7 +117,7 @@ namespace DvMod.ZCouplers
                 yield return null;
                 var coupler = chainScript?.couplerAdapter?.coupler;
                 if (coupler != null)
-                    MultiplayerIntegration.HostMaybeReplicate(coupler);
+                    MultiplayerIntegration.HostMarkDirty(coupler);
             }
         }
 
@@ -87,7 +131,7 @@ namespace DvMod.ZCouplers
 
                 var coupler = __instance?.couplerAdapter?.coupler;
                 if (coupler != null)
-                    MultiplayerIntegration.HostMaybeReplicate(coupler);
+                    MultiplayerIntegration.HostMarkDirty(coupler);
             }
         }
 

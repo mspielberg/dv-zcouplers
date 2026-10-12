@@ -16,7 +16,11 @@ namespace DvMod.ZCouplers
     {
         private const string ModId = "ZCouplers";
 
+        // On the host, the last state sent for each coupler and the couplers that may have changed since then
         private static readonly Dictionary<Coupler, ChainCouplerInteraction.State> lastState = new();
+        private static readonly HashSet<Coupler> dirtyCouplers = new();
+        private static readonly HashSet<byte> readyPlayers = new();
+        private static int sweepIndex;
         private static bool initialised;
 
         private static bool IsLoaded => MultiplayerAPI.IsMultiplayerLoaded;
@@ -78,6 +82,8 @@ namespace DvMod.ZCouplers
                 server.RegisterPacket<CouplerStateChangeRequest>(OnServerCouplerStateChangeRequest);
                 MultiplayerAPI.Instance.OnTick += OnTickHost;
                 server.OnPlayerReady += OnPlayerReady;
+                server.OnPlayerDisconnected += OnPlayerDisconnected;
+                CouplerStateChanges.Changed += HostMarkDirty;
                 Main.DebugLog(() => "[MP] Server integration ready");
             }
             catch (Exception e) { Main.ErrorLog(() => $"[MP] Server start error: {e.Message}"); }
@@ -97,7 +103,7 @@ namespace DvMod.ZCouplers
                     return;
                 }
 
-                client.RegisterPacket<CouplerStateSync>(OnClientCouplerStateSync);
+                client.RegisterPacket<CouplerStatesSync>(OnClientCouplerStatesSync);
                 client.RegisterPacket<JointCreate>(OnClientJointCreate);
                 client.RegisterPacket<JointDestroy>(OnClientJointDestroy);
                 client.RegisterPacket<RecouplingBlock>(OnClientRecouplingBlock);
@@ -116,7 +122,12 @@ namespace DvMod.ZCouplers
             try
             {
                 MultiplayerAPI.Instance.OnTick -= OnTickHost;
+                CouplerStateChanges.Changed -= HostMarkDirty;
+                UnhookCarDeletion();
                 lastState.Clear();
+                dirtyCouplers.Clear();
+                readyPlayers.Clear();
+                sweepIndex = 0;
                 serverKnownTensionPairs.Clear();
             }
             catch { }
@@ -132,7 +143,154 @@ namespace DvMod.ZCouplers
             RestoreClientLocalSettings();
         }
 
-        private static void OnTickHost(uint tick) { }
+        private const uint PruneIntervalTicks = 240; // ~10 s at 24 ticks/s
+        // The sweep checks a few cars each tick and gets through all of them in this many ticks (about 3 s)
+        private const int SweepPeriodTicks = 72;
+        private const int MaxStatesPerPacket = 512;
+
+        /// <summary>
+        /// Sends clients the coupler states that changed since the last tick, all in one packet. Couplers
+        /// are marked dirty as they change. Harmony patches catch the game's coupling, uncoupling and chain
+        /// interactions, and CouplerStateChanges catches ZCouplers' own changes. The chain state machine
+        /// only runs near the host player, so this is how clients hear about states ZCouplers sets
+        /// anywhere else, for example while coupling, uncoupling or auto-readying. A slow sweep over all
+        /// cars picks up anything that was missed.
+        /// </summary>
+        private static void OnTickHost(uint tick)
+        {
+            try
+            {
+                HookCarDeletion();
+                SweepForMissedChanges();
+                FlushDirtyCouplers();
+
+                if (tick % PruneIntervalTicks == 0)
+                {
+                    foreach (var destroyed in lastState.Keys.Where(c => c == null).ToList())
+                        lastState.Remove(destroyed);
+                }
+            }
+            catch (Exception e) { Main.ErrorLog(() => $"[MP] Host state replication failed: {e.Message}"); }
+        }
+
+        public static void HostMarkDirty(Coupler coupler)
+        {
+            if (IsHost && coupler != null)
+                dirtyCouplers.Add(coupler);
+        }
+
+        private static CarSpawner? hookedSpawner;
+
+        /// <summary>
+        /// DV puts deleted cars back in a pool and reuses them, couplers included. Forgetting a deleted
+        /// car's couplers makes sure their first state is sent again when the car comes back.
+        /// </summary>
+        private static void HookCarDeletion()
+        {
+            var spawner = CarSpawner.Instance;
+            if (spawner == null || spawner == hookedSpawner) return;
+            if (hookedSpawner != null) hookedSpawner.CarAboutToBeDeleted -= OnCarAboutToBeDeleted;
+            spawner.CarAboutToBeDeleted += OnCarAboutToBeDeleted;
+            hookedSpawner = spawner;
+        }
+
+        private static void UnhookCarDeletion()
+        {
+            if (hookedSpawner != null) hookedSpawner.CarAboutToBeDeleted -= OnCarAboutToBeDeleted;
+            hookedSpawner = null;
+        }
+
+        private static void OnCarAboutToBeDeleted(TrainCar car)
+        {
+            if (car == null) return;
+            foreach (var coupler in new[] { car.frontCoupler, car.rearCoupler })
+            {
+                if (coupler == null) continue;
+                lastState.Remove(coupler);
+                dirtyCouplers.Remove(coupler);
+            }
+        }
+
+        private static void SweepForMissedChanges()
+        {
+            var cars = CarSpawner.Instance?.allCars;
+            if (cars == null || cars.Count == 0) return;
+            var perTick = (cars.Count + SweepPeriodTicks - 1) / SweepPeriodTicks;
+            for (int i = 0; i < perTick; i++)
+            {
+                if (sweepIndex >= cars.Count) sweepIndex = 0;
+                var car = cars[sweepIndex++];
+                if (car == null) continue;
+                MarkDirtyIfChanged(car.frontCoupler);
+                MarkDirtyIfChanged(car.rearCoupler);
+            }
+
+            static void MarkDirtyIfChanged(Coupler coupler)
+            {
+                if (coupler != null && (!lastState.TryGetValue(coupler, out var sent) || sent != coupler.state))
+                    dirtyCouplers.Add(coupler);
+            }
+        }
+
+        private static void FlushDirtyCouplers()
+        {
+            if (dirtyCouplers.Count == 0) return;
+            var carIds = new List<ushort>();
+            var couplers = new List<byte>();
+            List<Coupler>? notNetworkedYet = null;
+            foreach (var coupler in dirtyCouplers)
+            {
+                // Deleted cars go back to DV's car pool inactive rather than being destroyed
+                if (coupler == null || coupler.train == null || !coupler.train.gameObject.activeInHierarchy) continue;
+                var state = coupler.state;
+                if (lastState.TryGetValue(coupler, out var sent) && sent == state) continue;
+                // A car spawned this tick may not have a NetId yet, so try it again on the next one
+                if (MultiplayerAPI.Instance?.TryGetNetId(coupler.train, out ushort carId) != true)
+                {
+                    (notNetworkedYet ??= new List<Coupler>()).Add(coupler);
+                    continue;
+                }
+                lastState[coupler] = state;
+                carIds.Add(carId);
+                couplers.Add(EncodeCoupler(coupler.isFrontCoupler, state));
+            }
+            dirtyCouplers.Clear();
+            if (notNetworkedYet != null)
+                dirtyCouplers.UnionWith(notNetworkedYet);
+
+            // Nothing needs sending while nobody is connected. Players who join get the full snapshot.
+            if (carIds.Count > 0 && readyPlayers.Count > 0)
+                SendCouplerStates(carIds, couplers, player: null);
+        }
+
+        private static byte EncodeCoupler(bool isFront, ChainCouplerInteraction.State state) =>
+            (byte)((isFront ? 0x80 : 0) | ((byte)state & 0x7F));
+
+        private static void SendCouplerStates(List<ushort> carIds, List<byte> couplers, IPlayer? player)
+        {
+            var server = MultiplayerAPI.Server;
+            if (server == null) return;
+            for (int start = 0; start < carIds.Count; start += MaxStatesPerPacket)
+            {
+                var count = Math.Min(MaxStatesPerPacket, carIds.Count - start);
+                var packet = new CouplerStatesSync
+                {
+                    CarNetIds = carIds.GetRange(start, count).ToArray(),
+                    Couplers = couplers.GetRange(start, count).ToArray(),
+                    Tick = MultiplayerAPI.Instance?.CurrentTick ?? 0,
+                };
+                if (player == null)
+                    server.SendPacketToAll(packet, reliable: true, excludeSelf: true);
+                else
+                    server.SendPacketToPlayer(packet, player, reliable: true);
+            }
+        }
+
+        private static void OnPlayerDisconnected(IPlayer player)
+        {
+            if (player != null)
+                readyPlayers.Remove(player.PlayerId);
+        }
 
         private static void OnPlayerReady(IPlayer player)
         {
@@ -146,13 +304,21 @@ namespace DvMod.ZCouplers
                 if (spawner?.allCars == null) return;
 
                 SendSettingsToPlayer(player);
+                readyPlayers.Add(player.PlayerId);
 
+                var carIds = new List<ushort>();
+                var couplers = new List<byte>();
                 foreach (var car in spawner.allCars)
                 {
-                    if (car == null) continue;
-                    if (car.frontCoupler != null) SendCouplerStateToPlayer(car.frontCoupler, player);
-                    if (car.rearCoupler != null) SendCouplerStateToPlayer(car.rearCoupler, player);
+                    if (car == null || !TryGetCarNetId(car, out var carId)) continue;
+                    foreach (var coupler in new[] { car.frontCoupler, car.rearCoupler })
+                    {
+                        if (coupler == null) continue;
+                        carIds.Add(carId);
+                        couplers.Add(EncodeCoupler(coupler.isFrontCoupler, coupler.state));
+                    }
                 }
+                SendCouplerStates(carIds, couplers, player);
 
                 var sentTension = new HashSet<string>();
                 foreach (var car in spawner.allCars.OfType<TrainCar>())
@@ -192,24 +358,9 @@ namespace DvMod.ZCouplers
                 {
                     KnuckleCouplerState.UnlockCoupler(coupler, viaChainInteraction: true);
                 }
-                BroadcastCouplerState(coupler);
+                HostMarkDirty(coupler);
             }
             catch (Exception e) { Main.ErrorLog(() => $"[MP] Server apply request failed: {e.Message}"); }
-        }
-
-        public static void BroadcastCouplerState(Coupler coupler)
-        {
-            if (coupler == null || MultiplayerAPI.Server == null) return;
-            if (!TryGetCarNetId(coupler.train, out var carId)) return;
-            var packet = new CouplerStateSync
-            {
-                CarNetId = carId,
-                IsFront = coupler.isFrontCoupler,
-                Locked = coupler.state != ChainCouplerInteraction.State.Parked,
-                State = (byte)coupler.state,
-                Tick = MultiplayerAPI.Instance?.CurrentTick ?? 0,
-            };
-            MultiplayerAPI.Server.SendPacketToAll(packet, reliable: true, excludeSelf: true);
         }
 
         private static void SendJointCreateToPlayer(Coupler a, Coupler b, JointKind kind, IPlayer player)
@@ -223,35 +374,26 @@ namespace DvMod.ZCouplers
                 BCarNetId = bId,
                 BIsFront = b.isFrontCoupler,
                 Kind = kind,
+                Limit = HostJointLimit(a, b),
                 Tick = MultiplayerAPI.Instance?.CurrentTick ?? 0,
             };
             MultiplayerAPI.Server.SendPacketToPlayer(pkt, player, reliable: true);
         }
 
-        private static void SendCouplerStateToPlayer(Coupler coupler, IPlayer player)
+        private static void OnClientCouplerStatesSync(CouplerStatesSync packet)
         {
-            if (coupler == null || MultiplayerAPI.Server == null) return;
-            if (!TryGetCarNetId(coupler.train, out var carId)) return;
-            var packet = new CouplerStateSync
+            var count = Math.Min(packet.CarNetIds?.Length ?? 0, packet.Couplers?.Length ?? 0);
+            for (int i = 0; i < count; i++)
             {
-                CarNetId = carId,
-                IsFront = coupler.isFrontCoupler,
-                Locked = coupler.state != ChainCouplerInteraction.State.Parked,
-                State = (byte)coupler.state,
-                Tick = MultiplayerAPI.Instance?.CurrentTick ?? 0,
-            };
-            MultiplayerAPI.Server.SendPacketToPlayer(packet, player, reliable: true);
-        }
-
-        private static void OnClientCouplerStateSync(CouplerStateSync packet)
-        {
-            if (!TryResolveCoupler(packet.CarNetId, packet.IsFront, out var coupler)) return;
-            try
-            {
-                coupler.state = (ChainCouplerInteraction.State)packet.State;
-                HookManager.UpdateHookVisualStateFromCouplerState(coupler);
+                var encoded = packet.Couplers![i];
+                if (!TryResolveCoupler(packet.CarNetIds![i], (encoded & 0x80) != 0, out var coupler)) continue;
+                try
+                {
+                    coupler.state = (ChainCouplerInteraction.State)(encoded & 0x7F);
+                    HookManager.UpdateHookVisualStateFromCouplerState(coupler);
+                }
+                catch (Exception e) { Main.ErrorLog(() => $"[MP] Client apply sync failed: {e.Message}"); }
             }
-            catch (Exception e) { Main.ErrorLog(() => $"[MP] Client apply sync failed: {e.Message}"); }
         }
 
         public static void HostBroadcastJointCreate(Coupler a, Coupler b, JointKind kind)
@@ -269,6 +411,7 @@ namespace DvMod.ZCouplers
                 BCarNetId = bId,
                 BIsFront = b.isFrontCoupler,
                 Kind = kind,
+                Limit = HostJointLimit(a, b),
                 Tick = MultiplayerAPI.Instance?.CurrentTick ?? 0,
             };
             MultiplayerAPI.Server.SendPacketToAll(pkt, reliable: true, excludeSelf: true);
@@ -347,8 +490,19 @@ namespace DvMod.ZCouplers
                         MpShim.SetClientAllowsJointOps(false);
                     }
                 }
+
+                // The client's cars lag behind the host's; don't keep a joint sized from their distance
+                var joint = (a != null ? JointManager.GetTensionJoint(a) : null) ?? (b != null ? JointManager.GetTensionJoint(b) : null);
+                if (joint != null)
+                    JointLimitRatchet.Attach(joint, packet.Limit);
             }
             catch (Exception e) { Main.ErrorLog(() => $"[MP] Client joint create failed: {e.Message}"); }
+        }
+
+        private static float HostJointLimit(Coupler a, Coupler b)
+        {
+            var joint = JointManager.GetTensionJoint(a) ?? JointManager.GetTensionJoint(b);
+            return joint != null ? joint.linearLimit.limit : 0f;
         }
 
         private static void OnClientJointDestroy(JointDestroy packet)
@@ -404,17 +558,6 @@ namespace DvMod.ZCouplers
                 return coupler != null;
             }
             return false;
-        }
-
-        public static void HostMaybeReplicate(Coupler coupler)
-        {
-            if (!IsHost || coupler == null) return;
-            var state = coupler.state;
-            if (!lastState.TryGetValue(coupler, out var prev) || prev != state)
-            {
-                lastState[coupler] = state;
-                BroadcastCouplerState(coupler);
-            }
         }
 
         private static SettingsSync CreateSettingsPacket()

@@ -1,5 +1,6 @@
 using System.Collections;
 using DvMod.ZCouplers.Core;
+using DvMod.ZCouplers.Core.Utils;
 using DvMod.ZCouplers.Visuals;
 using HarmonyLib;
 using UnityEngine;
@@ -93,11 +94,11 @@ namespace DvMod.ZCouplers.Patches
                     // Ensure proper native states for uncoupled new cars
                     if (!car.frontCoupler.IsCoupled())
                     {
-                        car.frontCoupler.state = ChainCouplerInteraction.State.Dangling;
+                        car.frontCoupler.SetState(ChainCouplerInteraction.State.Dangling);
                     }
                     if (!car.rearCoupler.IsCoupled())
                     {
-                        car.rearCoupler.state = ChainCouplerInteraction.State.Dangling;
+                        car.rearCoupler.SetState(ChainCouplerInteraction.State.Dangling);
                     }
 
                     // For steam locomotives, re-apply hardware hiding after initialization

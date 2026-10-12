@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using DvMod.ZCouplers.Core;
 using DvMod.ZCouplers.Core.Helpers;
+using DvMod.ZCouplers.Core.Utils;
 using DvMod.ZCouplers.Visuals;
 using UnityEngine;
 
@@ -120,6 +121,12 @@ namespace DvMod.ZCouplers.Physics
             bufferJoints[coupler] = (coupledTo, cj);
             bufferJoints[coupledTo] = (coupler, cj);
 
+            // A vanilla CreateJoints may have started AdaptRigidJoint, which writes rigidCJ.linearLimit
+            // every FixedUpdate. Stop it before rigidCJ points at our joint, or it would clamp our limit
+            // to the vanilla 0.2/0.3 m even though our anchor sits 1 m inside the car.
+            coupler.KillJointCoroutines();
+            coupledTo.KillJointCoroutines();
+
             coupler.rigidCJ = cj;
             coupledTo.rigidCJ = cj;
 
@@ -149,12 +156,12 @@ namespace DvMod.ZCouplers.Physics
                     Main.DebugLog(() => $"Set Attached_Tight after joint creation: {a.train.ID} {a.Position()} (was {a.state}), {b.train.ID} {b.Position()} (was {b.state})");
                     if (aWasDangling)
                     {
-                        a.state = ChainCouplerInteraction.State.Attached_Tight;
+                        a.SetState(ChainCouplerInteraction.State.Attached_Tight);
                         HookManager.UpdateHookVisualStateFromCouplerState(a);
                     }
                     if (bWasDangling)
                     {
-                        b.state = ChainCouplerInteraction.State.Attached_Tight;
+                        b.SetState(ChainCouplerInteraction.State.Attached_Tight);
                         HookManager.UpdateHookVisualStateFromCouplerState(b);
                     }
                 }

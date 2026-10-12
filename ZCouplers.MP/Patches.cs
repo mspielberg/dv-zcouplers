@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Reflection;
 using DvMod.ZCouplers.Core;
 using DvMod.ZCouplers.Core.Utils;
 using DvMod.ZCouplers.Physics;
@@ -93,10 +94,19 @@ namespace DvMod.ZCouplers
 			}
 		}
 
-		// Patch UpdateBlockedPairs to broadcast unblocks when separation is achieved
-		[HarmonyPatch(typeof(RecouplingPrevention), nameof(RecouplingPrevention.UpdateBlockedPairs))]
+		// Broadcast unblocks whenever the host lifts a block: separation achieved (UpdateBlockedPairs),
+		// coupler manually readied (RemoveBlockingFor) or coupler broken/deleted (CleanupOldRecords).
+		// Clients only drop blocks on these packets, so a missed unblock blocks that pair on the client for good.
+		[HarmonyPatch]
 		public static class BroadcastRecouplingUnblocks
 		{
+			public static IEnumerable<MethodBase> TargetMethods()
+			{
+				yield return AccessTools.Method(typeof(RecouplingPrevention), nameof(RecouplingPrevention.UpdateBlockedPairs));
+				yield return AccessTools.Method(typeof(RecouplingPrevention), nameof(RecouplingPrevention.RemoveBlockingFor));
+				yield return AccessTools.Method(typeof(RecouplingPrevention), nameof(RecouplingPrevention.CleanupOldRecords));
+			}
+
 			public static void Prefix(out HashSet<RecouplingPrevention.CouplerPair>? __state)
 			{
 				__state = null;
@@ -182,12 +192,14 @@ namespace DvMod.ZCouplers
 		// Prevent CouplerBreaker from running on clients.
 		// CouplerBreaker monitors joint stress and can break couplers independently.
 		// On clients, joint operations are replayed from host, so breaker logic must be host-only.
-		[HarmonyPatch(typeof(CouplerBreaker), "Update")]
+		// A client-side break would also stay local: the Multiplayer mod only replicates uncouples from the server.
+		[HarmonyPatch(typeof(CouplerBreaker), nameof(CouplerBreaker.FixedUpdate))]
 		public static class PreventCouplerBreakerOnClient
 		{
-			public static bool Prefix()
+			public static bool Prefix(CouplerBreaker __instance)
 			{
-				return !MultiplayerIntegration.IsClientActive;
+				// Still let it remove itself once its joint is gone
+				return !MultiplayerIntegration.IsClientActive || __instance.joint == null;
 			}
 		}
 

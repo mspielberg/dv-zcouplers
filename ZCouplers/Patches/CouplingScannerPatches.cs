@@ -397,8 +397,8 @@ namespace DvMod.ZCouplers.Patches
                                 Main.DebugLog(() => $"Fixing mismatched save states and coupling {coupler.train.ID} ({coupler.state}) <-> {otherCoupler.train.ID} ({otherCoupler.state})");
 
                                 // Set both to Dangling state first (ready but uncoupled)
-                                coupler.state = ChainCouplerInteraction.State.Dangling;
-                                otherCoupler.state = ChainCouplerInteraction.State.Dangling;
+                                coupler.SetState(ChainCouplerInteraction.State.Dangling);
+                                otherCoupler.SetState(ChainCouplerInteraction.State.Dangling);
                                 // Reflect state changes in visuals immediately
                                 HookManager.UpdateHookVisualStateFromCouplerState(coupler);
                                 HookManager.UpdateHookVisualStateFromCouplerState(otherCoupler);
