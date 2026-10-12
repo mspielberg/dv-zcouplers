@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using DvMod.ZCouplers.Core;
 using DvMod.ZCouplers.Core.Helpers;
+using DvMod.ZCouplers.Core.Utils;
 using DvMod.ZCouplers.Visuals;
 using UnityEngine;
 
@@ -149,12 +150,12 @@ namespace DvMod.ZCouplers.Physics
                     Main.DebugLog(() => $"Set Attached_Tight after joint creation: {a.train.ID} {a.Position()} (was {a.state}), {b.train.ID} {b.Position()} (was {b.state})");
                     if (aWasDangling)
                     {
-                        a.state = ChainCouplerInteraction.State.Attached_Tight;
+                        a.SetState(ChainCouplerInteraction.State.Attached_Tight);
                         HookManager.UpdateHookVisualStateFromCouplerState(a);
                     }
                     if (bWasDangling)
                     {
-                        b.state = ChainCouplerInteraction.State.Attached_Tight;
+                        b.SetState(ChainCouplerInteraction.State.Attached_Tight);
                         HookManager.UpdateHookVisualStateFromCouplerState(b);
                     }
                 }

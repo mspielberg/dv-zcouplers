@@ -106,7 +106,7 @@ public static class UncouplePatch
 
             if (!partnerCoupler.IsCoupled())
             {
-                partnerCoupler.state = ChainCouplerInteraction.State.Parked;
+                partnerCoupler.SetState(ChainCouplerInteraction.State.Parked);
                 Main.DebugLog(() => "Reset partner coupler state to Parked: " + partnerCoupler.train.ID + " " + partnerCoupler.Position());
             }
 
@@ -123,12 +123,12 @@ public static class UncouplePatch
         {
             if (wasActuallyCoupled.TryGetValue(__instance, out bool wasCoupled) && wasCoupled)
             {
-                __instance.state = ChainCouplerInteraction.State.Dangling;
+                __instance.SetState(ChainCouplerInteraction.State.Dangling);
                 Main.DebugLog(() => "Reset coupler state to Dangling: " + __instance.train.ID);
             }
             else
             {
-                __instance.state = ChainCouplerInteraction.State.Parked;
+                __instance.SetState(ChainCouplerInteraction.State.Parked);
                 Main.DebugLog(() => "Reset coupler state to Parked: " + __instance.train.ID);
             }
         }

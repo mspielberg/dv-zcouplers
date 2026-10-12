@@ -426,11 +426,11 @@ namespace DvMod.ZCouplers.Patches
                     // Ensure both couplers are in the correct state (should be Attached_Tight when coupled)
                     if (coupler1.state != ChainCouplerInteraction.State.Attached_Tight)
                     {
-                        coupler1.state = ChainCouplerInteraction.State.Attached_Tight;
+                        coupler1.SetState(ChainCouplerInteraction.State.Attached_Tight);
                     }
                     if (coupler2.state != ChainCouplerInteraction.State.Attached_Tight)
                     {
-                        coupler2.state = ChainCouplerInteraction.State.Attached_Tight;
+                        coupler2.SetState(ChainCouplerInteraction.State.Attached_Tight);
                     }
 
                     // Ensure both couplers are ready/locked (knuckle couplers should be ready when coupled)
@@ -626,12 +626,12 @@ namespace DvMod.ZCouplers.Patches
                 // Ensure both have correct coupled state
                 if (coupler.state != ChainCouplerInteraction.State.Attached_Tight)
                 {
-                    coupler.state = ChainCouplerInteraction.State.Attached_Tight;
+                    coupler.SetState(ChainCouplerInteraction.State.Attached_Tight);
                     Main.DebugLog(() => $"Fixed teleported train state: {coupler.train.ID} {coupler.Position()} set to Attached_Tight");
                 }
                 if (partner.state != ChainCouplerInteraction.State.Attached_Tight)
                 {
-                    partner.state = ChainCouplerInteraction.State.Attached_Tight;
+                    partner.SetState(ChainCouplerInteraction.State.Attached_Tight);
                     Main.DebugLog(() => $"Fixed teleported train state: {partner.train.ID} {partner.Position()} set to Attached_Tight");
                 }
 
@@ -751,11 +751,11 @@ namespace DvMod.ZCouplers.Patches
                     // Ensure both couplers are in the correct state (should be Attached_Tight when coupled)
                     if (coupler1.state != ChainCouplerInteraction.State.Attached_Tight)
                     {
-                        coupler1.state = ChainCouplerInteraction.State.Attached_Tight;
+                        coupler1.SetState(ChainCouplerInteraction.State.Attached_Tight);
                     }
                     if (coupler2.state != ChainCouplerInteraction.State.Attached_Tight)
                     {
-                        coupler2.state = ChainCouplerInteraction.State.Attached_Tight;
+                        coupler2.SetState(ChainCouplerInteraction.State.Attached_Tight);
                     }
 
                     // Ensure both couplers are ready/locked (knuckle couplers should be ready when coupled)
@@ -878,11 +878,11 @@ namespace DvMod.ZCouplers.Patches
                         // Ensure both couplers are in correct state
                         if (coupler1.state != ChainCouplerInteraction.State.Attached_Tight)
                         {
-                            coupler1.state = ChainCouplerInteraction.State.Attached_Tight;
+                            coupler1.SetState(ChainCouplerInteraction.State.Attached_Tight);
                         }
                         if (coupler2.state != ChainCouplerInteraction.State.Attached_Tight)
                         {
-                            coupler2.state = ChainCouplerInteraction.State.Attached_Tight;
+                            coupler2.SetState(ChainCouplerInteraction.State.Attached_Tight);
                         }
 
                         // Ensure both couplers are ready/locked
@@ -968,13 +968,13 @@ namespace DvMod.ZCouplers.Patches
                 // Update both coupler states directly
                 if (thisChainScript != null && e.thisCoupler.IsCoupled())
                 {
-                    e.thisCoupler.state = newState;
+                    e.thisCoupler.SetState(newState);
                     Main.DebugLog(() => $"Set coupled state: {e.thisCoupler.train.ID} {e.thisCoupler.Position()} -> {newState}");
                 }
 
                 if (otherChainScript != null && e.otherCoupler.IsCoupled())
                 {
-                    e.otherCoupler.state = newState;
+                    e.otherCoupler.SetState(newState);
                     Main.DebugLog(() => $"Set coupled state: {e.otherCoupler.train.ID} {e.otherCoupler.Position()} -> {newState}");
                 }
 
@@ -1063,13 +1063,13 @@ namespace DvMod.ZCouplers.Patches
                             // Update both couplers to the same correct state
                             if (thisCoupler.state != correctState)
                             {
-                                thisCoupler.state = correctState;
+                                thisCoupler.SetState(correctState);
                                 Main.DebugLog(() => $"Correct state: {thisCoupler.train.ID} {thisCoupler.Position()} -> {correctState}");
                             }
 
                             if (otherCoupler.state != correctState)
                             {
-                                otherCoupler.state = correctState;
+                                otherCoupler.SetState(correctState);
                                 Main.DebugLog(() => $"Correct state: {otherCoupler.train.ID} {otherCoupler.Position()} -> {correctState}");
                             }
 
@@ -1166,7 +1166,7 @@ namespace DvMod.ZCouplers.Patches
                             // If partner has wrong state while coupled, fix it
                             if (currentPartnerState != expectedState)
                             {
-                                partnerCoupler.state = expectedState;
+                                partnerCoupler.SetState(expectedState);
                                 Main.DebugLog(() => $"Fixed partner state in DetermineNextState: {partnerCoupler.train.ID} {partnerCoupler.Position()} {currentPartnerState} -> {expectedState}");
                             }
                         }

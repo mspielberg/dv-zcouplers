@@ -342,13 +342,13 @@ public static class Main
             // Reset front coupler
             if (car.frontCoupler != null && !car.frontCoupler.IsCoupled())
             {
-                car.frontCoupler.state = ChainCouplerInteraction.State.Dangling;
+                car.frontCoupler.SetState(ChainCouplerInteraction.State.Dangling);
             }
 
             // Reset rear coupler
             if (car.rearCoupler != null && !car.rearCoupler.IsCoupled())
             {
-                car.rearCoupler.state = ChainCouplerInteraction.State.Dangling;
+                car.rearCoupler.SetState(ChainCouplerInteraction.State.Dangling);
             }
         }
         catch (System.Exception ex)
