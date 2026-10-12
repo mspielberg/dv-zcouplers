@@ -14,14 +14,14 @@ namespace DvMod.ZCouplers
 	}
 
 	/// <summary>
-	/// Server -> Clients: Authoritative coupler state.
+	/// Server -> Clients: Authoritative states for a batch of couplers. Each entry is a car's net ID in
+	/// CarNetIds and, at the same index in Couplers, the coupler's state with the top bit set for the car's
+	/// front coupler.
 	/// </summary>
-	public class CouplerStateSync : IPacket
+	public class CouplerStatesSync : IPacket
 	{
-		public ushort CarNetId { get; set; }
-		public bool IsFront { get; set; }
-		public bool Locked { get; set; }
-		public byte State { get; set; }
+		public ushort[] CarNetIds { get; set; } = System.Array.Empty<ushort>();
+		public byte[] Couplers { get; set; } = System.Array.Empty<byte>();
 		public uint Tick { get; set; }
 	}
 

@@ -25,8 +25,25 @@ namespace DvMod.ZCouplers
             {
                 if (!MultiplayerIntegration.IsHost || __instance == null)
                     return;
+                MultiplayerIntegration.HostMarkDirty(__instance);
                 if (!__instance.IsCoupled() && __state != null)
+                {
+                    MultiplayerIntegration.HostMarkDirty(__state);
                     MultiplayerIntegration.HostBroadcastJointDestroy(__instance, __state, JointKind.Tension);
+                }
+            }
+        }
+
+        /// <summary>CoupleTo sets the state of both couplers, so mark both for replication.</summary>
+        [HarmonyPatch(typeof(Coupler), nameof(Coupler.CoupleTo))]
+        private static class ReplicateCouple
+        {
+            public static void Postfix(Coupler __instance, Coupler other)
+            {
+                if (!MultiplayerIntegration.IsHost)
+                    return;
+                MultiplayerIntegration.HostMarkDirty(__instance);
+                MultiplayerIntegration.HostMarkDirty(other);
             }
         }
 
@@ -73,7 +90,7 @@ namespace DvMod.ZCouplers
                 yield return null;
                 var coupler = chainScript?.couplerAdapter?.coupler;
                 if (coupler != null)
-                    MultiplayerIntegration.HostMaybeReplicate(coupler);
+                    MultiplayerIntegration.HostMarkDirty(coupler);
             }
         }
 
@@ -87,7 +104,7 @@ namespace DvMod.ZCouplers
 
                 var coupler = __instance?.couplerAdapter?.coupler;
                 if (coupler != null)
-                    MultiplayerIntegration.HostMaybeReplicate(coupler);
+                    MultiplayerIntegration.HostMarkDirty(coupler);
             }
         }
 
