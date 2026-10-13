@@ -499,11 +499,11 @@ namespace DvMod.ZCouplers
             catch (Exception e) { Main.ErrorLog(() => $"[MP] Client joint create failed: {e.Message}"); }
         }
 
-        private static float HostJointLimit(Coupler a, Coupler b)
-        {
-            var joint = JointManager.GetTensionJoint(a) ?? JointManager.GetTensionJoint(b);
-            return joint != null ? joint.linearLimit.limit : 0f;
-        }
+        /// <summary>
+        /// The limit the host's joint settles at (not its current one, which may still be narrowing), so the
+        /// client's joint narrows to the same value.
+        /// </summary>
+        private static float HostJointLimit(Coupler a, Coupler b) => JointManager.TargetLimit;
 
         private static void OnClientJointDestroy(JointDestroy packet)
         {

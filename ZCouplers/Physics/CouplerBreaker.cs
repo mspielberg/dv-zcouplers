@@ -28,8 +28,10 @@ namespace DvMod.ZCouplers.Physics
                 return;
             }
 
-            // Use the full force magnitude instead of artificially scaling it down
-            var rawForce = joint.currentForce.magnitude;
+            // Couplers fail in draft. In buff the coupler faces are pushed together and the load goes
+            // through the drawgear into the frame, so run-ins and hard couplings don't break them.
+            var coupler = GetComponent<Coupler>();
+            var rawForce = coupler != null && IsInDraft(coupler) ? joint.currentForce.magnitude : 0f;
 
             var currentSpringRate = Main.settings.GetSpringRate();
 
@@ -52,7 +54,6 @@ namespace DvMod.ZCouplers.Physics
 
             if (couplerStrength > 0f && recentStress.All(s => s > couplerStrength) && Random.value < PerFrameBreakChance)
             {
-                var coupler = GetComponent<Coupler>();
                 var otherCoupler = coupler?.coupledTo;
 
                 Main.DebugLog(() => $"Breaking coupler: normForce={rawForce:F1}, spring={currentSpringRate:E2}");
@@ -65,6 +66,18 @@ namespace DvMod.ZCouplers.Physics
                     RecouplingPrevention.CleanupOldRecords(coupler);
                 }
             }
+        }
+
+        /// <summary>
+        /// Whether the coupled faces are pulled apart (draft) rather than pushed together (buff): the
+        /// partner's coupler lies beyond this one, seen from this car's centre.
+        /// </summary>
+        private static bool IsInDraft(Coupler coupler)
+        {
+            var other = coupler.coupledTo;
+            if (other == null) return false;
+            var outward = coupler.transform.position - coupler.train.transform.position;
+            return Vector3.Dot(other.transform.position - coupler.transform.position, outward) > 0f;
         }
 
         public void OnUncoupled(object coupler, UncoupleEventArgs args)

@@ -23,7 +23,8 @@ namespace DvMod.ZCouplers.Core.Profiles
             HasOpenVariant = true,
             CouplerStrength = 0.35e6f, // 0.35 MN
             SpringRate = 3.5e6f, // 3.5 MN/m
-            DamperRate = 3e3f, // 3 kN*s/m
+            DamperRate = 40e3f, // 40 kN*s/m: a plain coil spring draft gear, ~5% of critical for a mid-weight car
+            Slack = 0.1f, // link and pin
             CouplerReadyText = "Pin is inserted\nPress [KEY] to remove pin",
             CouplerParkedText = "Pin is removed\nPress [KEY] to insert pin",
             EnforceAutoCoupling = false,

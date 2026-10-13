@@ -23,7 +23,8 @@ namespace DvMod.ZCouplers.Core.Profiles
             HasSocketPlates = true,
             CouplerStrength = 3.65e6f, // 3.65 MN
             SpringRate = 12.0e6f, // 12.0 MN/m
-            DamperRate = 12e3f, // 12 kN*s/m
+            DamperRate = 300e3f, // 300 kN*s/m: friction draft gear, ~20% of critical for a mid-weight car
+            Slack = 0.02f, // knuckle slack
             CouplerParkedText = "Coupler is closed\nPress [KEY] to open coupler",
             CouplerReadyText = "Coupler is open\nPress [KEY] to close coupler",
             EnforceAutoCoupling = false,

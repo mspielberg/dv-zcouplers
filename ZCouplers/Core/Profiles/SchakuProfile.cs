@@ -22,7 +22,8 @@ namespace DvMod.ZCouplers.Core.Profiles
             HasOpenVariant = true,
             CouplerStrength = 1.50e6f, // 1.50 MN
             SpringRate = 5.0e6f, // 5.0 MN/m
-            DamperRate = 8e3f, // 8 kN*s/m
+            DamperRate = 250e3f, // 250 kN*s/m: elastomer/hydraulic draft gear, ~25% of critical for a mid-weight car
+            Slack = 0.005f, // tightlock
             CouplerReadyText = "Coupler is engaged",
             CouplerParkedText = "Coupler is engaged",
             EnforceAutoCoupling = true,

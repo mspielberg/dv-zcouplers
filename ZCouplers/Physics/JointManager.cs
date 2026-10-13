@@ -22,13 +22,25 @@ namespace DvMod.ZCouplers.Physics
         private static readonly Dictionary<Coupler, float> lastJointCreationTime = new();
         private const float MinJointCreationInterval = 2.0f;
 
-        private const float TightChainLength = 1.0f;
+        /// <summary>
+        /// The coupling joint's linear limit once settled: half the profile's free slack. The joint only
+        /// limits the car's long axis, where Unity's limit is a band of ±limit around the anchor, and both
+        /// anchors sit at the coupler faces, so the faces can move this far apart (draft) or together (buff)
+        /// before the drawgear spring takes the load.
+        /// </summary>
+        public static float TargetLimit => (Main.settings.couplerProfile?.Options.Slack ?? 0.02f) / 2f;
 
-        private static float CalculateJointDistance(ConfigurableJoint joint)
+        /// <summary>
+        /// Signed position of the connected anchor along the joint's limited axis (the car's long axis),
+        /// which is what the linear limit applies to. Sideways and vertical offsets, free on this joint, are
+        /// left out: in a curve they alone exceed a centimetre-scale limit.
+        /// </summary>
+        public static float AxialOffset(ConfigurableJoint joint)
         {
-            Vector3 anchorWorldPos = joint.transform.TransformPoint(joint.anchor);
-            Vector3 connectedAnchorWorldPos = joint.connectedBody.transform.TransformPoint(joint.connectedAnchor);
-            return Vector3.Distance(anchorWorldPos, connectedAnchorWorldPos);
+            var anchor = joint.transform.TransformPoint(joint.anchor);
+            var connected = joint.connectedBody.transform.TransformPoint(joint.connectedAnchor);
+            var limitedAxis = joint.transform.TransformDirection(Vector3.Cross(joint.axis, joint.secondaryAxis)).normalized;
+            return Vector3.Dot(connected - anchor, limitedAxis);
         }
 
         public static ConfigurableJoint? GetTensionJoint(Coupler coupler)
@@ -68,16 +80,20 @@ namespace DvMod.ZCouplers.Physics
                 return;
 
             var coupledTo = coupler.coupledTo;
-            var anchorOffset = Vector3.forward * TightChainLength * (coupler.isFrontCoupler ? -1f : 1f);
 
+            // Anchors at both coupler faces: coupled faces touch, as with vanilla's tight joint
             var cj = coupler.train.gameObject.AddComponent<ConfigurableJoint>();
             cj.autoConfigureConnectedAnchor = false;
-            cj.anchor = coupler.transform.localPosition + anchorOffset;
+            cj.anchor = coupler.transform.localPosition;
             cj.connectedBody = coupledTo.train.gameObject.GetComponent<Rigidbody>();
             cj.connectedAnchor = coupledTo.transform.localPosition;
 
-            var actualJointDistance = CalculateJointDistance(cj);
-            var jointLimit = Mathf.Max(actualJointDistance, 1.0f);
+            // Couplings are usually made with the faces pressed together or still apart. Start wide enough
+            // to cover where the cars are, so creating the joint doesn't yank them; JointLimitRatchet then
+            // narrows it to the target as they come into the band.
+            var targetLimit = TargetLimit;
+            var initialOffset = AxialOffset(cj);
+            var jointLimit = Mathf.Max(targetLimit, Mathf.Abs(initialOffset));
 
             cj.xMotion = ConfigurableJointMotion.Free;
             cj.yMotion = ConfigurableJointMotion.Free;
@@ -122,13 +138,15 @@ namespace DvMod.ZCouplers.Physics
             bufferJoints[coupledTo] = (coupler, cj);
 
             // A vanilla CreateJoints may have started AdaptRigidJoint, which writes rigidCJ.linearLimit
-            // every FixedUpdate. Stop it before rigidCJ points at our joint, or it would clamp our limit
-            // to the vanilla 0.2/0.3 m even though our anchor sits 1 m inside the car.
+            // every FixedUpdate. Stop it before rigidCJ points at our joint, or it would drive our limit
+            // to the vanilla 0.2/0.3 m instead of the profile's slack.
             coupler.KillJointCoroutines();
             coupledTo.KillJointCoroutines();
 
             coupler.rigidCJ = cj;
             coupledTo.rigidCJ = cj;
+
+            JointLimitRatchet.Attach(cj, targetLimit);
 
             CollisionHandler.DisableFakeBufferColliders(coupler, coupledTo);
             UpdateCouplerStatesAfterCompressionJoint(coupler, coupledTo);
@@ -141,7 +159,7 @@ namespace DvMod.ZCouplers.Physics
                 Main.DebugLog(() => $"Added CouplerBreaker to {coupler.train.ID} during tension joint creation");
             }
 
-            Main.DebugLog(() => $"Single joint created: distance={actualJointDistance:F3}m, limit={jointLimit:F3}m for {coupler.train.ID}");
+            Main.DebugLog(() => $"Single joint created: offset={initialOffset:F3}m, limit={jointLimit:F3}m (target {targetLimit:F3}m) for {coupler.train.ID}");
         }
 
         private static void UpdateCouplerStatesAfterCompressionJoint(Coupler a, Coupler b)
