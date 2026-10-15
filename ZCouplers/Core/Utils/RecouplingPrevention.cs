@@ -186,9 +186,8 @@ namespace DvMod.ZCouplers.Core.Utils
                 if (recentlyUncoupled.Count == 0)
                     return; // No need to log if there's nothing to check
 
-                Main.DebugLog(() => $"Checking {recentlyUncoupled.Count} uncoupled pair(s)");
-
                 var toRemove = new List<CouplerPair>();
+                int checkedCount = 0;
 
                 foreach (var kvp in recentlyUncoupled)
                 {
@@ -211,6 +210,14 @@ namespace DvMod.ZCouplers.Core.Utils
                             Main.DebugLog(() => "Coupler pair has null coupler/train, removing");
                             continue;
                         }
+
+                        // Derailed cars can't separate on their own; keep the pair blocked until rerailed
+                        if (coupler1.train.derailed || coupler2.train.derailed)
+                        {
+                            blockedPairs.Add(pair);
+                            continue;
+                        }
+                        checkedCount++;
 
                         // Calculate current separation distance between the couplers
                         var currentDistance = Vector3.Distance(coupler1.transform.position, coupler2.transform.position);
@@ -245,6 +252,9 @@ namespace DvMod.ZCouplers.Core.Utils
                 {
                     recentlyUncoupled.Remove(pair);
                 }
+
+                if (checkedCount > 0)
+                    Main.DebugLog(() => $"Checked {checkedCount} of {recentlyUncoupled.Count + toRemove.Count} uncoupled pair(s)");
             }
             catch (Exception ex)
             {
