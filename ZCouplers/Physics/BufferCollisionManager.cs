@@ -178,13 +178,15 @@ public static class BufferCollisionManager
         }
     }
 
+    // Resolved by name: a direct type reference makes the JIT load CCL.Importer and throws TypeLoadException without CCL installed
+    private static Type? cclCarVariantType;
+
     private static bool isCCL(TrainCar car)
     {
-	    if (Main.IsCCLLoaded)
-	    {
-		    return car.carLivery is CCL.Importer.Types.CCL_CarVariant;
-	    }
-	    return false;
+	    if (!Main.IsCCLLoaded || car == null)
+		    return false;
+	    cclCarVariantType ??= Type.GetType("CCL.Importer.Types.CCL_CarVariant, CCL.Importer");
+	    return cclCarVariantType != null && cclCarVariantType.IsInstanceOfType(car.carLivery);
     }
 
     /// <summary>
