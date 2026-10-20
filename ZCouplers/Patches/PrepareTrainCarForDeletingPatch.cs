@@ -36,7 +36,6 @@ public static class PrepareTrainCarForDeletingPatch
         }
         try
         {
-            JointManager.DestroyCompressionJoint(coupler, "PrepareForDeleting");
             JointManager.DestroyTensionJoint(coupler);
             CouplingScannerPatches.KillCouplingScanner(coupler);
             RecouplingPrevention.CleanupOldRecords(coupler);

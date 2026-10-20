@@ -38,7 +38,7 @@ namespace DvMod.ZCouplers.Core.Utils
 
                 if (coupler.state != newState)
                 {
-                    coupler.state = newState;
+                    coupler.SetState(newState);
                     Main.DebugLog(() => $"Set coupled state: {coupler.train.ID} {coupler.Position()} -> {newState}");
                     // Reflect state change in visuals
                     HookManager.UpdateHookVisualStateFromCouplerState(coupler);
@@ -64,7 +64,7 @@ namespace DvMod.ZCouplers.Core.Utils
 
                 if (coupler.state != newState)
                 {
-                    coupler.state = newState;
+                    coupler.SetState(newState);
                     Main.DebugLog(() => $"Set uncoupled state: {coupler.train.ID} {coupler.Position()} -> {newState}");
                     // Reflect state change in visuals
                     HookManager.UpdateHookVisualStateFromCouplerState(coupler);
@@ -143,7 +143,7 @@ namespace DvMod.ZCouplers.Core.Utils
             // Update both couplers to the same state, but only if they're actually coupled
             if (coupler.IsCoupled() && coupler.state != desiredState)
             {
-                coupler.state = desiredState;
+                coupler.SetState(desiredState);
                 changed = true;
                 // Only log when debug logging is explicitly enabled
                 Main.DebugLog(() => $"Synchronized {coupler.train.ID} {coupler.Position()} to {desiredState}");
@@ -153,7 +153,7 @@ namespace DvMod.ZCouplers.Core.Utils
 
             if (coupler.coupledTo.IsCoupled() && coupler.coupledTo.state != desiredState)
             {
-                coupler.coupledTo.state = desiredState;
+                coupler.coupledTo.SetState(desiredState);
                 changed = true;
                 // Only log when debug logging is explicitly enabled
                 Main.DebugLog(() => $"Synchronized {coupler.coupledTo.train.ID} {coupler.coupledTo.Position()} to {desiredState}");
@@ -242,7 +242,7 @@ namespace DvMod.ZCouplers.Core.Utils
                 if (coupler.state != newState)
                 {
                     // Update the coupler state to match the determined state
-                    coupler.state = newState;
+                    coupler.SetState(newState);
                     Main.DebugLog(() => $"Triggered state update for {coupler.train.ID} {coupler.Position()}: -> {newState}");
                     // Reflect state change in visuals
                     HookManager.UpdateHookVisualStateFromCouplerState(coupler);

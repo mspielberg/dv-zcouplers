@@ -1,0 +1,103 @@
+using System;
+using System.IO;
+using System.Reflection;
+
+namespace DvMod.ZCouplers.Core
+{
+        /// <summary>
+        /// Runtime bridge between core and the optional Multiplayer integration.
+        /// No compile-time references to the MP API.
+        /// </summary>
+        public static class MpShim
+        {
+                // Set by the optional MP assembly at runtime
+                public static bool IsClientActive { get; private set; }
+                public static bool ClientAllowsJointOps { get; private set; }
+
+                // True when this instance is the host in multiplayer
+                public static bool IsHost { get; private set; }
+
+                public static void SetIsClientActive(bool active) => IsClientActive = active;
+                public static void SetClientAllowsJointOps(bool allowed) => ClientAllowsJointOps = allowed;
+                public static void SetIsHost(bool host) => IsHost = host;
+
+                // Queried live because a single player session with the MP mod still runs a local host
+                private static Func<bool>? isSinglePlayerCheck;
+                public static void SetSinglePlayerCheck(Func<bool> check) => isSinglePlayerCheck = check;
+                public static bool IsSinglePlayer => isSinglePlayerCheck?.Invoke() == true;
+
+                private static MethodInfo? couplerToggleRequest;
+                private static MethodInfo? hostBroadcastSettings;
+
+		/// <summary>
+		/// Try to initialize the optional MP integration by loading ZCouplers.MP.dll
+		/// only when MultiplayerAPI is present and loaded.
+		/// </summary>
+		public static void TryInitialize(UnityModManagerNet.UnityModManager.ModEntry mod)
+		{
+			try
+			{
+				mod?.Logger.Log("Checking for MultiplayerAPI and optional MP plugin...");
+				var mpApiType = Type.GetType("MPAPI.MultiplayerAPI, MultiplayerAPI", throwOnError: false);
+				if (mpApiType == null)
+				{
+					mod?.Logger.Log("MultiplayerAPI not found. Skipping optional MP integration.");
+					return; // MP not installed
+				}
+
+				// Check IsMultiplayerLoaded == true
+				var prop = mpApiType.GetProperty("IsMultiplayerLoaded", BindingFlags.Public | BindingFlags.Static);
+				if (prop == null || !(prop.GetValue(null) is bool isLoaded) || !isLoaded)
+				{
+					mod?.Logger.Log("MultiplayerAPI present but not loaded. Skipping optional MP integration.");
+					return; // MP not loaded
+				}
+
+				// Load companion assembly
+				if (mod == null) return;
+				var mpDll = Path.Combine(mod.Path, "ZCouplers.MP.dll");
+				if (!File.Exists(mpDll))
+				{
+					mod?.Logger.Log($"Optional MP plugin not found at: {mpDll}. Skipping MP integration.");
+					return; // companion not present
+				}
+
+				var asm = Assembly.LoadFrom(mpDll);
+				var bootstrap = asm.GetType("DvMod.ZCouplers.Bootstrap", throwOnError: true);
+				var init = bootstrap?.GetMethod("Initialize", BindingFlags.Public | BindingFlags.Static);
+				init?.Invoke(null, null);
+				mod?.Logger.Log("Multiplayer detected. Optional MP plugin loaded successfully.");
+				var type = Type.GetType("DvMod.ZCouplers.MultiplayerIntegration, ZCouplers.MP", throwOnError: true);
+				couplerToggleRequest = type?.GetMethod("SendCouplerToggleRequest", BindingFlags.Public | BindingFlags.Static);
+				hostBroadcastSettings = type?.GetMethod("HostBroadcastSettings", BindingFlags.Public | BindingFlags.Static);
+			}
+			catch (Exception ex)
+			{
+				mod?.Logger.Log($"Optional MP initialization failed (continuing without MP): {ex.Message}");
+				mod?.Logger.Log($"Stack trace: {ex.StackTrace}");
+			}
+		}
+
+		/// <summary>
+		/// Try to route a coupler lock/unlock request to the MP integration if present.
+		/// </summary>
+		public static void TrySendCouplerToggleRequest(Coupler coupler, bool locked)
+		{
+			couplerToggleRequest?.Invoke(null, [coupler, locked]);
+		}
+
+		/// <summary>
+		/// Try to broadcast current settings to all clients when host changes settings.
+		/// </summary>
+		public static void TryHostBroadcastSettings()
+		{
+			hostBroadcastSettings?.Invoke(null, null);
+		}
+
+		/// <summary>
+		/// Returns true when connected to MP (either as host or client), excluding single player sessions.
+		/// Used by core code to determine if MP features are active.
+		/// </summary>
+		public static bool IsMultiplayerActive => IsClientActive || (IsHost && !IsSinglePlayer);
+	}
+}

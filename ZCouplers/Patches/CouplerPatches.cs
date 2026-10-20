@@ -1,5 +1,6 @@
 using DV.ThingTypes;
 using DvMod.ZCouplers.Core;
+using DvMod.ZCouplers.Core.Utils;
 using DvMod.ZCouplers.Physics;
 using HarmonyLib;
 using UnityEngine;
@@ -12,19 +13,34 @@ namespace DvMod.ZCouplers.Patches
     public static class CouplerPatches
     {
 
-        /// <summary>
-        /// Patch for CreateJoints to use custom joint system
-        /// </summary>
-        [HarmonyPatch(typeof(Coupler), nameof(Coupler.CreateJoints))]
-        public static class CreateJointsPatch
-        {
-            public static bool Prefix(Coupler __instance)
-            {
-                // Allow tender joints to use original behavior
-                if (__instance.train.GetComponent<DV.SteamTenderAutoCoupleMechanism>() != null && !__instance.isFrontCoupler)
-                {
-                    return true;
-                }
+		/// <summary>
+		/// Patch for CreateJoints to use custom joint system
+		/// </summary>
+		[HarmonyPatch(typeof(Coupler), nameof(Coupler.CreateJoints))]
+		public static class CreateJointsPatch
+		{
+		public static bool Prefix(Coupler __instance)
+		{
+			// In MP client, prevent vanilla joint creation when custom joints will be
+			// created by our MP packet handlers. This prevents vanilla+custom joint conflict
+			// that causes loose couplers.
+			if (MpShim.IsClientActive && !MpShim.ClientAllowsJointOps)
+			{
+				// Check if we already have custom joints for this coupler - if so, skip vanilla
+				if (JointManager.HasTensionJoint(__instance) ||
+				    (__instance.coupledTo != null && JointManager.HasTensionJoint(__instance.coupledTo)))
+				{
+					return false; // custom joints exist, skip vanilla
+				}
+				// No custom joints yet - let vanilla run so DV-MP coupling works
+				// Our ApplyJointCreate will replace these with custom ones when the packet arrives
+				return true;
+			}
+				// Allow tender joints to use original behavior
+				if (__instance.train.GetComponent<DV.SteamTenderAutoCoupleMechanism>() != null && !__instance.isFrontCoupler)
+				{
+					return true;
+				}
 
                 if (Main.IsCCLLoaded)
                 {
@@ -50,12 +66,15 @@ namespace DvMod.ZCouplers.Patches
                     return true;
                 }
 
-                var velocity1 = __instance.train.GetComponent<Rigidbody>()?.velocity.magnitude ?? 0f;
-                var velocity2 = __instance.coupledTo?.train.GetComponent<Rigidbody>()?.velocity.magnitude ?? 0f;
-                if (velocity1 > 5f || velocity2 > 5f)
+                if (__instance.coupledTo != null)
                 {
-                    Main.DebugLog(() => $"Skip joint creation - cars moving too fast: {__instance.train.ID} ({velocity1:F1} m/s) to {__instance.coupledTo?.train.ID} ({velocity2:F1} m/s)");
-                    return true;
+                    var safeSpeed = Main.settings.GetSafeCouplingSpeed();
+                    var closingSpeed = RecouplingPrevention.GetClosingSpeed(__instance, __instance.coupledTo);
+                    if (closingSpeed > safeSpeed)
+                    {
+                        Main.DebugLog(() => $"Skip joint creation - cars closing too fast: {__instance.train.ID} <-> {__instance.coupledTo.train.ID} at {closingSpeed:F1} m/s (safe {safeSpeed:F1} m/s)");
+                        return true;
+                    }
                 }
 
                 // Prevent rapid joint recreation
@@ -90,8 +109,6 @@ namespace DvMod.ZCouplers.Patches
                 var tensionJoint = JointManager.GetTensionJoint(__instance);
                 if (tensionJoint != null)
                     breaker.joint = tensionJoint;
-                if (!JointManager.HasCompressionJoint(__instance) && !JointManager.HasCompressionJoint(__instance.coupledTo))
-                    JointManager.CreateCompressionJoint(__instance, __instance.coupledTo);
                 CouplingScannerPatches.KillCouplingScanner(__instance);
                 CouplingScannerPatches.KillCouplingScanner(__instance.coupledTo);
                 return false;

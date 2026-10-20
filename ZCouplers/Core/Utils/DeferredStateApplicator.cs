@@ -190,8 +190,8 @@ namespace DvMod.ZCouplers.Core.Utils
                 try
                 {
                     // Ensure both couplers are in the correct state (should be Attached_Tight when coupled)
-                    coupler1.state = ChainCouplerInteraction.State.Attached_Tight;
-                    coupler2.state = ChainCouplerInteraction.State.Attached_Tight;
+                    coupler1.SetState(ChainCouplerInteraction.State.Attached_Tight);
+                    coupler2.SetState(ChainCouplerInteraction.State.Attached_Tight);
 
                     // Visual update
                     HookManager.UpdateHookVisualStateFromCouplerState(coupler1);

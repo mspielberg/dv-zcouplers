@@ -86,6 +86,8 @@ public static class Main
         KnuckleCouplers.Initialize();
         mod.Logger.Log($"Loaded ZCouplers with profile: {Main.settings.couplerProfile?.DisplayName ?? Main.settings.selectedCoupler}");
 
+        MpShim.TryInitialize(modEntry);
+
         var ccl = UnityModManager.modEntries.FirstOrDefault(mod => mod.Info.Id == "DVCustomCarLoader");
         if (ccl is not { Active: true }) return true;
         IsCCLLoaded = true;
@@ -151,6 +153,7 @@ public static class Main
             KnuckleCouplers.Cleanup();
             JointManager.Cleanup();
             HookManager.Cleanup();
+            GadgetAnchorFollower.Cleanup();
             LAPLinkManager.Cleanup();
             AssetManager.Cleanup();
 
@@ -340,13 +343,13 @@ public static class Main
             // Reset front coupler
             if (car.frontCoupler != null && !car.frontCoupler.IsCoupled())
             {
-                car.frontCoupler.state = ChainCouplerInteraction.State.Dangling;
+                car.frontCoupler.SetState(ChainCouplerInteraction.State.Dangling);
             }
 
             // Reset rear coupler
             if (car.rearCoupler != null && !car.rearCoupler.IsCoupled())
             {
-                car.rearCoupler.state = ChainCouplerInteraction.State.Dangling;
+                car.rearCoupler.SetState(ChainCouplerInteraction.State.Dangling);
             }
         }
         catch (System.Exception ex)

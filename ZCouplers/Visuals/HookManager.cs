@@ -563,6 +563,8 @@ namespace DvMod.ZCouplers.Visuals
             // from a previous mod load (static dictionary would have been cleared).
             if (TryRebindExistingPivot(chainScript))
             {
+                GadgetAnchorFollower.Attach(chainScript);
+
                 // Ensure visuals/components are wired and hardware visible
                 var existingUpdater = chainScript.gameObject.GetComponent<CouplerVisualUpdater>();
                 if (existingUpdater == null)
@@ -623,6 +625,7 @@ namespace DvMod.ZCouplers.Visuals
 
             // Name the initial hook child according to the mapped state so swap detection works correctly
             CreateHookInstance(pivot.transform, actualHookPrefab, chainScript, coupler, desiredName);
+            GadgetAnchorFollower.Attach(chainScript);
 
             // Debug logging for successful LAP hook creation
             if (CouplerProfiles.Current == CouplerProfiles.GetById("LAP"))

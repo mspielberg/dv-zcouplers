@@ -21,6 +21,7 @@ namespace DvMod.ZCouplers.Core
         public float knuckleStrength = 1.78f;
         public float drawgearSpringRate = 2f; // 2 MN/m = 2e6 N/m
         public float drawgearDamperRate = 100f;
+        public float safeCouplingSpeed = 9f; // km/h
         public float autoCoupleThreshold = 20f;
         public float minimumSeparationDistance = 1.0f;
 
@@ -45,6 +46,24 @@ namespace DvMod.ZCouplers.Core
         // Override OnGUI to draw all settings manually
         public void OnGUI(UnityModManager.ModEntry modEntry)
         {
+            // In multiplayer the host can change live settings, which are synced to clients.
+            // Settings that rebuild couplers or joints stay locked; clients follow the host.
+            var canEditLive = !MpShim.IsClientActive;
+            var canEditRebuild = !MpShim.IsMultiplayerActive;
+
+            if (MpShim.IsClientActive)
+            {
+                GUILayout.Label("Settings are controlled by the host during multiplayer sessions.", GUILayout.ExpandWidth(false));
+                GUILayout.Space(10);
+            }
+            else if (MpShim.IsMultiplayerActive)
+            {
+                GUILayout.Label("Greyed out settings can't be changed during a multiplayer session.", GUILayout.ExpandWidth(false));
+                GUILayout.Space(10);
+            }
+
+            GUI.enabled = canEditRebuild;
+
             // Draw coupler profile popup dropdown
             GUILayout.BeginHorizontal();
             GUILayout.Label("Coupler Profile: ", GUILayout.Width(120));
@@ -62,7 +81,7 @@ namespace DvMod.ZCouplers.Core
             UnityModManager.UI.PopupToggleGroup(ref newIndex, names);
             GUILayout.EndVertical();
 
-            if (newIndex != currentIndex && newIndex >= 0 && newIndex < ids.Length)
+            if (canEditRebuild && newIndex != currentIndex && newIndex >= 0 && newIndex < ids.Length)
             {
                 selectedCoupler = ids[newIndex];
                 OnChange();
@@ -70,6 +89,8 @@ namespace DvMod.ZCouplers.Core
 
             GUILayout.EndHorizontal();
             GUILayout.Space(10);
+
+            GUI.enabled = canEditLive;
 
             // Toggle Buffers Visuals
             var newShowBuffers = GUILayout.Toggle(showBuffersWithKnuckles, "Toggle Buffers Visuals");
@@ -81,7 +102,8 @@ namespace DvMod.ZCouplers.Core
 
             GUILayout.Space(5);
 
-            // Strength preset toggle group
+            // Strength preset toggle group. Switching it changes the spring and damper rates, so it counts as a rebuild setting.
+            GUI.enabled = canEditRebuild;
             GUILayout.BeginHorizontal();
             GUILayout.Label("Strength Values: ", GUILayout.ExpandWidth(false));
             var newPreset = (strengthPreset)GUILayout.SelectionGrid((int)strengthValues,
@@ -98,6 +120,7 @@ namespace DvMod.ZCouplers.Core
             {
                 GUILayout.Space(5);
 
+                GUI.enabled = canEditLive;
                 GUILayout.BeginHorizontal();
                 GUILayout.Label("Coupler strength (MN): ", GUILayout.Width(200));
                 var strengthStr = GUILayout.TextField(knuckleStrength.ToString("F2"), GUILayout.Width(100));
@@ -108,6 +131,7 @@ namespace DvMod.ZCouplers.Core
                 }
                 GUILayout.EndHorizontal();
 
+                GUI.enabled = canEditRebuild;
                 GUILayout.BeginHorizontal();
                 GUILayout.Label("Tension spring rate (MN/m): ", GUILayout.Width(200));
                 var springStr = GUILayout.TextField(drawgearSpringRate.ToString("F2"), GUILayout.Width(100));
@@ -129,9 +153,22 @@ namespace DvMod.ZCouplers.Core
                 }
                 GUILayout.Label(" (Needs recoupling or restart)", GUILayout.ExpandWidth(false));
                 GUILayout.EndHorizontal();
+
+                GUI.enabled = canEditLive;
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("Safe coupling speed (km/h): ", GUILayout.Width(200));
+                var safeSpeedStr = GUILayout.TextField(safeCouplingSpeed.ToString("F1"), GUILayout.Width(100));
+                if (float.TryParse(safeSpeedStr, out float newSafeSpeed) && newSafeSpeed >= 0.1f && Math.Abs(newSafeSpeed - safeCouplingSpeed) > 0.001f)
+                {
+                    safeCouplingSpeed = newSafeSpeed;
+                    OnChange();
+                }
+                GUILayout.EndHorizontal();
             }
 
             GUILayout.Space(10);
+
+            GUI.enabled = canEditLive;
 
             // Auto couple threshold
             GUILayout.BeginHorizontal();
@@ -174,6 +211,7 @@ namespace DvMod.ZCouplers.Core
             }
 
             // Disable Front Couplers on S282
+            GUI.enabled = canEditRebuild;
             var newDisableFront = GUILayout.Toggle(disableFrontCouplersOnSteamLocos, "Disable Front Couplers on S282");
             if (newDisableFront != disableFrontCouplersOnSteamLocos)
             {
@@ -181,6 +219,7 @@ namespace DvMod.ZCouplers.Core
                 OnChange();
             }
 
+            GUI.enabled = true;
             GUILayout.Space(10);
 
             // Enable debug logging
@@ -220,6 +259,9 @@ namespace DvMod.ZCouplers.Core
 
             // Handle coupler type change at runtime
             HandleCouplerTypeChange();
+
+            if (MpShim.IsHost)
+                MpShim.TryHostBroadcastSettings();
         }
 
         [XmlIgnore]
@@ -282,6 +324,21 @@ namespace DvMod.ZCouplers.Core
             {
                 // Use custom override value
                 return drawgearDamperRate * 1e3f; // Convert kN*s/m to N*s/m
+            }
+        }
+
+        public float GetSafeCouplingSpeed()
+        {
+            if (strengthValues == strengthPreset.Recommended)
+            {
+                // Use profile default values
+                var profile = couplerProfile;
+                return profile?.Options.SafeCouplingSpeed ?? 2.5f;
+            }
+            else
+            {
+                // Use custom override value
+                return safeCouplingSpeed / 3.6f; // Convert km/h to m/s
             }
         }
     }

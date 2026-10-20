@@ -30,6 +30,10 @@ namespace DvMod.ZCouplers.Core.Profiles
         public string HookClosedChildName { get; set; } = "hook_closed";
         public string HookOpenChildName { get; set; } = "hook_open";
 
+        /// Name of the empty GameObject inside the closed and open prefabs that the vanilla gadget snap point
+        /// follows. When the active hook has no such child, the snap point stays at its vanilla position.
+        public string? GadgetAnchorChildName { get; set; } = "GadgetAnchor";
+
         /// Whether this coupler has distinct open/closed prefabs.
         public bool HasOpenVariant { get; set; } = true;
 
@@ -44,6 +48,14 @@ namespace DvMod.ZCouplers.Core.Profiles
 
         /// Damper rate in N*s/m (converted from kN*s/m in profiles).
         public float DamperRate { get; set; } = 100e3f; // Default 100 kN*s/m
+
+        /// Free play between coupled coupler faces in metres, half in draft and half in buff. Beyond it the
+        /// drawgear spring and damper (SpringRate, DamperRate) take the load.
+        public float Slack { get; set; } = 0.02f;
+
+        /// Highest closing speed between two cars in m/s at which the couplers still latch. A faster impact
+        /// does not couple, and the pair needs a fresh impact below this speed after contact is released.
+        public float SafeCouplingSpeed { get; set; } = 2.5f;
 
         /// Text to show when the coupler is ready.
         public string CouplerReadyText { get; set; } = "Coupler is ready\nPress [KEY] to unlock coupler";

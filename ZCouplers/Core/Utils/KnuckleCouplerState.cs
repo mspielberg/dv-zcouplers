@@ -60,7 +60,7 @@ namespace DvMod.ZCouplers.Core.Utils
             // Update the native coupler state to reflect the new ready status
             if (!coupler.IsCoupled())
             {
-                coupler.state = ChainCouplerInteraction.State.Dangling;
+                coupler.SetState(ChainCouplerInteraction.State.Dangling);
             }
 
             // User manually readied this coupler - lift any recoupling blocks
@@ -82,7 +82,7 @@ namespace DvMod.ZCouplers.Core.Utils
                 // Update the native coupler state if uncoupled
                 if (!coupler.IsCoupled())
                 {
-                    coupler.state = ChainCouplerInteraction.State.Dangling;
+                    coupler.SetState(ChainCouplerInteraction.State.Dangling);
                 }
 
                 // Coupler was readied/locked - lift any recoupling blocks
@@ -93,7 +93,7 @@ namespace DvMod.ZCouplers.Core.Utils
                 // Update the native coupler state if uncoupled
                 if (!coupler.IsCoupled())
                 {
-                    coupler.state = ChainCouplerInteraction.State.Parked;
+                    coupler.SetState(ChainCouplerInteraction.State.Parked);
                 }
             }
             // Update visual state

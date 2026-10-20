@@ -156,22 +156,7 @@ namespace DvMod.ZCouplers.Patches
                         if (otherCoupler == null)
                             return;
 
-                        // Create a compression joint only if both couplers are ready and not during save loading.
-                        if (!JointManager.HasCompressionJoint(coupler) && !JointManager.HasCompressionJoint(otherCoupler)
-                            && ShouldCouplersBeReady(coupler, otherCoupler)
-                            && !SaveManager.IsLoadingFromSave)
-                        {
-                            Main.DebugLog(() => $"Creating compression joint between {coupler.train.ID} and {otherCoupler.train.ID} - couplers ready (auto mode: {Main.settings.autoCouplingMode})");
-                            JointManager.CreateCompressionJoint(coupler, otherCoupler);
-                        }
-                        else if (SaveManager.IsLoadingFromSave)
-                        {
-                            Main.DebugLog(() => $"Skipping compression joint creation during save loading between {coupler.train.ID} and {otherCoupler.train.ID}");
-                        }
-                        else if (coupler.rigidCJ == null && otherCoupler.rigidCJ == null)
-                        {
-                            Main.DebugLog(() => $"Skipping compression joint creation between {coupler.train.ID} and {otherCoupler.train.ID} - couplers not ready (coupler ready: {KnuckleCouplers.IsReadyToCouple(coupler)}, other ready: {KnuckleCouplers.IsReadyToCouple(otherCoupler)}, auto mode: {Main.settings.autoCouplingMode})");
-                        }
+                        // Single-joint mode: no pre-compression joint creation at scan time.
                     }
                 };
             }
@@ -209,7 +194,7 @@ namespace DvMod.ZCouplers.Patches
                 }
             }
 
-            private static void TryCouple(Coupler coupler)
+            private static void TryCouple(Coupler coupler, float impactSpeed = 0f)
             {
                 if (coupler.IsCoupled() || coupler.train.derailed)
                     return;
@@ -223,6 +208,9 @@ namespace DvMod.ZCouplers.Patches
 	                Main.DebugLog(() => $"Skipping coupling due to recoupling prevention: {coupler.train.ID} <-> {otherCoupler.train.ID}");
                     return; // Blocked due to insufficient separation since last uncoupling
                 }
+
+                if (!RecouplingPrevention.CanLatch(coupler, otherCoupler, impactSpeed))
+                    return;
 
                 // In auto coupling mode, automatically ready both couplers if they're not already
                 if (Main.settings.autoCouplingMode)
@@ -314,6 +302,30 @@ namespace DvMod.ZCouplers.Patches
 
                 if (coupler.IsCoupled())
                 {
+                    // Already coupled; ensure trainsets are synchronized
+                    if (coupler.coupledTo != null)
+                    {
+                        // Ensure trainsets are properly merged for already-coupled cars
+                        // This handles both save loading AND cars spawning naturally in the world
+                        var trainset1 = coupler.train.trainset;
+                        var trainset2 = coupler.coupledTo.train.trainset;
+
+                        if (trainset1 != null && trainset2 != null && trainset1 != trainset2)
+                        {
+                            Main.DebugLog(() => $"Merging trainsets for already-coupled cars: {coupler.train.ID} (trainset {trainset1.id}) <-> {coupler.coupledTo.train.ID} (trainset {trainset2.id})");
+
+                            // Use the game's native trainset merge logic
+                            try
+                            {
+                                Trainset.Merge(coupler.train, coupler.coupledTo.train);
+                            }
+                            catch (System.Exception ex)
+                            {
+                                Main.ErrorLog(() => $"Error merging trainsets: {ex.Message}");
+                            }
+                        }
+                    }
+
                     // Already coupled; stop the coroutine.
                     __instance.masterCoro = null;
                     yield break;
@@ -388,8 +400,8 @@ namespace DvMod.ZCouplers.Patches
                                 Main.DebugLog(() => $"Fixing mismatched save states and coupling {coupler.train.ID} ({coupler.state}) <-> {otherCoupler.train.ID} ({otherCoupler.state})");
 
                                 // Set both to Dangling state first (ready but uncoupled)
-                                coupler.state = ChainCouplerInteraction.State.Dangling;
-                                otherCoupler.state = ChainCouplerInteraction.State.Dangling;
+                                coupler.SetState(ChainCouplerInteraction.State.Dangling);
+                                otherCoupler.SetState(ChainCouplerInteraction.State.Dangling);
                                 // Reflect state changes in visuals immediately
                                 HookManager.UpdateHookVisualStateFromCouplerState(coupler);
                                 HookManager.UpdateHookVisualStateFromCouplerState(otherCoupler);
@@ -428,6 +440,9 @@ namespace DvMod.ZCouplers.Patches
                 }
 
                 var wait = WaitFor.Seconds(0.1f);
+                // At 0.1 s sampling the first pressing sample can land after the buffers already absorbed the
+                // impact, so the speed from the last sample before contact is what counts.
+                var impactSpeed = 0f;
                 while (true)
                 {
                     yield return wait;
@@ -463,16 +478,29 @@ namespace DvMod.ZCouplers.Patches
                         // Omit continuous offset logging
                         var compression = StaticOffset - offset.z;
                         var nearbyNearbyeCoupler = GetCoupler(__instance.nearbyScanner);
+                        var pressing = compression > Main.settings.autoCoupleThreshold * 1e-3f;
+                        var closingSpeed = nearbyNearbyeCoupler != null ? RecouplingPrevention.GetClosingSpeed(coupler, nearbyNearbyeCoupler) : 0f;
+                        if (!pressing)
+                        {
+                            RecouplingPrevention.ReleaseOverspeedBlock(coupler);
+                            impactSpeed = closingSpeed;
+                        }
+                        else
+                        {
+                            impactSpeed = Mathf.Max(impactSpeed, closingSpeed);
+                        }
                         if (__instance.nearbyScanner.isActiveAndEnabled
-                            && compression > Main.settings.autoCoupleThreshold * 1e-3f
+                            && pressing
                             && ShouldCouplersBeReady(coupler, nearbyNearbyeCoupler)
                             && nearbyNearbyeCoupler != null)
                         {
                             Main.DebugLog(() => $"{coupler.train.ID} {coupler.Position()}: auto-coupling due to compression={compression:F3} (auto mode: {Main.settings.autoCouplingMode})");
-                            TryCouple(coupler);
+                            TryCouple(coupler, impactSpeed);
                         }
                     }
                 }
+
+                RecouplingPrevention.ReleaseOverspeedBlock(coupler);
 
                 // Safely unpair with additional null checks
                 try

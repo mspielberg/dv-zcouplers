@@ -4,6 +4,8 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ZCouplers", "ZCouplers\\ZCouplers.csproj", "{EAF4323F-1C9C-4D7F-A28C-B48AA25CFA70}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ZCouplers.MP", "ZCouplers.MP\\ZCouplers.MP.csproj", "{3BAEB3B5-50B8-4E7E-880B-41A604EA1979}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -14,6 +16,10 @@ Global
 		{EAF4323F-1C9C-4D7F-A28C-B48AA25CFA70}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{EAF4323F-1C9C-4D7F-A28C-B48AA25CFA70}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{EAF4323F-1C9C-4D7F-A28C-B48AA25CFA70}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3BAEB3B5-50B8-4E7E-880B-41A604EA1979}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3BAEB3B5-50B8-4E7E-880B-41A604EA1979}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3BAEB3B5-50B8-4E7E-880B-41A604EA1979}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3BAEB3B5-50B8-4E7E-880B-41A604EA1979}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
