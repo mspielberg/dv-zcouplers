@@ -110,13 +110,10 @@ namespace DvMod.ZCouplers.Visuals
         }
 
         /// <summary>
-        /// Clean up all LAP links. Called during mod unload.
+        /// Clean up all LAP links. Called during mod unload and on a runtime profile switch.
         /// </summary>
         public static void Cleanup()
         {
-            if (CouplerProfiles.Current?.ProfileId != "LAP")
-                return;
-
             foreach (var linkObject in couplerLinks.Values)
             {
                 if (linkObject != null)
