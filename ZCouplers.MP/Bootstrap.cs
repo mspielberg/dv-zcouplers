@@ -57,6 +57,7 @@ namespace DvMod.ZCouplers
 			try
 			{
 				MpShim.SetIsHost(MultiplayerAPI.Instance?.IsHost == true);
+				MpShim.SetSinglePlayerCheck(() => MultiplayerAPI.Instance?.IsSinglePlayer == true);
 				Main.DebugLog(() => $"[MP] Bootstrap: IsHost={MpShim.IsHost}");
 
 				// Wire up the HostBroadcastSettings callback via reflection

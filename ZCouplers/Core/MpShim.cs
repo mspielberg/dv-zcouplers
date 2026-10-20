@@ -21,6 +21,11 @@ namespace DvMod.ZCouplers.Core
                 public static void SetClientAllowsJointOps(bool allowed) => ClientAllowsJointOps = allowed;
                 public static void SetIsHost(bool host) => IsHost = host;
 
+                // Queried live because a single player session with the MP mod still runs a local host
+                private static Func<bool>? isSinglePlayerCheck;
+                public static void SetSinglePlayerCheck(Func<bool> check) => isSinglePlayerCheck = check;
+                public static bool IsSinglePlayer => isSinglePlayerCheck?.Invoke() == true;
+
                 private static MethodInfo? couplerToggleRequest;
                 private static MethodInfo? hostBroadcastSettings;
 
@@ -90,9 +95,9 @@ namespace DvMod.ZCouplers.Core
 		}
 
 		/// <summary>
-		/// Returns true when connected to MP (either as host or client).
+		/// Returns true when connected to MP (either as host or client), excluding single player sessions.
 		/// Used by core code to determine if MP features are active.
 		/// </summary>
-		public static bool IsMultiplayerActive => IsClientActive || IsHost;
+		public static bool IsMultiplayerActive => IsClientActive || (IsHost && !IsSinglePlayer);
 	}
 }

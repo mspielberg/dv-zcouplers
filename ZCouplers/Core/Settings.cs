@@ -46,36 +46,23 @@ namespace DvMod.ZCouplers.Core
         // Override OnGUI to draw all settings manually
         public void OnGUI(UnityModManager.ModEntry modEntry)
         {
-            // When in multiplayer, lock all settings - host and clients cannot change values
-            if (MpShim.IsMultiplayerActive)
+            // In multiplayer the host can change live settings, which are synced to clients.
+            // Settings that rebuild couplers or joints stay locked; clients follow the host.
+            var canEditLive = !MpShim.IsClientActive;
+            var canEditRebuild = !MpShim.IsMultiplayerActive;
+
+            if (MpShim.IsClientActive)
             {
-                GUILayout.Label("Settings are locked during multiplayer sessions.", GUILayout.ExpandWidth(false));
-                GUILayout.Label("Only the host can change settings in singleplayer.", GUILayout.ExpandWidth(false));
+                GUILayout.Label("Settings are controlled by the host during multiplayer sessions.", GUILayout.ExpandWidth(false));
                 GUILayout.Space(10);
-
-                // Display current values as read-only
-                GUILayout.Label($"Coupler Profile: {couplerProfile?.DisplayName ?? "None"}");
-                GUILayout.Label($"Buffers Visible: {showBuffersWithKnuckles}");
-                GUILayout.Label($"Strength Mode: {strengthValues}");
-                if (strengthValues == strengthPreset.Custom)
-                {
-                    GUILayout.Label($"Coupler Strength: {knuckleStrength:F2} MN");
-                    GUILayout.Label($"Spring Rate: {drawgearSpringRate:F2} MN/m");
-                    GUILayout.Label($"Damper Rate: {drawgearDamperRate:F2} kN*s/m");
-                    GUILayout.Label($"Safe Coupling Speed: {safeCouplingSpeed:F1} km/h");
-                }
-                GUILayout.Label($"Auto Couple Threshold: {autoCoupleThreshold:F1} mm");
-                GUILayout.Label($"Min Separation Distance: {minimumSeparationDistance:F2} m");
-                GUILayout.Label($"Auto Air & MU Mode: {autoAirAndMuMode}");
-                GUILayout.Label($"Auto Coupling Mode: {autoCouplingMode}");
-                GUILayout.Label($"Disable Front Couplers on S282: {disableFrontCouplersOnSteamLocos}");
-
-                if (!string.IsNullOrEmpty(version))
-                {
-                    GUILayout.Label($"Version: {version}");
-                }
-                return;
             }
+            else if (MpShim.IsMultiplayerActive)
+            {
+                GUILayout.Label("Greyed out settings can't be changed during a multiplayer session.", GUILayout.ExpandWidth(false));
+                GUILayout.Space(10);
+            }
+
+            GUI.enabled = canEditRebuild;
 
             // Draw coupler profile popup dropdown
             GUILayout.BeginHorizontal();
@@ -94,7 +81,7 @@ namespace DvMod.ZCouplers.Core
             UnityModManager.UI.PopupToggleGroup(ref newIndex, names);
             GUILayout.EndVertical();
 
-            if (newIndex != currentIndex && newIndex >= 0 && newIndex < ids.Length)
+            if (canEditRebuild && newIndex != currentIndex && newIndex >= 0 && newIndex < ids.Length)
             {
                 selectedCoupler = ids[newIndex];
                 OnChange();
@@ -102,6 +89,8 @@ namespace DvMod.ZCouplers.Core
 
             GUILayout.EndHorizontal();
             GUILayout.Space(10);
+
+            GUI.enabled = canEditLive;
 
             // Toggle Buffers Visuals
             var newShowBuffers = GUILayout.Toggle(showBuffersWithKnuckles, "Toggle Buffers Visuals");
@@ -113,7 +102,8 @@ namespace DvMod.ZCouplers.Core
 
             GUILayout.Space(5);
 
-            // Strength preset toggle group
+            // Strength preset toggle group. Switching it changes the spring and damper rates, so it counts as a rebuild setting.
+            GUI.enabled = canEditRebuild;
             GUILayout.BeginHorizontal();
             GUILayout.Label("Strength Values: ", GUILayout.ExpandWidth(false));
             var newPreset = (strengthPreset)GUILayout.SelectionGrid((int)strengthValues,
@@ -130,6 +120,7 @@ namespace DvMod.ZCouplers.Core
             {
                 GUILayout.Space(5);
 
+                GUI.enabled = canEditLive;
                 GUILayout.BeginHorizontal();
                 GUILayout.Label("Coupler strength (MN): ", GUILayout.Width(200));
                 var strengthStr = GUILayout.TextField(knuckleStrength.ToString("F2"), GUILayout.Width(100));
@@ -140,6 +131,7 @@ namespace DvMod.ZCouplers.Core
                 }
                 GUILayout.EndHorizontal();
 
+                GUI.enabled = canEditRebuild;
                 GUILayout.BeginHorizontal();
                 GUILayout.Label("Tension spring rate (MN/m): ", GUILayout.Width(200));
                 var springStr = GUILayout.TextField(drawgearSpringRate.ToString("F2"), GUILayout.Width(100));
@@ -162,6 +154,7 @@ namespace DvMod.ZCouplers.Core
                 GUILayout.Label(" (Needs recoupling or restart)", GUILayout.ExpandWidth(false));
                 GUILayout.EndHorizontal();
 
+                GUI.enabled = canEditLive;
                 GUILayout.BeginHorizontal();
                 GUILayout.Label("Safe coupling speed (km/h): ", GUILayout.Width(200));
                 var safeSpeedStr = GUILayout.TextField(safeCouplingSpeed.ToString("F1"), GUILayout.Width(100));
@@ -174,6 +167,8 @@ namespace DvMod.ZCouplers.Core
             }
 
             GUILayout.Space(10);
+
+            GUI.enabled = canEditLive;
 
             // Auto couple threshold
             GUILayout.BeginHorizontal();
@@ -216,6 +211,7 @@ namespace DvMod.ZCouplers.Core
             }
 
             // Disable Front Couplers on S282
+            GUI.enabled = canEditRebuild;
             var newDisableFront = GUILayout.Toggle(disableFrontCouplersOnSteamLocos, "Disable Front Couplers on S282");
             if (newDisableFront != disableFrontCouplersOnSteamLocos)
             {
@@ -223,6 +219,7 @@ namespace DvMod.ZCouplers.Core
                 OnChange();
             }
 
+            GUI.enabled = true;
             GUILayout.Space(10);
 
             // Enable debug logging
@@ -262,6 +259,9 @@ namespace DvMod.ZCouplers.Core
 
             // Handle coupler type change at runtime
             HandleCouplerTypeChange();
+
+            if (MpShim.IsHost)
+                MpShim.TryHostBroadcastSettings();
         }
 
         [XmlIgnore]
