@@ -65,9 +65,11 @@ ZCouplers works with DV Multiplayer.
 
 - Author: Zeibach/mspielberg
 - Maintainer: Fuggschen
+- Soviet SA3 coupler model and texture contributed: Adrii_95
 - Additional Coupler Visuals (open/closed state) for AAR/SA3: Rajaneesh R
 - Scharfenberg Coupler: Micha77
 - Mount Plates for AAR/SA3: whycofie
+- Link&Pin Couplers: My Name is BorING
 - Help with multiplayer code: SharkBaitDLS
 
 Licensed under the MIT License. See `LICENSE`.
