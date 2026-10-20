@@ -194,7 +194,7 @@ namespace DvMod.ZCouplers.Patches
                 }
             }
 
-            private static void TryCouple(Coupler coupler)
+            private static void TryCouple(Coupler coupler, float impactSpeed = 0f)
             {
                 if (coupler.IsCoupled() || coupler.train.derailed)
                     return;
@@ -208,6 +208,9 @@ namespace DvMod.ZCouplers.Patches
 	                Main.DebugLog(() => $"Skipping coupling due to recoupling prevention: {coupler.train.ID} <-> {otherCoupler.train.ID}");
                     return; // Blocked due to insufficient separation since last uncoupling
                 }
+
+                if (!RecouplingPrevention.CanLatch(coupler, otherCoupler, impactSpeed))
+                    return;
 
                 // In auto coupling mode, automatically ready both couplers if they're not already
                 if (Main.settings.autoCouplingMode)
@@ -437,6 +440,9 @@ namespace DvMod.ZCouplers.Patches
                 }
 
                 var wait = WaitFor.Seconds(0.1f);
+                // At 0.1 s sampling the first pressing sample can land after the buffers already absorbed the
+                // impact, so the speed from the last sample before contact is what counts.
+                var impactSpeed = 0f;
                 while (true)
                 {
                     yield return wait;
@@ -472,16 +478,29 @@ namespace DvMod.ZCouplers.Patches
                         // Omit continuous offset logging
                         var compression = StaticOffset - offset.z;
                         var nearbyNearbyeCoupler = GetCoupler(__instance.nearbyScanner);
+                        var pressing = compression > Main.settings.autoCoupleThreshold * 1e-3f;
+                        var closingSpeed = nearbyNearbyeCoupler != null ? RecouplingPrevention.GetClosingSpeed(coupler, nearbyNearbyeCoupler) : 0f;
+                        if (!pressing)
+                        {
+                            RecouplingPrevention.ReleaseOverspeedBlock(coupler);
+                            impactSpeed = closingSpeed;
+                        }
+                        else
+                        {
+                            impactSpeed = Mathf.Max(impactSpeed, closingSpeed);
+                        }
                         if (__instance.nearbyScanner.isActiveAndEnabled
-                            && compression > Main.settings.autoCoupleThreshold * 1e-3f
+                            && pressing
                             && ShouldCouplersBeReady(coupler, nearbyNearbyeCoupler)
                             && nearbyNearbyeCoupler != null)
                         {
                             Main.DebugLog(() => $"{coupler.train.ID} {coupler.Position()}: auto-coupling due to compression={compression:F3} (auto mode: {Main.settings.autoCouplingMode})");
-                            TryCouple(coupler);
+                            TryCouple(coupler, impactSpeed);
                         }
                     }
                 }
+
+                RecouplingPrevention.ReleaseOverspeedBlock(coupler);
 
                 // Safely unpair with additional null checks
                 try

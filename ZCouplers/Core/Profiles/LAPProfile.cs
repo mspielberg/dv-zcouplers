@@ -25,6 +25,7 @@ namespace DvMod.ZCouplers.Core.Profiles
             SpringRate = 3.5e6f, // 3.5 MN/m
             DamperRate = 40e3f, // 40 kN*s/m: a plain coil spring draft gear, ~5% of critical for a mid-weight car
             Slack = 0.1f, // link and pin
+            SafeCouplingSpeed = 1.5f, // ~5.4 km/h, hand-guided link
             CouplerReadyText = "Pin is inserted\nPress [KEY] to remove pin",
             CouplerParkedText = "Pin is removed\nPress [KEY] to insert pin",
             EnforceAutoCoupling = false,

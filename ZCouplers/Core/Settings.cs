@@ -21,6 +21,7 @@ namespace DvMod.ZCouplers.Core
         public float knuckleStrength = 1.78f;
         public float drawgearSpringRate = 2f; // 2 MN/m = 2e6 N/m
         public float drawgearDamperRate = 100f;
+        public float safeCouplingSpeed = 9f; // km/h
         public float autoCoupleThreshold = 20f;
         public float minimumSeparationDistance = 1.0f;
 
@@ -61,6 +62,7 @@ namespace DvMod.ZCouplers.Core
                     GUILayout.Label($"Coupler Strength: {knuckleStrength:F2} MN");
                     GUILayout.Label($"Spring Rate: {drawgearSpringRate:F2} MN/m");
                     GUILayout.Label($"Damper Rate: {drawgearDamperRate:F2} kN*s/m");
+                    GUILayout.Label($"Safe Coupling Speed: {safeCouplingSpeed:F1} km/h");
                 }
                 GUILayout.Label($"Auto Couple Threshold: {autoCoupleThreshold:F1} mm");
                 GUILayout.Label($"Min Separation Distance: {minimumSeparationDistance:F2} m");
@@ -158,6 +160,16 @@ namespace DvMod.ZCouplers.Core
                     OnChange();
                 }
                 GUILayout.Label(" (Needs recoupling or restart)", GUILayout.ExpandWidth(false));
+                GUILayout.EndHorizontal();
+
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("Safe coupling speed (km/h): ", GUILayout.Width(200));
+                var safeSpeedStr = GUILayout.TextField(safeCouplingSpeed.ToString("F1"), GUILayout.Width(100));
+                if (float.TryParse(safeSpeedStr, out float newSafeSpeed) && newSafeSpeed >= 0.1f && Math.Abs(newSafeSpeed - safeCouplingSpeed) > 0.001f)
+                {
+                    safeCouplingSpeed = newSafeSpeed;
+                    OnChange();
+                }
                 GUILayout.EndHorizontal();
             }
 
@@ -312,6 +324,21 @@ namespace DvMod.ZCouplers.Core
             {
                 // Use custom override value
                 return drawgearDamperRate * 1e3f; // Convert kN*s/m to N*s/m
+            }
+        }
+
+        public float GetSafeCouplingSpeed()
+        {
+            if (strengthValues == strengthPreset.Recommended)
+            {
+                // Use profile default values
+                var profile = couplerProfile;
+                return profile?.Options.SafeCouplingSpeed ?? 2.5f;
+            }
+            else
+            {
+                // Use custom override value
+                return safeCouplingSpeed / 3.6f; // Convert km/h to m/s
             }
         }
     }

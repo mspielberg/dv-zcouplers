@@ -24,6 +24,7 @@ namespace DvMod.ZCouplers.Core.Profiles
             SpringRate = 5.0e6f, // 5.0 MN/m
             DamperRate = 250e3f, // 250 kN*s/m: elastomer/hydraulic draft gear, ~25% of critical for a mid-weight car
             Slack = 0.005f, // tightlock
+            SafeCouplingSpeed = 3.3f, // 12 km/h, Voith DAC coupling speed requirement
             CouplerReadyText = "Coupler is engaged",
             CouplerParkedText = "Coupler is engaged",
             EnforceAutoCoupling = true,

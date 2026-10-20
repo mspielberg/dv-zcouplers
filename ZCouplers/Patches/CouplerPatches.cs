@@ -1,5 +1,6 @@
 using DV.ThingTypes;
 using DvMod.ZCouplers.Core;
+using DvMod.ZCouplers.Core.Utils;
 using DvMod.ZCouplers.Physics;
 using HarmonyLib;
 using UnityEngine;
@@ -65,12 +66,15 @@ namespace DvMod.ZCouplers.Patches
                     return true;
                 }
 
-                var velocity1 = __instance.train.GetComponent<Rigidbody>()?.velocity.magnitude ?? 0f;
-                var velocity2 = __instance.coupledTo?.train.GetComponent<Rigidbody>()?.velocity.magnitude ?? 0f;
-                if (velocity1 > 5f || velocity2 > 5f)
+                if (__instance.coupledTo != null)
                 {
-                    Main.DebugLog(() => $"Skip joint creation - cars moving too fast: {__instance.train.ID} ({velocity1:F1} m/s) to {__instance.coupledTo?.train.ID} ({velocity2:F1} m/s)");
-                    return true;
+                    var safeSpeed = Main.settings.GetSafeCouplingSpeed();
+                    var closingSpeed = RecouplingPrevention.GetClosingSpeed(__instance, __instance.coupledTo);
+                    if (closingSpeed > safeSpeed)
+                    {
+                        Main.DebugLog(() => $"Skip joint creation - cars closing too fast: {__instance.train.ID} <-> {__instance.coupledTo.train.ID} at {closingSpeed:F1} m/s (safe {safeSpeed:F1} m/s)");
+                        return true;
+                    }
                 }
 
                 // Prevent rapid joint recreation

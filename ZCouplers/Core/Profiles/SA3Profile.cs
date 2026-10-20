@@ -25,6 +25,7 @@ namespace DvMod.ZCouplers.Core.Profiles
             SpringRate = 12.0e6f, // 12.0 MN/m
             DamperRate = 300e3f, // 300 kN*s/m: friction draft gear, ~20% of critical for a mid-weight car
             Slack = 0.02f, // knuckle slack
+            SafeCouplingSpeed = 2.5f, // 9 km/h, draft gear goes solid above this
             CouplerParkedText = "Coupler is unlocked\nPress [KEY] to lock coupler",
             CouplerReadyText = "Coupler is locked\nPress [KEY] to unlock coupler",
             EnforceAutoCoupling = false,

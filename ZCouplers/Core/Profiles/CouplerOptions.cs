@@ -49,6 +49,10 @@ namespace DvMod.ZCouplers.Core.Profiles
         /// drawgear spring and damper (SpringRate, DamperRate) take the load.
         public float Slack { get; set; } = 0.02f;
 
+        /// Highest closing speed between two cars in m/s at which the couplers still latch. A faster impact
+        /// does not couple, and the pair needs a fresh impact below this speed after contact is released.
+        public float SafeCouplingSpeed { get; set; } = 2.5f;
+
         /// Text to show when the coupler is ready.
         public string CouplerReadyText { get; set; } = "Coupler is ready\nPress [KEY] to unlock coupler";
 

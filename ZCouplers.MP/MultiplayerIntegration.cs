@@ -570,6 +570,7 @@ namespace DvMod.ZCouplers
                 KnuckleStrength = s.knuckleStrength,
                 DrawgearSpringRate = s.drawgearSpringRate,
                 DrawgearDamperRate = s.drawgearDamperRate,
+                SafeCouplingSpeed = s.safeCouplingSpeed,
                 ShowBuffersWithKnuckles = s.showBuffersWithKnuckles,
                 AutoCoupleThreshold = s.autoCoupleThreshold,
                 MinimumSeparationDistance = s.minimumSeparationDistance,
@@ -624,6 +625,7 @@ namespace DvMod.ZCouplers
             s.knuckleStrength = packet.KnuckleStrength;
             s.drawgearSpringRate = packet.DrawgearSpringRate;
             s.drawgearDamperRate = packet.DrawgearDamperRate;
+            s.safeCouplingSpeed = packet.SafeCouplingSpeed;
             s.showBuffersWithKnuckles = packet.ShowBuffersWithKnuckles;
             s.autoCoupleThreshold = packet.AutoCoupleThreshold;
             s.minimumSeparationDistance = packet.MinimumSeparationDistance;

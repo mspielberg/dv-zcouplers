@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using DvMod.ZCouplers.Core.Helpers;
 using UnityEngine;
 
 namespace DvMod.ZCouplers.Core.Utils
@@ -21,6 +22,11 @@ namespace DvMod.ZCouplers.Core.Utils
         /// Tracks coupler pairs that are currently blocked from recoupling.
         /// </summary>
         public static readonly HashSet<CouplerPair> blockedPairs = new HashSet<CouplerPair>();
+
+        /// <summary>
+        /// Coupler pairs that hit above the safe coupling speed and are still in contact.
+        /// </summary>
+        private static readonly HashSet<CouplerPair> overspeedBlocked = new HashSet<CouplerPair>();
 
         /// <summary>
         /// Reference to the running distance check coroutine.
@@ -138,6 +144,7 @@ namespace DvMod.ZCouplers.Core.Utils
 		        isCoroutineRunning = false;
 		        recentlyUncoupled.Clear();
 		        blockedPairs.Clear();
+		        overspeedBlocked.Clear();
 	        }
         }
 
@@ -304,6 +311,52 @@ namespace DvMod.ZCouplers.Core.Utils
         }
 
         /// <summary>
+        /// Relative speed between the two couplers' cars in m/s.
+        /// </summary>
+        public static float GetClosingSpeed(Coupler coupler1, Coupler coupler2)
+        {
+            var velocity1 = coupler1.train.GetComponent<Rigidbody>()?.velocity ?? Vector3.zero;
+            var velocity2 = coupler2.train.GetComponent<Rigidbody>()?.velocity ?? Vector3.zero;
+            return (velocity1 - velocity2).magnitude;
+        }
+
+        /// <summary>
+        /// Check if the couplers latch on this impact. impactSpeed is the closing speed sampled before contact;
+        /// the higher of it and the current closing speed is used. An impact above the profile's safe coupling
+        /// speed keeps the pair blocked until ReleaseOverspeedBlock is called once contact is released.
+        /// </summary>
+        public static bool CanLatch(Coupler coupler1, Coupler coupler2, float impactSpeed)
+        {
+            if (coupler1 == null || coupler2 == null)
+                return true;
+
+            var pair = new CouplerPair(coupler1, coupler2);
+            if (overspeedBlocked.Contains(pair))
+                return false;
+
+            var safeSpeed = Main.settings.GetSafeCouplingSpeed();
+            var closingSpeed = Mathf.Max(impactSpeed, GetClosingSpeed(coupler1, coupler2));
+            if (closingSpeed <= safeSpeed)
+                return true;
+
+            overspeedBlocked.Add(pair);
+            Main.DebugLog(() => $"Coupling denied, impact too fast: {coupler1.train.ID} <-> {coupler2.train.ID} at {closingSpeed:F1} m/s (safe {safeSpeed:F1} m/s)");
+            return false;
+        }
+
+        /// <summary>
+        /// Allow the coupler to couple again after an over-speed impact. Called once it stops pressing against another coupler.
+        /// </summary>
+        public static void ReleaseOverspeedBlock(Coupler coupler)
+        {
+            if (coupler == null || overspeedBlocked.Count == 0)
+                return;
+
+            if (overspeedBlocked.RemoveWhere(pair => pair.GetCoupler1() == coupler || pair.GetCoupler2() == coupler) > 0)
+                Main.DebugLog(() => $"Contact released after over-speed impact: {coupler.train.ID} {coupler.Position()}");
+        }
+
+        /// <summary>
         /// Remove all blocking/recoupling records for a specific coupler.
         /// Called when the user manually readies a coupler (state change to ready),
         /// indicating intent to recouple.
@@ -391,6 +444,7 @@ namespace DvMod.ZCouplers.Core.Utils
                 recentlyUncoupled.Remove(key);
                 blockedPairs.Remove(key); // Also remove from blocked pairs
             }
+            overspeedBlocked.RemoveWhere(pair => pair.GetCoupler1() == coupler || pair.GetCoupler2() == coupler);
 
             Main.DebugLog(() => $"CleanupOldRecords: removed {toRemove.Count} of {toRemove.Count + recentlyUncoupled.Count} record(s) for coupler {coupler.train.ID}");
         }
@@ -404,6 +458,7 @@ namespace DvMod.ZCouplers.Core.Utils
             int recordCount = recentlyUncoupled.Count;
             recentlyUncoupled.Clear();
             blockedPairs.Clear();
+            overspeedBlocked.Clear();
 
             if (recordCount > 0)
             {

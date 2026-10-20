@@ -96,6 +96,7 @@ namespace DvMod.ZCouplers
 		public float KnuckleStrength { get; set; }
 		public float DrawgearSpringRate { get; set; }
 		public float DrawgearDamperRate { get; set; }
+		public float SafeCouplingSpeed { get; set; }
 		public bool ShowBuffersWithKnuckles { get; set; }
 		public float AutoCoupleThreshold { get; set; }
 		public float MinimumSeparationDistance { get; set; }
