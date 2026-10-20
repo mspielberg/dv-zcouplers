@@ -153,6 +153,7 @@ public static class Main
             KnuckleCouplers.Cleanup();
             JointManager.Cleanup();
             HookManager.Cleanup();
+            GadgetAnchorFollower.Cleanup();
             LAPLinkManager.Cleanup();
             AssetManager.Cleanup();
 

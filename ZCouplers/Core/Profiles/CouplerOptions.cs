@@ -30,6 +30,10 @@ namespace DvMod.ZCouplers.Core.Profiles
         public string HookClosedChildName { get; set; } = "hook_closed";
         public string HookOpenChildName { get; set; } = "hook_open";
 
+        /// Name of the empty GameObject inside the closed and open prefabs that the vanilla gadget snap point
+        /// follows. When the active hook has no such child, the snap point stays at its vanilla position.
+        public string? GadgetAnchorChildName { get; set; } = "GadgetAnchor";
+
         /// Whether this coupler has distinct open/closed prefabs.
         public bool HasOpenVariant { get; set; } = true;
 
