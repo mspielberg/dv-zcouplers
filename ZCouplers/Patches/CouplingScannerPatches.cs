@@ -93,6 +93,29 @@ namespace DvMod.ZCouplers.Patches
         }
 
         /// <summary>
+        /// Couple a just-readied coupler to the one its scanner is paired with when the two are already
+        /// within the profile's slack range.
+        /// </summary>
+        public static void CoupleIfInReach(Coupler coupler)
+        {
+            if (coupler == null || coupler.IsCoupled() || MpShim.IsClientActive)
+                return;
+
+            var nearbyScanner = GetScanner(coupler)?.nearbyScanner;
+            var otherCoupler = nearbyScanner != null ? CouplerScannerMasterCoroPatch.GetCoupler(nearbyScanner) : null;
+            if (otherCoupler == null || otherCoupler.IsCoupled())
+                return;
+
+            var reach = (Main.settings.couplerProfile?.Options.Slack ?? 0.02f) + Main.settings.autoCoupleThreshold * 1e-3f;
+            var distance = Vector3.Distance(coupler.transform.position, otherCoupler.transform.position);
+            if (distance > reach)
+                return;
+
+            Main.DebugLog(() => $"{coupler.train.ID} {coupler.Position()}: readied in reach of {otherCoupler.train.ID} {otherCoupler.Position()} ({distance:F3} m, reach {reach:F3} m), coupling");
+            CouplerScannerMasterCoroPatch.TryCouple(coupler);
+        }
+
+        /// <summary>
         /// Patches for coupling scanner behavior.
         /// </summary>
         [HarmonyPatch(typeof(Coupler), nameof(Coupler.AutoCouple))]
@@ -174,7 +197,7 @@ namespace DvMod.ZCouplers.Patches
                 return false;
             }
 
-            private static Coupler? GetCoupler(CouplingScanner scanner)
+            internal static Coupler? GetCoupler(CouplingScanner scanner)
             {
                 try
                 {
@@ -194,7 +217,7 @@ namespace DvMod.ZCouplers.Patches
                 }
             }
 
-            private static void TryCouple(Coupler coupler, float impactSpeed = 0f)
+            internal static void TryCouple(Coupler coupler, float impactSpeed = 0f)
             {
                 if (coupler.IsCoupled() || coupler.train.derailed)
                     return;
