@@ -1,4 +1,5 @@
 using DvMod.ZCouplers.Core.Helpers;
+using DvMod.ZCouplers.Core.Profiles;
 using DvMod.ZCouplers.Visuals;
 
 namespace DvMod.ZCouplers.Core.Utils
@@ -20,10 +21,27 @@ namespace DvMod.ZCouplers.Core.Utils
             return coupler != null && coupler.state != ChainCouplerInteraction.State.Parked;
         }
 
+        /// <summary>
+        /// A broken coupling leaves the angle cock open so the brake pipe vents. Profiles that hide the
+        /// hoses give the player no cock to close, so using the uncoupled coupler closes it instead.
+        /// </summary>
+        private static void CloseHiddenCock(Coupler coupler)
+        {
+            if (coupler.IsCoupled() || CouplerProfiles.Current?.Options.AlwaysHideAirHoses != true)
+                return;
+            if (coupler.hoseAndCock == null || !coupler.IsCockOpen)
+                return;
+
+            coupler.IsCockOpen = false;
+            Main.DebugLog(() => $"Closed hidden angle cock: {coupler.train.ID} {coupler.Position()}");
+        }
+
         public static void UnlockCoupler(Coupler coupler, bool viaChainInteraction)
         {
             if (coupler == null)
                 return;
+
+            CloseHiddenCock(coupler);
 
             // If already unlocked, nothing to do
             if (coupler.state == ChainCouplerInteraction.State.Parked)
@@ -46,6 +64,8 @@ namespace DvMod.ZCouplers.Core.Utils
         {
             if (coupler == null)
                 return;
+
+            CloseHiddenCock(coupler);
 
             Main.DebugLog(() => $"ReadyCoupler: {coupler.train.ID} {coupler.Position()}, state={coupler.state}");
             if (coupler.state != ChainCouplerInteraction.State.Parked)
