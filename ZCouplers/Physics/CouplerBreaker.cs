@@ -74,7 +74,7 @@ namespace DvMod.ZCouplers.Physics
                 if (coupler != null && coupler.IsCoupled())
                 {
                     Main.DebugLog(() => $"Force uncoupling {coupler.train?.ID} and {otherCoupler?.train?.ID} due to coupler break");
-                    coupler.Uncouple();
+                    BreakCoupling(coupler);
                     RecouplingPrevention.CleanupOldRecords(coupler);
                 }
             }
@@ -110,9 +110,18 @@ namespace DvMod.ZCouplers.Physics
                 return false;
 
             Main.DebugLog(() => $"Force uncoupling {coupler.train.ID} and {other.train.ID}: cars split apart (lateral={lateral:F2}m, yaw={yaw:F1}°)");
-            coupler.Uncouple();
+            BreakCoupling(coupler);
             RecouplingPrevention.CleanupOldRecords(coupler);
             return true;
+        }
+
+        /// <summary>
+        /// A plain Uncouple() is a manual uncoupling and closes both angle cocks. A broken coupling tears
+        /// the hoses apart with the cocks still open, so the brake pipe vents and the cars brake.
+        /// </summary>
+        private static void BreakCoupling(Coupler coupler)
+        {
+            coupler.Uncouple(playAudio: true, calledOnOtherCoupler: false, dueToBrokenCouple: true);
         }
 
         /// <summary>
