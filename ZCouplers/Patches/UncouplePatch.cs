@@ -73,13 +73,13 @@ public static class UncouplePatch
         Main.DebugLog(() => "Completed uncoupling cleanup for " + __instance.train.ID);
     }
 
-    public static void Postfix(Coupler __instance)
+    public static void Postfix(Coupler __instance, bool dueToBrokenCouple)
     {
         try
         {
             if (partnerCouplers.TryGetValue(__instance, out Coupler partner) && partner != null)
             {
-                AirSystemAutomation.TryAutoDisconnect(__instance, partner);
+                AirSystemAutomation.TryAutoDisconnect(__instance, partner, closeCocks: !dueToBrokenCouple);
                 AirSystemAutomation.TryAutoDisconnectMU(__instance, partner);
             }
         }

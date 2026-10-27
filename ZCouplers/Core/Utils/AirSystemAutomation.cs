@@ -40,8 +40,9 @@ namespace DvMod.ZCouplers.Core.Utils
 
         /// <summary>
         /// Disconnect air hoses using the game's Coupler API and close angle cocks on both couplers.
+        /// A broken coupling keeps its cocks open (<paramref name="closeCocks"/> false) so the brake pipe vents.
         /// </summary>
-        public static void TryAutoDisconnect(Coupler a, Coupler b)
+        public static void TryAutoDisconnect(Coupler a, Coupler b, bool closeCocks = true)
         {
             if (a == null || b == null)
                 return;
@@ -56,8 +57,11 @@ namespace DvMod.ZCouplers.Core.Utils
                 try { b.DisconnectAirHose(true); Main.DebugLog(() => "Invoked Coupler.DisconnectAirHose(bool) for Air (B)"); } catch { }
 
                 // Close both angle cocks when decoupling
-                try { if (a.IsCockOpen) a.IsCockOpen = false; } catch { }
-                try { if (b.IsCockOpen) b.IsCockOpen = false; } catch { }
+                if (closeCocks)
+                {
+                    try { if (a.IsCockOpen) a.IsCockOpen = false; } catch { }
+                    try { if (b.IsCockOpen) b.IsCockOpen = false; } catch { }
+                }
 
                 // Also disconnect MU/control cables if present
                 TryAutoDisconnectMU(a, b);
