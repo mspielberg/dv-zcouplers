@@ -20,6 +20,14 @@ namespace DvMod.ZCouplers.Physics
 
         private float PerFrameBreakChance = 0.5f;
 
+        // The joint leaves sideways motion free and the breaker only sees long-axis force, so a train
+        // split by a switch thrown under it never loads the joint. Beyond these, no curve or crossover
+        // can hold the coupler faces, so the pair is treated as torn apart.
+        private const float MaxLateralOffset = 1.5f;
+        private const float MaxYawDegrees = 45f;
+        private const int SplitFramesToBreak = 10;
+        private int splitFrames;
+
         public void FixedUpdate()
         {
             if (joint == null)
@@ -28,9 +36,13 @@ namespace DvMod.ZCouplers.Physics
                 return;
             }
 
+            var coupler = GetComponent<Coupler>();
+
+            if (coupler != null && CheckSplit(coupler))
+                return;
+
             // Couplers fail in draft. In buff the coupler faces are pushed together and the load goes
             // through the drawgear into the frame, so run-ins and hard couplings don't break them.
-            var coupler = GetComponent<Coupler>();
             var rawForce = coupler != null && IsInDraft(coupler) ? joint.currentForce.magnitude : 0f;
 
             var currentSpringRate = Main.settings.GetSpringRate();
@@ -66,6 +78,41 @@ namespace DvMod.ZCouplers.Physics
                     RecouplingPrevention.CleanupOldRecords(coupler);
                 }
             }
+        }
+
+        /// <summary>
+        /// Uncouples when the partner's face has drifted sideways or the cars have turned away from each
+        /// other for <see cref="SplitFramesToBreak"/> frames in a row. Returns true if it uncoupled.
+        /// </summary>
+        private bool CheckSplit(Coupler coupler)
+        {
+            var other = coupler.coupledTo;
+            if (other == null || coupler.train == null || other.train == null)
+            {
+                splitFrames = 0;
+                return false;
+            }
+
+            var carTransform = coupler.train.transform;
+            var lateral = Mathf.Abs(carTransform.InverseTransformDirection(other.transform.position - coupler.transform.position).x);
+            // Coupled cars can face either way, so only the angle between their long axes counts
+            var angle = Vector3.Angle(carTransform.forward, other.train.transform.forward);
+            var yaw = Mathf.Min(angle, 180f - angle);
+
+            var splitRatio = Mathf.Max(lateral / MaxLateralOffset, yaw / MaxYawDegrees);
+            if (splitRatio > 0.75f)
+            {
+                Main.DebugLog(() => $"[{coupler.train.ID}] Split from {other.train.ID}: lateral={lateral:F2}m, yaw={yaw:F1}° ({splitRatio:P0} of limit)");
+            }
+
+            splitFrames = splitRatio > 1f ? splitFrames + 1 : 0;
+            if (splitFrames < SplitFramesToBreak || !coupler.IsCoupled())
+                return false;
+
+            Main.DebugLog(() => $"Force uncoupling {coupler.train.ID} and {other.train.ID}: cars split apart (lateral={lateral:F2}m, yaw={yaw:F1}°)");
+            coupler.Uncouple();
+            RecouplingPrevention.CleanupOldRecords(coupler);
+            return true;
         }
 
         /// <summary>
