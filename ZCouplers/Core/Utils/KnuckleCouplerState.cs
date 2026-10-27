@@ -1,4 +1,5 @@
 using DvMod.ZCouplers.Core.Helpers;
+using DvMod.ZCouplers.Patches;
 using DvMod.ZCouplers.Core.Profiles;
 using DvMod.ZCouplers.Visuals;
 
@@ -88,6 +89,9 @@ namespace DvMod.ZCouplers.Core.Utils
 
             // Update visual state after changing the state
             HookManager.UpdateHookVisualStateFromCouplerState(coupler);
+
+            // Couple to a paired coupler if it's within the slack band of this profile
+            CouplingScannerPatches.CoupleIfInReach(coupler);
         }
 
         public static void SetCouplerLocked(Coupler coupler, bool locked)
