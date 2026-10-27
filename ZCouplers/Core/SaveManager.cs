@@ -31,6 +31,10 @@ namespace DvMod.ZCouplers.Core
             {
                 try
                 {
+                    // Other mods may return null to exclude a car from the save
+                    if (__result == null)
+                        return;
+
                     // Only save knuckle coupler data if knuckle couplers are enabled
                     if (car?.frontCoupler != null && car?.rearCoupler != null)
                     {
