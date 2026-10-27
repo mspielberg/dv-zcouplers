@@ -289,13 +289,13 @@ namespace DvMod.ZCouplers.Patches
                             // Use the game's native connection system and log the method used
                             try
                             {
-                                coupler.ConnectAirHose(otherCoupler, playAudio: true);
+                                AirSystemAutomation.ConnectAirHose(coupler, otherCoupler, playAudio: true);
                                 Main.DebugLog(() => $"Invoked Coupler.ConnectAirHose(Coupler, bool) for Air -> {coupler.train.ID} <-> {otherCoupler.train.ID}");
                             }
                             catch (System.MissingMethodException)
                             {
                                 // Fallback signature without named arg
-                                coupler.ConnectAirHose(otherCoupler, true);
+                                AirSystemAutomation.ConnectAirHose(coupler, otherCoupler, true);
                                 Main.DebugLog(() => $"Invoked Coupler.ConnectAirHose(Coupler, bool) [fallback] for Air -> {coupler.train.ID} <-> {otherCoupler.train.ID}");
                             }
                             catch (System.Exception ex)

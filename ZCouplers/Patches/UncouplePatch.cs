@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using DvMod.ZCouplers.Core;
 using DvMod.ZCouplers.Core.Helpers;
+using DvMod.ZCouplers.Core.Profiles;
 using DvMod.ZCouplers.Core.Utils;
 using DvMod.ZCouplers.Physics;
 using DvMod.ZCouplers.Visuals;
@@ -30,8 +31,18 @@ public static class UncouplePatch
         Main.DebugLog(() => "Updated visual state for uncoupled coupler: " + coupler.train.ID + " " + coupler.Position());
     }
 
+    /// <summary>
+    /// Coupler.OnDestroy uncouples again after car deletion has already uncoupled and cleaned up the car.
+    /// Its logicCar is gone by then and every ID read logs an error, so there is nothing left to do.
+    /// </summary>
+    private static bool IsDeletedAndUncoupled(Coupler coupler)
+        => coupler.train == null || (coupler.train.logicCar == null && !coupler.IsCoupled());
+
     public static void Prefix(Coupler __instance)
     {
+        if (IsDeletedAndUncoupled(__instance))
+            return;
+
         wasActuallyCoupled[__instance] = __instance.IsCoupled();
 
         Main.DebugLog(() => "Uncoupling " + __instance.train.ID + " from " + __instance.coupledTo?.train.ID + " (was coupled: " + wasActuallyCoupled[__instance] + ")");
@@ -73,13 +84,22 @@ public static class UncouplePatch
         Main.DebugLog(() => "Completed uncoupling cleanup for " + __instance.train.ID);
     }
 
-    public static void Postfix(Coupler __instance)
+    public static void Postfix(Coupler __instance, bool calledOnOtherCoupler, bool dueToBrokenCouple, bool viaChainInteraction)
     {
+        if (IsDeletedAndUncoupled(__instance))
+            return;
+
+        // Uncoupling a link and pin by hand pulls the pin on the clicked coupler, so that side ends unready
+        // and the partner keeps its pin in. Other profiles leave the clicked side ready.
+        var pinPulledHere = viaChainInteraction && !calledOnOtherCoupler && CouplerProfiles.Current?.ProfileId == "LAP";
+        var partnerState = pinPulledHere ? ChainCouplerInteraction.State.Dangling : ChainCouplerInteraction.State.Parked;
+        var ownStateIfWasCoupled = pinPulledHere ? ChainCouplerInteraction.State.Parked : ChainCouplerInteraction.State.Dangling;
+
         try
         {
             if (partnerCouplers.TryGetValue(__instance, out Coupler partner) && partner != null)
             {
-                AirSystemAutomation.TryAutoDisconnect(__instance, partner);
+                AirSystemAutomation.TryAutoDisconnect(__instance, partner, closeCocks: !dueToBrokenCouple);
                 AirSystemAutomation.TryAutoDisconnectMU(__instance, partner);
             }
         }
@@ -106,8 +126,8 @@ public static class UncouplePatch
 
             if (!partnerCoupler.IsCoupled())
             {
-                partnerCoupler.SetState(ChainCouplerInteraction.State.Parked);
-                Main.DebugLog(() => "Reset partner coupler state to Parked: " + partnerCoupler.train.ID + " " + partnerCoupler.Position());
+                partnerCoupler.SetState(partnerState);
+                Main.DebugLog(() => "Reset partner coupler state to " + partnerState + ": " + partnerCoupler.train.ID + " " + partnerCoupler.Position());
             }
 
             if (partnerCoupler.visualCoupler?.chainAdapter?.chainScript != null &&
@@ -123,8 +143,8 @@ public static class UncouplePatch
         {
             if (wasActuallyCoupled.TryGetValue(__instance, out bool wasCoupled) && wasCoupled)
             {
-                __instance.SetState(ChainCouplerInteraction.State.Dangling);
-                Main.DebugLog(() => "Reset coupler state to Dangling: " + __instance.train.ID);
+                __instance.SetState(ownStateIfWasCoupled);
+                Main.DebugLog(() => "Reset coupler state to " + ownStateIfWasCoupled + ": " + __instance.train.ID);
             }
             else
             {

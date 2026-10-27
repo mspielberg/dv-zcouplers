@@ -1,6 +1,7 @@
 using System;
 using System.Reflection;
 using DvMod.ZCouplers.Core.Helpers;
+using DvMod.ZCouplers.Visuals;
 
 namespace DvMod.ZCouplers.Core.Utils
 {
@@ -39,9 +40,29 @@ namespace DvMod.ZCouplers.Core.Utils
         }
 
         /// <summary>
-        /// Disconnect air hoses using the game's Coupler API and close angle cocks on both couplers.
+        /// Connect the brake pipes of two couplers. Coupler.ConnectAirHose also connects the hose visuals,
+        /// whose rope throws when its rig sits under deactivated "hoses", so hidden hoses connect only the
+        /// brake system.
         /// </summary>
-        public static void TryAutoDisconnect(Coupler a, Coupler b)
+        public static void ConnectAirHose(Coupler a, Coupler b, bool playAudio)
+        {
+            if (HookManager.AreAirHosesHidden(a.train) || HookManager.AreAirHosesHidden(b.train))
+            {
+                if (a.hoseAndCock.IsHoseConnected)
+                    return;
+                a.hoseAndCock.Connect(b.hoseAndCock);
+                Main.DebugLog(() => $"Connected brake pipe without hose visuals: {a.train.ID} <-> {b.train.ID}");
+                return;
+            }
+
+            a.ConnectAirHose(b, playAudio);
+        }
+
+        /// <summary>
+        /// Disconnect air hoses using the game's Coupler API and close angle cocks on both couplers.
+        /// A broken coupling keeps its cocks open (<paramref name="closeCocks"/> false) so the brake pipe vents.
+        /// </summary>
+        public static void TryAutoDisconnect(Coupler a, Coupler b, bool closeCocks = true)
         {
             if (a == null || b == null)
                 return;
@@ -56,8 +77,11 @@ namespace DvMod.ZCouplers.Core.Utils
                 try { b.DisconnectAirHose(true); Main.DebugLog(() => "Invoked Coupler.DisconnectAirHose(bool) for Air (B)"); } catch { }
 
                 // Close both angle cocks when decoupling
-                try { if (a.IsCockOpen) a.IsCockOpen = false; } catch { }
-                try { if (b.IsCockOpen) b.IsCockOpen = false; } catch { }
+                if (closeCocks)
+                {
+                    try { if (a.IsCockOpen) a.IsCockOpen = false; } catch { }
+                    try { if (b.IsCockOpen) b.IsCockOpen = false; } catch { }
+                }
 
                 // Also disconnect MU/control cables if present
                 TryAutoDisconnectMU(a, b);
