@@ -30,8 +30,18 @@ public static class UncouplePatch
         Main.DebugLog(() => "Updated visual state for uncoupled coupler: " + coupler.train.ID + " " + coupler.Position());
     }
 
+    /// <summary>
+    /// Coupler.OnDestroy uncouples again after car deletion has already uncoupled and cleaned up the car.
+    /// Its logicCar is gone by then and every ID read logs an error, so there is nothing left to do.
+    /// </summary>
+    private static bool IsDeletedAndUncoupled(Coupler coupler)
+        => coupler.train == null || (coupler.train.logicCar == null && !coupler.IsCoupled());
+
     public static void Prefix(Coupler __instance)
     {
+        if (IsDeletedAndUncoupled(__instance))
+            return;
+
         wasActuallyCoupled[__instance] = __instance.IsCoupled();
 
         Main.DebugLog(() => "Uncoupling " + __instance.train.ID + " from " + __instance.coupledTo?.train.ID + " (was coupled: " + wasActuallyCoupled[__instance] + ")");
@@ -75,6 +85,9 @@ public static class UncouplePatch
 
     public static void Postfix(Coupler __instance, bool dueToBrokenCouple)
     {
+        if (IsDeletedAndUncoupled(__instance))
+            return;
+
         try
         {
             if (partnerCouplers.TryGetValue(__instance, out Coupler partner) && partner != null)
