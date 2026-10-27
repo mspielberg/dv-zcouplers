@@ -226,6 +226,25 @@ namespace DvMod.ZCouplers.Visuals
         }
 
         /// <summary>
+        /// Whether this car's hose visuals were deactivated by <see cref="ToggleAirHoseVisibility"/>. Keyed on
+        /// its GameObjHider, not on the active flag, so the game's distance culling never counts as hidden.
+        /// </summary>
+        public static bool AreAirHosesHidden(TrainCar? car)
+        {
+            var interior = car?.interior;
+            if (interior == null)
+                return false;
+
+            for (int i = 0; i < interior.childCount; i++)
+            {
+                var child = interior.GetChild(i);
+                if (child != null && child.name == "hoses" && child.GetComponent<GameObjHider>() != null)
+                    return true;
+            }
+            return false;
+        }
+
+        /// <summary>
         /// Toggle air hose visibility.
         /// </summary>
         private static void ToggleAirHoseVisibility(Coupler coupler, bool visible)

@@ -1,6 +1,7 @@
 using System;
 using System.Reflection;
 using DvMod.ZCouplers.Core.Helpers;
+using DvMod.ZCouplers.Visuals;
 
 namespace DvMod.ZCouplers.Core.Utils
 {
@@ -36,6 +37,25 @@ namespace DvMod.ZCouplers.Core.Utils
             }
             catch { }
             return false;
+        }
+
+        /// <summary>
+        /// Connect the brake pipes of two couplers. Coupler.ConnectAirHose also connects the hose visuals,
+        /// whose rope throws when its rig sits under deactivated "hoses", so hidden hoses connect only the
+        /// brake system.
+        /// </summary>
+        public static void ConnectAirHose(Coupler a, Coupler b, bool playAudio)
+        {
+            if (HookManager.AreAirHosesHidden(a.train) || HookManager.AreAirHosesHidden(b.train))
+            {
+                if (a.hoseAndCock.IsHoseConnected)
+                    return;
+                a.hoseAndCock.Connect(b.hoseAndCock);
+                Main.DebugLog(() => $"Connected brake pipe without hose visuals: {a.train.ID} <-> {b.train.ID}");
+                return;
+            }
+
+            a.ConnectAirHose(b, playAudio);
         }
 
         /// <summary>

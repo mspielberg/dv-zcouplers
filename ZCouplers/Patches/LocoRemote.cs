@@ -39,7 +39,7 @@ namespace DvMod.ZCouplers.Patches
 				{
 					try
 					{
-						coupler.ConnectAirHose(partner, true);
+						AirSystemAutomation.ConnectAirHose(coupler, partner, true);
 						Main.DebugLog(() => $"Invoked Coupler.ConnectAirHose(Coupler, bool) for Air via Remote -> {coupler.train.ID} <-> {partner.train.ID}");
 					}
 					catch (System.Exception ex)
