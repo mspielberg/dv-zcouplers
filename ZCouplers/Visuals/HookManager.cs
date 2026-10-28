@@ -21,6 +21,10 @@ namespace DvMod.ZCouplers.Visuals
         private const float PivotLength = 1.0f;
         private const float HeightOffset = -0.067f;
 
+        // Same as DV's own button debounce threshold
+        private const float PressDebounceSeconds = 0.5f;
+        private static readonly Dictionary<ChainCouplerInteraction, float> lastPressTimes = [];
+
         public static InteractionInfoType KnuckleCouplerReady = (InteractionInfoType)23000;
         public static InteractionInfoType KnuckleCouplerUnlocked = (InteractionInfoType)23001;
         public static InteractionInfoType KnuckleCouplerCoupled = (InteractionInfoType)23002;
@@ -38,8 +42,9 @@ namespace DvMod.ZCouplers.Visuals
                     UnityEngine.Object.Destroy(pivot.gameObject);
             }
 
-            // Clear tracking dictionary
+            // Clear tracking dictionaries
             pivots.Clear();
+            lastPressTimes.Clear();
         }
 
         /// <summary>
@@ -934,7 +939,26 @@ namespace DvMod.ZCouplers.Visuals
                 GameObject.Destroy(hook);
                 return;
             }
-            buttonBase.Used += () => OnButtonPressed(chainScript);
+            buttonBase.Used += () => OnButtonUsed(chainScript);
+        }
+
+        /// <summary>
+        /// Debounce a use within PressDebounceSeconds of the coupler's last one.
+        /// </summary>
+        private static void OnButtonUsed(ChainCouplerInteraction chainScript)
+        {
+            if (chainScript == null)
+                return;
+
+            var now = Time.unscaledTime;
+            if (lastPressTimes.TryGetValue(chainScript, out var last) && now - last < PressDebounceSeconds)
+            {
+                Main.DebugLog(() => $"Debounced coupler use {now - last:F2} s after the last one: {chainScript.couplerAdapter?.coupler?.train.ID} {chainScript.couplerAdapter?.coupler?.Position()}");
+                return;
+            }
+            lastPressTimes[chainScript] = now;
+
+            OnButtonPressed(chainScript);
         }
 
         public static void DestroyHook(ChainCouplerInteraction chainScript)
@@ -948,6 +972,7 @@ namespace DvMod.ZCouplers.Visuals
                 GameObject.Destroy(pivot.gameObject);
                 pivots.Remove(chainScript);
             }
+            lastPressTimes.Remove(chainScript);
 
             // Remove the visual updater component if it exists
             var visualUpdater = chainScript.gameObject.GetComponent<CouplerVisualUpdater>();
